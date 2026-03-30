@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Precision Editorial - Advanced Editor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed": "#001b3d",
+                        "tertiary-fixed": "#ffdeac",
+                        "background": "#f8f9fa",
+                        "on-secondary-container": "#495b81",
+                        "on-primary-fixed-variant": "#244779",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f3f4f5",
+                        "surface-container": "#edeeef",
+                        "on-surface": "#191c1d",
+                        "on-secondary-fixed": "#051b3c",
+                        "on-tertiary-fixed-variant": "#604100",
+                        "surface-variant": "#e1e3e4",
+                        "primary-fixed": "#d6e3ff",
+                        "primary-container": "#002d5e",
+                        "primary-fixed-dim": "#a9c7ff",
+                        "outline": "#747780",
+                        "on-tertiary-fixed": "#281900",
+                        "outline-variant": "#c3c6d0",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed-variant": "#34476a",
+                        "surface": "#f8f9fa",
+                        "on-primary-container": "#7696cd",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary": "#4c5e84",
+                        "secondary-fixed-dim": "#b4c6f1",
+                        "inverse-primary": "#a9c7ff",
+                        "on-surface-variant": "#43474f",
+                        "tertiary-container": "#402a00",
+                        "surface-bright": "#f8f9fa",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#c68a00",
+                        "on-primary": "#ffffff",
+                        "on-background": "#191c1d",
+                        "surface-container-high": "#e7e8e9",
+                        "tertiary": "#251700",
+                        "inverse-surface": "#2e3132",
+                        "on-secondary": "#ffffff",
+                        "primary": "#001939",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#c2d4ff",
+                        "surface-tint": "#3e5f92",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "tertiary-fixed-dim": "#ffba38",
+                        "secondary-fixed": "#d8e2ff"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c3c6d0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body overflow-hidden">
+<!-- Global Layout Wrapper -->
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar (Shared Component) -->
+<nav class="hidden md:flex flex-col h-full py-6 pl-4 bg-[#f3f4f5] dark:bg-[#002d5e] w-64 left-0 top-0 fixed font-['Inter'] text-sm font-medium text-[#001939] dark:text-[#ffffff] transition-transform duration-300 ease-in-out">
+<!-- Header Identity -->
+<div class="mb-8 px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">Lead Stenographer</p>
+<p class="text-xs text-on-surface-variant">District Court</p>
+</div>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<div class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-[#ffffff] dark:bg-[#001939] text-[#001939] dark:text-[#ffffff] rounded-l-lg shadow-sm" href="#">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span>Editor</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#43474f] dark:text-[#c3c6d0] hover:bg-[#e7e8e9] dark:hover:bg-[#191c1d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span>Case Files</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#43474f] dark:text-[#c3c6d0] hover:bg-[#e7e8e9] dark:hover:bg-[#191c1d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="slow_motion_video">slow_motion_video</span>
+<span>Audio Sync</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#43474f] dark:text-[#c3c6d0] hover:bg-[#e7e8e9] dark:hover:bg-[#191c1d] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</div>
+<!-- CTA & Footer -->
+<div class="mt-auto pr-4 space-y-4">
+<button class="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-md font-bold text-xs uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-95 transition-all">
+                    Upgrade Plan
+                </button>
+<a class="flex items-center gap-3 px-4 py-3 text-[#43474f] dark:text-[#c3c6d0] hover:text-[#001939] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Help Center</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:ml-64 relative bg-surface">
+<!-- Top Header (Contextual Utility Bar) -->
+<header class="flex justify-between items-center w-full px-8 py-4 max-w-[1440px] mx-auto bg-surface z-10">
+<div class="flex items-center gap-4">
+<h1 class="text-xl font-['Manrope'] font-black text-primary uppercase tracking-tight">Lexicon Precision</h1>
+<div class="h-4 w-[1px] bg-outline-variant/30"></div>
+<span class="text-sm font-medium text-on-surface-variant">Case #882-J: Miller vs. Apex Corp</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 text-primary font-bold text-sm hover:underline decoration-tertiary-fixed-dim decoration-2 transition-all">
+                        Download
+                    </button>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-md font-bold text-sm flex items-center gap-2 hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="ios_share">ios_share</span>
+                        Export
+                    </button>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<!-- Editor Canvas -->
+<section class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-low px-12 py-10">
+<div class="max-w-3xl mx-auto bg-surface-container-lowest p-16 shadow-sm min-h-full">
+<div class="space-y-10 font-mono text-[15px] leading-relaxed text-on-surface">
+<!-- Transcript Entry 1 -->
+<div class="group">
+<div class="flex items-baseline justify-between mb-2">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">MR. HENDERSON</span>
+<span class="text-[10px] text-on-surface-variant/60">00:12:45</span>
+</div>
+<p class="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors">
+                                    Please state for the record your name and occupation. We are proceeding with the <span class="border-b-2 border-tertiary-fixed-dim">deposition</span> regarding the events of October 14th.
+                                </p>
+</div>
+<!-- Transcript Entry 2 -->
+<div class="group">
+<div class="flex items-baseline justify-between mb-2">
+<span class="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">MS. MILLER</span>
+<span class="text-[10px] text-on-surface-variant/60">00:13:02</span>
+</div>
+<p class="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors">
+                                    My name is Sarah Miller. I served as the <span class="ring-2 ring-error ring-offset-2 rounded-sm px-1">pincipal</span> auditor for the firm. I was present during the initial audit of the offshore accounts.
+                                </p>
+</div>
+<!-- Transcript Entry 3 -->
+<div class="group">
+<div class="flex items-baseline justify-between mb-2">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">MR. HENDERSON</span>
+<span class="text-[10px] text-on-surface-variant/60">00:13:15</span>
+</div>
+<p class="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors">
+                                    And at that time, did you observe any <span class="border-b-2 border-tertiary-fixed-dim">iregularities</span> in the ledger entries for the fourth quarter?
+                                </p>
+</div>
+<!-- Transcript Entry 4 -->
+<div class="group">
+<div class="flex items-baseline justify-between mb-2">
+<span class="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">MS. MILLER</span>
+<span class="text-[10px] text-on-surface-variant/60">00:13:28</span>
+</div>
+<p class="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors">
+                                    Yes. There were several entries that lacked supporting documentation. We flagged these as <span class="ring-2 ring-error ring-offset-2 rounded-sm px-1">high-risk</span> transactions under the <span class="border-b-2 border-tertiary-fixed-dim">Statute of Limitats</span>.
+                                </p>
+</div>
+<!-- Decorative Placeholder for Length -->
+<div class="group opacity-40">
+<div class="flex items-baseline justify-between mb-2">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">MR. HENDERSON</span>
+<span class="text-[10px] text-on-surface-variant/60">00:13:45</span>
+</div>
+<p class="pl-2">
+                                    Can you elaborate on the specific nature of these flags? Were they automated or manual interventions?
+                                </p>
+</div>
+</div>
+</div>
+</section>
+<!-- Insights Sidebar -->
+<aside class="w-80 bg-surface border-l border-outline-variant/15 flex flex-col">
+<div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-headline font-bold text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary-fixed-dim" data-icon="auto_awesome">auto_awesome</span>
+                                Insights
+                            </h2>
+<span class="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">4 NEW</span>
+</div>
+<div class="space-y-4">
+<!-- Suggestion 1: Error -->
+<div class="bg-error-container/30 p-4 rounded-lg border-l-4 border-error">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-error uppercase">Critical Error</span>
+<button class="text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-sm" data-icon="close">close</span>
+</button>
+</div>
+<p class="text-sm font-medium mb-3">Found "pincipal" - likely "principal".</p>
+<div class="flex gap-2">
+<button class="flex-1 bg-on-error text-error text-xs font-bold py-2 rounded border border-error/20 hover:bg-error-container transition-colors">principal</button>
+<button class="px-2 py-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded">
+<span class="material-symbols-outlined text-sm" data-icon="search">search</span>
+</button>
+</div>
+</div>
+<!-- Suggestion 2: Low Confidence -->
+<div class="bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-on-tertiary-container uppercase">Low Confidence</span>
+</div>
+<p class="text-sm font-medium mb-3">Found "iregularities" - likely "irregularities".</p>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-lowest text-on-surface text-xs font-bold py-2 rounded hover:shadow-sm transition-all">irregularities</button>
+</div>
+</div>
+<!-- Suggestion 3: Context Warning -->
+<div class="bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-on-tertiary-container uppercase">Legal Context</span>
+</div>
+<p class="text-sm font-medium mb-3">"Statute of Limitats" - verify against local legal code.</p>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-lowest text-on-surface text-xs font-bold py-2 rounded hover:shadow-sm transition-all">Statute of Limitations</button>
+</div>
+</div>
+<!-- Suggestion 4: Formatting -->
+<div class="bg-error-container/30 p-4 rounded-lg border-l-4 border-error">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-error uppercase">Critical Error</span>
+</div>
+<p class="text-sm font-medium mb-3">"high-risk" - mismatched audio frequency detected.</p>
+<div class="flex gap-2">
+<button class="flex-1 bg-on-error text-error text-xs font-bold py-2 rounded border border-error/20">high risk</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar Footer -->
+<div class="p-6 bg-surface-container-low">
+<button class="w-full bg-primary text-on-primary py-3 rounded-md font-bold text-sm shadow-lg hover:bg-primary-container active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" data-icon="done_all">done_all</span>
+                            Confirm all
+                        </button>
+<p class="text-[10px] text-center mt-4 text-on-surface-variant uppercase tracking-widest font-medium">94% Transcription Accuracy</p>
+</div>
+</aside>
+</div>
+<!-- Floating Audio Control Bar (Glassmorphism) -->
+<div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[600px] h-16 bg-surface-container-lowest/80 backdrop-blur-xl rounded-full border border-outline-variant/15 shadow-2xl flex items-center px-8 gap-6 z-20">
+<button class="text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="replay_10">replay_10</span>
+</button>
+<button class="w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="play_arrow" data-weight="fill" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+<button class="text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="forward_10">forward_10</span>
+</button>
+<div class="flex-1 h-1.5 bg-outline-variant/30 rounded-full relative">
+<div class="absolute left-0 top-0 h-full w-1/3 bg-primary rounded-full"></div>
+<div class="absolute left-1/3 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow-lg border-2 border-surface-container-lowest"></div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-bold text-on-surface font-mono">00:13:28</span>
+<button class="text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="speed">speed</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+<!-- Mobile Navigation (Bottom Bar) -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-surface shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex justify-around py-3 px-6 z-50">
+<a class="flex flex-col items-center text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span class="text-[10px] mt-1 font-bold">Editor</span>
+</a>
+<a class="flex flex-col items-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="text-[10px] mt-1">Files</span>
+</a>
+<a class="flex flex-col items-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="slow_motion_video">slow_motion_video</span>
+<span class="text-[10px] mt-1">Audio</span>
+</a>
+<a class="flex flex-col items-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px] mt-1">Settings</span>
+</a>
+</nav>
+<!-- Invisible background context for visual depth -->
+<div class="fixed inset-0 pointer-events-none -z-10 opacity-5">
+<div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary rounded-full blur-[100px]"></div>
+<div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary-container rounded-full blur-[100px]"></div>
+</div>
+</body></html>
