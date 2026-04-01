@@ -7,9 +7,11 @@ import OurPlatformExport from './pages/OurPlatformExport'
 import AboutUs from './pages/AboutUs'
 import PageTransition from './components/PageTransition'
 import SiteHeader from './components/SiteHeader'
+import { AuthProvider } from './context/AuthContext'
 
 export default function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       {/* Header sits outside the transition so it never animates */}
       <SiteHeader />
@@ -26,5 +28,6 @@ export default function App() {
         </Routes>
       </PageTransition>
     </BrowserRouter>
+    </AuthProvider>
   )
 }

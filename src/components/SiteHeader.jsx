@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const navLinkClass = ({ isActive }) =>
   isActive
@@ -6,9 +7,13 @@ const navLinkClass = ({ isActive }) =>
     : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200'
 
 export default function SiteHeader() {
+  const { isAuthenticated, login } = useAuth()
+
   return (
     <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
       <div className="flex justify-between items-center w-full px-8 h-[65px]">
+
+        {/* Left — logo + nav links */}
         <div className="flex items-center gap-8">
           <Link
             to="/"
@@ -22,24 +27,45 @@ export default function SiteHeader() {
             <NavLink to="/aboutus" className={navLinkClass}>About Us</NavLink>
           </div>
         </div>
+
+        {/* Right — auth-aware controls */}
         <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center bg-surface-container-lowest px-4 py-2 rounded-md">
-            <span className="material-symbols-outlined text-outline text-sm">search</span>
-            <input
-              className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2"
-              placeholder="Search files..."
-              type="text"
-            />
-          </div>
-          <Link
-            to="/ourplatform"
-            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
-          >
-            New Upload
-          </Link>
+
+          {/* Search bar — authenticated only */}
+          {isAuthenticated && (
+            <div className="hidden lg:flex items-center bg-surface-container-lowest px-4 py-2 rounded-md">
+              <span className="material-symbols-outlined text-outline text-sm">search</span>
+              <input
+                className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2"
+                placeholder="Search files..."
+                type="text"
+              />
+            </div>
+          )}
+
+          {/* Primary action button */}
+          {isAuthenticated ? (
+            <Link
+              to="/ourplatform"
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
+            >
+              New Upload
+            </Link>
+          ) : (
+            <button
+              onClick={login}
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
+            >
+              Sign Up
+            </button>
+          )}
+
+          {/* Icons — always visible */}
           <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">notifications</span>
           <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">account_circle</span>
+
         </div>
+
       </div>
       <div className="bg-surface-container-low h-[1px] w-full" />
     </nav>
