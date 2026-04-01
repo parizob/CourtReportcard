@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-export default function SignInModal({ onClose }) {
+export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const { login } = useAuth()
-  const [tab, setTab] = useState('signin') // 'signin' | 'signup'
+  const [tab, setTab] = useState(initialTab) // 'signin' | 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')

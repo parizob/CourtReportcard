@@ -11,6 +11,9 @@ const navLinkClass = ({ isActive }) =>
 export default function SiteHeader() {
   const { isAuthenticated } = useAuth()
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalTab, setModalTab] = useState('signin')
+
+  const openModal = (tab) => { setModalTab(tab); setModalOpen(true) }
 
   return (
     <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
@@ -56,7 +59,7 @@ export default function SiteHeader() {
             </Link>
           ) : (
             <button
-              onClick={() => setModalOpen(true)}
+              onClick={() => openModal('signup')}
               className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
             >
               Sign Up
@@ -66,7 +69,7 @@ export default function SiteHeader() {
           {/* Icons — always visible */}
           <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">notifications</span>
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => openModal('signin')}
             className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
           >
             account_circle
@@ -77,7 +80,7 @@ export default function SiteHeader() {
       </div>
       <div className="bg-surface-container-low h-[1px] w-full" />
 
-      {modalOpen && <SignInModal onClose={() => setModalOpen(false)} />}
+      {modalOpen && <SignInModal initialTab={modalTab} onClose={() => setModalOpen(false)} />}
     </nav>
   )
 }
