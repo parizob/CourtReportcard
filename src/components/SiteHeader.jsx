@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import SignInModal from './SignInModal'
 
 const navLinkClass = ({ isActive }) =>
   isActive
@@ -7,7 +9,8 @@ const navLinkClass = ({ isActive }) =>
     : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200'
 
 export default function SiteHeader() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated } = useAuth()
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
@@ -53,7 +56,7 @@ export default function SiteHeader() {
             </Link>
           ) : (
             <button
-              onClick={login}
+              onClick={() => setModalOpen(true)}
               className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
             >
               Sign Up
@@ -62,12 +65,19 @@ export default function SiteHeader() {
 
           {/* Icons — always visible */}
           <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">notifications</span>
-          <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">account_circle</span>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
+          >
+            account_circle
+          </button>
 
         </div>
 
       </div>
       <div className="bg-surface-container-low h-[1px] w-full" />
+
+      {modalOpen && <SignInModal onClose={() => setModalOpen(false)} />}
     </nav>
   )
 }
