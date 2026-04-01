@@ -85,12 +85,16 @@ export default function AboutUs() {
 
               {/* 6 squares, each 45° apart (2.5s delay per step in a 20s cycle) */}
               {[
-                { delay: '0s',     colors: '#ffba38, #a9c7ff, #001939, #4c5e84, #ffba38', opacity: 1    },
-                { delay: '-2.5s',  colors: '#a9c7ff, #001939, #4c5e84, #ffba38, #a9c7ff', opacity: 0.92 },
-                { delay: '-5s',    colors: '#001939, #4c5e84, #ffba38, #a9c7ff, #001939', opacity: 0.85 },
-                { delay: '-7.5s',  colors: '#4c5e84, #ffba38, #a9c7ff, #001939, #4c5e84', opacity: 0.78 },
-                { delay: '-10s',   colors: '#ffba38, #001939, #a9c7ff, #4c5e84, #ffba38', opacity: 0.72 },
-                { delay: '-12.5s', colors: '#001939, #a9c7ff, #4c5e84, #ffba38, #001939', opacity: 0.65 },
+                { delay: '0s',   colors: '#ffba38, #a9c7ff, #001939, #4c5e84, #ffba38', opacity: 1    },
+                { delay: '-2s',  colors: '#a9c7ff, #001939, #4c5e84, #ffba38, #a9c7ff', opacity: 0.93 },
+                { delay: '-4s',  colors: '#001939, #4c5e84, #ffba38, #a9c7ff, #001939', opacity: 0.87 },
+                { delay: '-6s',  colors: '#4c5e84, #ffba38, #a9c7ff, #001939, #4c5e84', opacity: 0.81 },
+                { delay: '-8s',  colors: '#ffba38, #001939, #a9c7ff, #4c5e84, #ffba38', opacity: 0.76 },
+                { delay: '-10s', colors: '#001939, #a9c7ff, #4c5e84, #ffba38, #001939', opacity: 0.71 },
+                { delay: '-12s', colors: '#a9c7ff, #4c5e84, #ffba38, #001939, #a9c7ff', opacity: 0.66 },
+                { delay: '-14s', colors: '#4c5e84, #001939, #a9c7ff, #ffba38, #4c5e84', opacity: 0.61 },
+                { delay: '-16s', colors: '#ffba38, #4c5e84, #001939, #a9c7ff, #ffba38', opacity: 0.57 },
+                { delay: '-18s', colors: '#001939, #ffba38, #a9c7ff, #4c5e84, #001939', opacity: 0.53 },
               ].map((sq, i) => (
                 <div
                   key={i}
