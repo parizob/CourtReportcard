@@ -41,3 +41,12 @@
 .page-rise {
   animation: pageRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+@keyframes slowSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin-very-slow {
+  animation: slowSpin 20s linear infinite;
+}

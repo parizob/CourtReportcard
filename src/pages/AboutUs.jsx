@@ -82,39 +82,41 @@ export default function AboutUs() {
             </p>
           </div>
 
-          {/* Right — gavel with racing lights */}
+          {/* Right — gavel with spinning squares */}
           <div className="flex items-center justify-center">
-            {/* Outer rotating gradient — creates the "racing beam" border */}
-            <div className="relative w-72 h-72 flex items-center justify-center">
-              {/* Spinning beam layer */}
-              <div
-                className="absolute inset-0 rounded-[2.5rem] animate-spin-slow"
-                style={{
-                  background: 'conic-gradient(from 0deg, transparent 0%, transparent 55%, #ffba38 68%, #a9c7ff 76%, #001939 82%, #ffba38 88%, transparent 100%)',
-                  padding: '3px',
-                }}
-              />
-              {/* Second counter beam for depth */}
-              <div
-                className="absolute inset-0 rounded-[2.5rem] animate-spin-medium"
-                style={{
-                  background: 'conic-gradient(from 180deg, transparent 0%, transparent 70%, #4c5e84 80%, #ffba38 88%, transparent 100%)',
-                  padding: '3px',
-                  opacity: 0.6,
-                }}
-              />
-              {/* Glow ring */}
-              <div className="absolute inset-[3px] rounded-[2.25rem] bg-surface-container-lowest shadow-[0_0_40px_rgba(169,199,255,0.25),0_0_80px_rgba(255,186,56,0.12)]" />
-              {/* Icon */}
-              <div className="relative z-10 flex flex-col items-center gap-3">
-                <span
-                  className="material-symbols-outlined text-primary"
-                  style={{ fontSize: '110px', fontVariationSettings: "'FILL' 1, 'wght' 200, 'GRAD' 0, 'opsz' 48" }}
-                >
-                  gavel
-                </span>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Built for the Courtroom</p>
-              </div>
+            <div className="relative w-80 h-80 flex items-center justify-center">
+
+              {/* 6 squares, each 45° apart (2.5s delay per step in a 20s cycle) */}
+              {[
+                { delay: '0s',     colors: '#ffba38, #a9c7ff, #001939, #4c5e84, #ffba38', opacity: 1    },
+                { delay: '-2.5s',  colors: '#a9c7ff, #001939, #4c5e84, #ffba38, #a9c7ff', opacity: 0.92 },
+                { delay: '-5s',    colors: '#001939, #4c5e84, #ffba38, #a9c7ff, #001939', opacity: 0.85 },
+                { delay: '-7.5s',  colors: '#4c5e84, #ffba38, #a9c7ff, #001939, #4c5e84', opacity: 0.78 },
+                { delay: '-10s',   colors: '#ffba38, #001939, #a9c7ff, #4c5e84, #ffba38', opacity: 0.72 },
+                { delay: '-12.5s', colors: '#001939, #a9c7ff, #4c5e84, #ffba38, #001939', opacity: 0.65 },
+              ].map((sq, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 rounded-[0.75rem] spin-very-slow"
+                  style={{
+                    background: `conic-gradient(from 0deg, ${sq.colors})`,
+                    animationDelay: sq.delay,
+                    opacity: sq.opacity,
+                  }}
+                />
+              ))}
+
+              {/* Dark navy backing square to make gavel pop */}
+              <div className="absolute w-36 h-36 rounded-2xl bg-primary z-[5] shadow-[0_0_32px_rgba(0,25,57,0.6)]" />
+
+              {/* Gavel icon */}
+              <span
+                className="relative z-10 material-symbols-outlined text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.5)]"
+                style={{ fontSize: '110px', fontVariationSettings: "'FILL' 1, 'wght' 200, 'GRAD' 0, 'opsz' 48" }}
+              >
+                gavel
+              </span>
+
             </div>
           </div>
         </div>
