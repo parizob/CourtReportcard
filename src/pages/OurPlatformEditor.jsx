@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 
 export default function OurPlatformEditor() {
   const [accepted, setAccepted] = useState({})
+  const [ignored, setIgnored] = useState({})
 
   const acceptSuggestion = (key) => setAccepted((p) => ({ ...p, [key]: true }))
+  const ignoreSuggestion = (key) => setIgnored((p) => ({ ...p, [key]: true }))
 
   return (
     <main className="min-h-screen bg-background">
@@ -21,9 +23,10 @@ export default function OurPlatformEditor() {
           </div>
           <Link
             to="/ourplatform/export"
-            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4"
+            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary"
           >
-            Skip to Export <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            <span className="hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4">Skip to Export</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </div>
 
@@ -64,7 +67,7 @@ export default function OurPlatformEditor() {
                 </div>
                 <p className="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors cursor-pointer">
                   Please state for the record your name and occupation. We are proceeding with the{' '}
-                  <span className="border-b-2 border-tertiary-fixed-dim cursor-help" title="Low confidence — verify against audio">deposition</span>{' '}
+                  deposition{' '}
                   regarding the events of October 14th.
                 </p>
               </div>
@@ -111,7 +114,7 @@ export default function OurPlatformEditor() {
                 </div>
                 <p className="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors cursor-pointer">
                   Yes. There were several entries that lacked supporting documentation. We flagged these as{' '}
-                  <span className="ring-2 ring-error ring-offset-2 rounded-sm px-1">high-risk</span> transactions under the{' '}
+                  high-risk transactions under the{' '}
                   {accepted.statute ? (
                     <span className="text-green-600 font-semibold">Statute of Limitations</span>
                   ) : (
@@ -170,7 +173,7 @@ export default function OurPlatformEditor() {
                 AI Insights
               </h2>
               <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-                {3 - Object.keys(accepted).length} OPEN
+                {3 - Object.keys(accepted).length - Object.keys(ignored).length} OPEN
               </span>
             </div>
             <p className="text-xs text-on-surface-variant mt-1">Click any suggestion to accept it instantly.</p>
@@ -178,8 +181,13 @@ export default function OurPlatformEditor() {
 
           <div className="p-5 space-y-4">
             {/* Error 1 */}
-            {!accepted.principal && (
-              <div className="bg-error-container/30 p-4 rounded-lg border-l-4 border-error">
+            {!accepted.principal && !ignored.principal && (
+              <div className="relative bg-error-container/30 p-4 rounded-lg border-l-4 border-error">
+                <button
+                  onClick={() => ignoreSuggestion('principal')}
+                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
+                  title="Ignore this suggestion"
+                >×</button>
                 <span className="text-[10px] font-bold text-error uppercase flex items-center gap-1 mb-2">
                   <span className="material-symbols-outlined text-xs">priority_high</span> Critical Error
                 </span>
@@ -192,8 +200,13 @@ export default function OurPlatformEditor() {
             )}
 
             {/* Error 2 */}
-            {!accepted.irregularities && (
-              <div className="bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+            {!accepted.irregularities && !ignored.irregularities && (
+              <div className="relative bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+                <button
+                  onClick={() => ignoreSuggestion('irregularities')}
+                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
+                  title="Ignore this suggestion"
+                >×</button>
                 <span className="text-[10px] font-bold text-on-tertiary-container uppercase flex items-center gap-1 mb-2">
                   <span className="material-symbols-outlined text-xs">hearing</span> Low Confidence
                 </span>
@@ -206,8 +219,13 @@ export default function OurPlatformEditor() {
             )}
 
             {/* Error 3 */}
-            {!accepted.statute && (
-              <div className="bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+            {!accepted.statute && !ignored.statute && (
+              <div className="relative bg-surface-container p-4 rounded-lg border-l-4 border-tertiary-fixed-dim">
+                <button
+                  onClick={() => ignoreSuggestion('statute')}
+                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
+                  title="Ignore this suggestion"
+                >×</button>
                 <span className="text-[10px] font-bold text-on-tertiary-container uppercase flex items-center gap-1 mb-2">
                   <span className="material-symbols-outlined text-xs">gavel</span> Legal Context
                 </span>
@@ -220,7 +238,7 @@ export default function OurPlatformEditor() {
             )}
 
             {/* All clear */}
-            {Object.keys(accepted).length === 3 && (
+            {Object.keys(accepted).length + Object.keys(ignored).length === 3 && (
               <div className="text-center py-6">
                 <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
                 <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>

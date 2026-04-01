@@ -17,8 +17,8 @@ export default function SideNav({ activePage = 'editor' }) {
             <span className="material-symbols-outlined">account_circle</span>
           </div>
           <div>
-            <p className="font-body text-sm font-semibold text-on-surface">Lead Stenographer</p>
-            <p className="font-body text-xs text-on-surface-variant">District Court</p>
+            <p className="font-body text-sm font-semibold text-on-surface">Jane Doe</p>
+            <p className="font-body text-xs text-on-surface-variant">ZZ Reporting LLC</p>
           </div>
         </div>
       </div>

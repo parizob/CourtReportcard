@@ -57,9 +57,10 @@ export default function OurPlatformExport() {
           </div>
           <Link
             to="/ourplatform"
-            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4"
+            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary"
           >
-            <span className="material-symbols-outlined text-sm">arrow_back</span> Back to Upload
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            <span className="hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4">Back to Upload</span>
           </Link>
         </div>
       </div>
@@ -125,40 +126,46 @@ export default function OurPlatformExport() {
           <div className="bg-surface-container-lowest rounded-2xl p-8 editorial-shadow">
             <h2 className="font-headline font-bold text-xl text-on-surface mb-2">Why Court Reportcard Wins</h2>
             <p className="text-xs text-on-surface-variant mb-6">See how we stack up against manual review and other tools.</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-outline-variant/20">
-                    <th className="text-left py-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant w-1/2">Feature</th>
-                    <th className="text-center py-2 text-xs font-bold uppercase tracking-widest text-primary">Court Reportcard</th>
-                    <th className="text-center py-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Manual</th>
-                    <th className="text-center py-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Others</th>
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[46%]" />
+                <col className="w-[18%]" />
+                <col className="w-[18%]" />
+                <col className="w-[18%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-outline-variant/20">
+                  <th className="text-left py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Feature</th>
+                  <th className="text-center py-3 text-xs font-bold uppercase tracking-widest text-primary leading-tight">
+                    Court<br />Reportcard
+                  </th>
+                  <th className="text-center py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Manual</th>
+                  <th className="text-center py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Others</th>
+                </tr>
+              </thead>
+              <tbody>
+                {competitors.map((row) => (
+                  <tr key={row.feature} className="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors">
+                    <td className="py-3 text-on-surface font-medium">{row.feature}</td>
+                    <td className="py-3 text-center">
+                      <span className={`material-symbols-outlined text-base ${row.cr ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.cr ? 1 : 0}` }}>
+                        {row.cr ? 'check_circle' : 'cancel'}
+                      </span>
+                    </td>
+                    <td className="py-3 text-center">
+                      <span className={`material-symbols-outlined text-base ${row.manual ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.manual ? 1 : 0}` }}>
+                        {row.manual ? 'check_circle' : 'cancel'}
+                      </span>
+                    </td>
+                    <td className="py-3 text-center">
+                      <span className={`material-symbols-outlined text-base ${row.others ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.others ? 1 : 0}` }}>
+                        {row.others ? 'check_circle' : 'cancel'}
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {competitors.map((row) => (
-                    <tr key={row.feature} className="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors">
-                      <td className="py-3 text-on-surface font-medium">{row.feature}</td>
-                      <td className="py-3 text-center">
-                        <span className={`material-symbols-outlined text-sm ${row.cr ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.cr ? 1 : 0}` }}>
-                          {row.cr ? 'check_circle' : 'cancel'}
-                        </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`material-symbols-outlined text-sm ${row.manual ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.manual ? 1 : 0}` }}>
-                          {row.manual ? 'check_circle' : 'cancel'}
-                        </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`material-symbols-outlined text-sm ${row.others ? 'text-green-500' : 'text-outline-variant'}`} style={{ fontVariationSettings: `'FILL' ${row.others ? 1 : 0}` }}>
-                          {row.others ? 'check_circle' : 'cancel'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

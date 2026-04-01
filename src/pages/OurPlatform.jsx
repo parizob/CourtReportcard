@@ -70,9 +70,10 @@ export default function OurPlatform() {
           </div>
           <Link
             to="/ourplatform/editor"
-            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4"
+            className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary"
           >
-            Skip to Editor Demo <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            <span className="hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4">Skip to Editor Demo</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </div>
       </header>
