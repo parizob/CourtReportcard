@@ -1,5 +1,4 @@
-import { NavLink, Link, Outlet } from 'react-router-dom'
-import SiteHeader from './SiteHeader'
+import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 
 const navItems = [
   { icon: 'cloud_upload', label: 'Upload', to: '/ourplatform', end: true },
@@ -8,11 +7,9 @@ const navItems = [
 ]
 
 export default function OurPlatformLayout() {
+  const { pathname } = useLocation()
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
-
-      {/* Full-width site header */}
-      <SiteHeader />
 
       {/* Sidebar + content */}
       <div className="flex flex-1">
@@ -69,8 +66,8 @@ export default function OurPlatformLayout() {
           </div>
         </aside>
 
-        {/* Page content */}
-        <div className="flex-1 min-w-0">
+        {/* Page content — animates on sub-route change, sidebar stays put */}
+        <div key={pathname} className="flex-1 min-w-0 page-rise">
           <Outlet />
         </div>
 

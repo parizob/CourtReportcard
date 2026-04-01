@@ -1,10 +1,8 @@
 import { Link } from 'react-router-dom'
-import SiteHeader from '../components/SiteHeader'
 
 export default function LandingPage() {
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
-      <SiteHeader />
 
       <main>
         {/* Hero Section */}

@@ -6,10 +6,13 @@ import OurPlatformEditor from './pages/OurPlatformEditor'
 import OurPlatformExport from './pages/OurPlatformExport'
 import AboutUs from './pages/AboutUs'
 import PageTransition from './components/PageTransition'
+import SiteHeader from './components/SiteHeader'
 
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Header sits outside the transition so it never animates */}
+      <SiteHeader />
       <PageTransition>
         <Routes>
           <Route path="/" element={<LandingPage />} />

@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import SiteHeader from '../components/SiteHeader'
 
 const stats = [
   { value: '94%', label: 'Avg. accuracy on first pass' },
@@ -58,8 +57,6 @@ const timeline = [
 export default function AboutUs() {
   return (
     <div className="bg-background text-on-surface font-body min-h-screen">
-
-      <SiteHeader />
 
       {/* Hero */}
       <section className="relative overflow-hidden px-8 pt-10 pb-20 max-w-[1440px] mx-auto">
