@@ -41,7 +41,7 @@ export default function LandingPage() {
                 Proofread in <span className="text-primary italic">Seconds</span>.
               </h1>
               <p className="text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Lexicon Precision applies clinical accuracy to court transcripts. Detect conflicts, fix formatting, and ensure every word meets the highest judicial standard.
+                Court Reportcard applies clinical accuracy to court transcripts. Detect conflicts, fix formatting, and ensure every word meets the highest judicial standard.
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link

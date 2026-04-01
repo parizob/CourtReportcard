@@ -21,31 +21,34 @@ const features = [
   {
     icon: 'bolt',
     title: 'Instant AI Processing',
-    body: 'Upload audio and receive a fully flagged, annotated transcript in minutes — not days.',
+    body: 'Pair your RTF/CRE transcript with case audio and receive a fully flagged, cross-referenced review in minutes — not days.',
   },
 ]
 
 const demoFiles = [
   {
-    icon: 'description',
-    name: 'State_vs_Henderson_Motion_Hearing.mp3',
-    meta: '48m 12s • 142MB',
+    icon: 'article',
+    type: 'Transcript + Audio',
+    name: 'State_vs_Henderson_Motion_Hearing',
+    meta: 'RTF • 48m audio • 142MB total',
     status: 'analyzed',
     statusColor: 'bg-tertiary-fixed-dim',
     statusLabel: 'Analyzed',
   },
   {
     icon: 'audio_file',
-    name: 'Depositions_Miller_Case_304.wav',
-    meta: '1h 22m • 480MB',
+    type: 'Audio only',
+    name: 'Depositions_Miller_Case_304',
+    meta: 'WAV • 1h 22m • 480MB',
     status: 'processing',
     progress: 65,
     statusLabel: 'Processing',
   },
   {
     icon: 'task_alt',
-    name: 'Arraignment_Circuit_Court_4A.mp3',
-    meta: '12m 04s • 24MB',
+    type: 'Transcript + Audio',
+    name: 'Arraignment_Circuit_Court_4A',
+    meta: 'CRE • 12m audio • 24MB total',
     status: 'ready',
     statusColor: 'bg-green-500',
     statusLabel: 'Ready',
@@ -60,9 +63,9 @@ export default function OurPlatform() {
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Step 1 of 3</span>
-            <h1 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight">Upload Your Audio</h1>
+            <h1 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight">Upload Your Files</h1>
             <p className="font-body text-on-surface-variant mt-2 max-w-lg">
-              Drop in any court recording — WAV, MP3, or DSS. Our AI gets to work immediately, producing a fully annotated transcript in minutes.
+              Upload your transcript (.RTF) and the matching case audio. Our AI cross-references both to catch every error — even the ones that pass a human read.
             </p>
           </div>
           <Link
@@ -89,34 +92,65 @@ export default function OurPlatform() {
       {/* Main Grid */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-        {/* Upload Drop Zone */}
-        <section className="lg:col-span-8">
-          <div className="relative group bg-surface-container-lowest border-2 border-dashed border-outline-variant/30 rounded-2xl h-[340px] flex flex-col items-center justify-center transition-all hover:border-primary/50 editorial-shadow cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary-container/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none"></div>
-            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-5 group-hover:bg-primary/20 transition-colors">
-              <span className="material-symbols-outlined text-4xl text-primary">cloud_upload</span>
+        {/* Upload Drop Zones — Transcript + Audio side by side */}
+        <section className="lg:col-span-8 flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {/* Transcript Upload */}
+            <div className="relative group bg-surface-container-lowest border-2 border-dashed border-outline-variant/30 rounded-2xl h-[260px] flex flex-col items-center justify-center transition-all hover:border-secondary/60 editorial-shadow cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-br from-secondary-container/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none"></div>
+              <div className="absolute top-4 left-4">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant bg-surface-container px-2 py-1 rounded-full">Transcript</span>
+              </div>
+              <div className="w-14 h-14 bg-secondary-container/40 rounded-full flex items-center justify-center mb-4 group-hover:bg-secondary-container/70 transition-colors">
+                <span className="material-symbols-outlined text-3xl text-secondary">article</span>
+              </div>
+              <h3 className="font-headline text-base font-bold text-on-surface mb-1 text-center px-4">Drop Your Transcript</h3>
+              <p className="text-on-surface-variant font-body text-xs mb-4 text-center px-6">
+                RTF format. Exported directly from Case CATalyst, Eclipse, or any steno software.
+              </p>
+              <button className="px-5 py-2 bg-secondary text-on-secondary text-xs font-bold rounded-md transition-all active:scale-95 hover:opacity-90">
+                Browse Files
+              </button>
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-outline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">lock</span> Encrypted upload
+                </span>
+              </div>
             </div>
-            <h3 className="font-headline text-2xl font-bold text-on-surface mb-1">Drag & Drop Your Case Audio</h3>
-            <p className="text-on-surface-variant font-body text-sm mb-6 text-center max-w-sm">
-              WAV, MP3, DSS — up to 2GB per file. Your audio never leaves our secure servers unencrypted.
-            </p>
-            <Link
-              to="/ourplatform/editor"
-              className="px-8 py-3 bg-gradient-to-r from-primary to-primary-container text-white font-bold rounded-md transition-all active:scale-95 shadow-lg shadow-primary/20 hover:translate-y-[-2px]"
-            >
-              Try the Demo →
-            </Link>
-            <div className="absolute bottom-5 left-6 right-6 flex justify-between items-center text-[10px] uppercase tracking-[0.2em] font-bold text-outline">
-              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-xs">lock</span> End-to-end encrypted</span>
-              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-xs">verified</span> HIPAA Compliant</span>
+
+            {/* Audio Upload */}
+            <div className="relative group bg-surface-container-lowest border-2 border-dashed border-outline-variant/30 rounded-2xl h-[260px] flex flex-col items-center justify-center transition-all hover:border-primary/50 editorial-shadow cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary-container/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none"></div>
+              <div className="absolute top-4 left-4">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant bg-surface-container px-2 py-1 rounded-full">Audio</span>
+              </div>
+              <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                <span className="material-symbols-outlined text-3xl text-primary">mic</span>
+              </div>
+              <h3 className="font-headline text-base font-bold text-on-surface mb-1 text-center px-4">Drop Your Case Audio</h3>
+              <p className="text-on-surface-variant font-body text-xs mb-4 text-center px-6">
+                WAV, MP3, or DSS — up to 2GB. Our AI syncs each word to the exact moment in the recording.
+              </p>
+              <Link
+                to="/ourplatform/editor"
+                className="px-5 py-2 bg-gradient-to-r from-primary to-primary-container text-white text-xs font-bold rounded-md transition-all active:scale-95 hover:translate-y-[-1px] shadow-md shadow-primary/20"
+              >
+                Try the Demo →
+              </Link>
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-outline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">verified</span> HIPAA Compliant
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Why it's fast — inline callout */}
-          <div className="mt-4 p-4 bg-tertiary-fixed/20 border-l-4 border-tertiary-fixed rounded-lg flex items-start gap-3">
-            <span className="material-symbols-outlined text-on-tertiary-container mt-0.5">tips_and_updates</span>
+          {/* Why it's better — inline callout */}
+          <div className="p-4 bg-tertiary-fixed/20 border-l-4 border-tertiary-fixed rounded-lg flex items-start gap-3">
+            <span className="material-symbols-outlined text-on-tertiary-container mt-0.5 shrink-0">tips_and_updates</span>
             <p className="text-sm text-on-surface">
-              <span className="font-bold">Did you know?</span> Court Reportcard processes a 1-hour deposition in under 4 minutes — with 99.8% word-level accuracy out of the box, before any human review.
+              <span className="font-bold">Why upload both?</span> When your RTF/CRE transcript is paired with the audio recording, our AI can detect word-level mismatches — catching errors that neither document alone would reveal. Accuracy jumps from 94% to 99.8%.
             </p>
           </div>
         </section>
@@ -141,7 +175,7 @@ export default function OurPlatform() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="font-headline text-xl font-bold text-on-surface">Live Case Queue</h3>
-              <p className="text-xs text-on-surface-variant mt-0.5">This is what your dashboard looks like once files are uploaded. Click any row to explore.</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">This is what your dashboard looks like once files are uploaded.</p>
             </div>
             <div className="relative">
               <input className="bg-surface-container-lowest text-sm font-body px-10 py-2 border-none rounded-md focus:ring-2 ring-primary/20 w-56 editorial-shadow outline-none" placeholder="Search cases..." type="text" />
@@ -156,7 +190,10 @@ export default function OurPlatform() {
                   <span className="material-symbols-outlined text-primary">{file.icon}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h5 className="font-body font-bold text-on-surface text-sm truncate">{file.name}</h5>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h5 className="font-body font-bold text-on-surface text-sm truncate">{file.name}</h5>
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-on-secondary-container bg-secondary-container px-2 py-0.5 rounded-full">{file.type}</span>
+                  </div>
                   <p className="text-xs text-on-surface-variant">{file.meta}</p>
                 </div>
                 <div className="flex items-center gap-8 ml-4">
@@ -193,7 +230,7 @@ export default function OurPlatform() {
           <div className="mt-8 bg-primary rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
               <h3 className="font-headline text-2xl font-bold text-on-primary mb-1">See What Happens Next</h3>
-              <p className="text-on-primary-container text-sm">Your audio is processed — now walk through the AI-powered editor that catches what humans miss.</p>
+              <p className="text-on-primary-container text-sm">Your transcript and audio are paired and processed — now walk through the AI-powered editor that catches what humans miss.</p>
             </div>
             <Link
               to="/ourplatform/editor"
