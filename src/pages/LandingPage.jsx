@@ -1,36 +1,10 @@
 import { Link } from 'react-router-dom'
+import SiteHeader from '../components/SiteHeader'
 
 export default function LandingPage() {
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
-      {/* TopNavBar */}
-      <nav className="bg-[#f8f9fa] top-0 z-50">
-        <div className="flex justify-between items-center w-full px-8 py-4 max-w-[1440px] mx-auto">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="text-xl font-black text-primary font-headline tracking-tight hover:opacity-80 transition-opacity">Court Reportcard</Link>
-            <div className="hidden md:flex gap-6 items-center">
-              <Link className="text-primary border-b-2 border-primary pb-1 font-headline font-bold tracking-tight" to="/">Home</Link>
-              <Link className="text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200" to="/ourplatform">Our Platform</Link>
-              <a className="text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200" href="#">About Us</a>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden lg:flex items-center bg-surface-container-lowest px-4 py-2 rounded-md">
-              <span className="material-symbols-outlined text-outline text-sm">search</span>
-              <input className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2" placeholder="Search files..." type="text" />
-            </div>
-            <Link
-              to="/ourplatform"
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
-            >
-              New Upload
-            </Link>
-            <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">notifications</span>
-            <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">account_circle</span>
-          </div>
-        </div>
-        <div className="bg-surface-container-low h-[1px] w-full"></div>
-      </nav>
+      <SiteHeader />
 
       <main>
         {/* Hero Section */}

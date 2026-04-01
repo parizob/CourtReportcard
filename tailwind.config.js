@@ -68,6 +68,10 @@ export default {
         "xl": "0.5rem",
         "full": "0.75rem"
       },
+      animation: {
+        'spin-slow': 'spin 3.5s linear infinite',
+        'spin-medium': 'spin 2s linear infinite',
+      },
     },
   },
   plugins: [],
