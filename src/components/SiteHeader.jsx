@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import SignInModal from './SignInModal'
@@ -13,7 +13,53 @@ export default function SiteHeader() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTab, setModalTab] = useState('signin')
 
+  // Bell notification state
+  const [bellRinging, setBellRinging] = useState(false)
+  const [hasNotification, setHasNotification] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef(null)
+
   const openModal = (tab) => { setModalTab(tab); setModalOpen(true) }
+
+  // Trigger bell ring + badge after 5s
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setHasNotification(true)
+      setBellRinging(true)
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Re-ring every 8s while notification is unread
+  useEffect(() => {
+    if (!hasNotification) return
+    const interval = setInterval(() => {
+      setBellRinging(false)
+      requestAnimationFrame(() => requestAnimationFrame(() => setBellRinging(true)))
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [hasNotification])
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleBellClick = () => {
+    setNotifOpen((v) => !v)
+  }
+
+  const dismissNotification = () => {
+    setHasNotification(false)
+    setNotifOpen(false)
+    setBellRinging(false)
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
@@ -66,8 +112,68 @@ export default function SiteHeader() {
             </button>
           )}
 
-          {/* Icons — always visible */}
-          <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors">notifications</span>
+          {/* Bell icon with badge + dropdown */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={handleBellClick}
+              className="relative flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors"
+            >
+              <span
+                className={`material-symbols-outlined text-on-surface-variant${bellRinging ? ' bell-ring' : ''}`}
+                onAnimationEnd={() => setBellRinging(false)}
+              >
+                notifications
+              </span>
+              {hasNotification && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none">
+                  1
+                </span>
+              )}
+            </button>
+
+            {/* Notification dropdown */}
+            {notifOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15">
+                  <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
+                  <button onClick={dismissNotification} className="text-xs text-primary font-semibold hover:underline">
+                    Mark as read
+                  </button>
+                </div>
+
+                {/* Notification item */}
+                <div className="px-5 py-4 flex gap-3 hover:bg-surface-container transition-colors">
+                  <div className="shrink-0 w-9 h-9 rounded-full bg-tertiary-fixed/30 flex items-center justify-center mt-0.5">
+                    <span className="material-symbols-outlined text-tertiary-fixed-dim text-base">card_giftcard</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">
+                      Sign up today — get 3 free evaluations
+                    </p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      Create your free account now and we'll run your first 3 transcripts through our full AI review pipeline, completely free. No credit card required.
+                    </p>
+                    <button
+                      onClick={() => { dismissNotification(); openModal('signup') }}
+                      className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
+                    >
+                      Claim Free Evaluations →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Empty state shown after dismissal would be handled by !notifOpen */}
+                <div className="px-5 py-3 border-t border-outline-variant/10 text-center">
+                  <span className="text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
+                    Court Reportcard
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Account icon */}
           <button
             onClick={() => openModal('signin')}
             className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
@@ -76,7 +182,6 @@ export default function SiteHeader() {
           </button>
 
         </div>
-
       </div>
       <div className="bg-surface-container-low h-[1px] w-full" />
 

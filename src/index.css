@@ -50,3 +50,22 @@
 .spin-very-slow {
   animation: slowSpin 20s linear infinite;
 }
+
+@keyframes bellRing {
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(22deg); }
+  20%  { transform: rotate(-20deg); }
+  30%  { transform: rotate(18deg); }
+  40%  { transform: rotate(-16deg); }
+  50%  { transform: rotate(12deg); }
+  60%  { transform: rotate(-10deg); }
+  70%  { transform: rotate(6deg); }
+  80%  { transform: rotate(-4deg); }
+  90%  { transform: rotate(2deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.bell-ring {
+  animation: bellRing 0.8s ease-in-out;
+  transform-origin: top center;
+}
