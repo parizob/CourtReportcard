@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { proofreadTranscript } from '../../lib/gemini'
+import { proofreadTranscript, fixAnnotationPositions } from '../../lib/gemini'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
@@ -57,12 +57,14 @@ export default function DashboardEditor() {
         if (dlErr) throw dlErr
 
         const parsed = JSON.parse(await blob.text())
+        const loadedEntries = parsed.entries || []
+        const fixedAnnotations = fixAnnotationPositions(loadedEntries, parsed.annotations || [])
         setTitle(parsed.title || '')
-        setEntries(parsed.entries || [])
-        setAnnotations(parsed.annotations || [])
+        setEntries(loadedEntries)
+        setAnnotations(fixedAnnotations)
         setOriginalSnapshot(JSON.stringify({
-          entries: parsed.entries || [],
-          annotations: parsed.annotations || [],
+          entries: loadedEntries,
+          annotations: fixedAnnotations,
         }))
       }
     } catch (err) {
@@ -90,25 +92,42 @@ export default function DashboardEditor() {
     setEntries((prev) =>
       prev.map((e) => {
         if (e.id !== ann.entry_id) return e
-        const before = e.text.substring(0, ann.start)
-        const after = e.text.substring(ann.end)
+        // Find the original text dynamically rather than trusting stored positions
+        let realStart = e.text.indexOf(ann.original)
+        if (realStart === -1) realStart = e.text.toLowerCase().indexOf(ann.original.toLowerCase())
+        if (realStart === -1) {
+          // Fallback to stored positions
+          realStart = ann.start
+        }
+        const realEnd = realStart + ann.original.length
+        const before = e.text.substring(0, realStart)
+        const after = e.text.substring(realEnd)
         return { ...e, text: before + ann.suggestion + after }
       })
     )
 
-    setAnnotations((prev) =>
-      prev.map((a) => {
+    setAnnotations((prev) => {
+      const updated = prev.map((a) => {
         if (a.id === annotationId) return { ...a, status: 'accepted' }
-        // Shift positions for annotations in the same entry after this one
-        if (a.entry_id === ann.entry_id && a.start > ann.start && a.status === 'open') {
-          const delta = ann.suggestion.length - (ann.end - ann.start)
-          return { ...a, start: a.start + delta, end: a.end + delta }
-        }
         return a
       })
-    )
+      // Re-fix positions for remaining open annotations in the same entry
+      const entry = entries.find((e) => e.id === ann.entry_id)
+      if (!entry) return updated
+      const newText = (() => {
+        let realStart = entry.text.indexOf(ann.original)
+        if (realStart === -1) realStart = entry.text.toLowerCase().indexOf(ann.original.toLowerCase())
+        if (realStart === -1) realStart = ann.start
+        const realEnd = realStart + ann.original.length
+        return entry.text.substring(0, realStart) + ann.suggestion + entry.text.substring(realEnd)
+      })()
+      return fixAnnotationPositions(
+        entries.map((e) => (e.id === ann.entry_id ? { ...e, text: newText } : e)),
+        updated
+      )
+    })
     setSaved(false)
-  }, [annotations])
+  }, [annotations, entries])
 
   const ignoreAnnotation = useCallback((annotationId) => {
     setAnnotations((prev) =>
@@ -201,25 +220,57 @@ export default function DashboardEditor() {
       return <span>{entry.text}</span>
     }
 
+    // Build resolved positions by searching for `original` in the text
+    const resolved = []
+    const used = new Set()
+    for (const ann of entryAnnotations) {
+      if (!ann.original) continue
+      let idx = -1
+      let searchFrom = 0
+      // Find an occurrence that hasn't been claimed by another annotation
+      while (true) {
+        idx = entry.text.indexOf(ann.original, searchFrom)
+        if (idx === -1) {
+          idx = entry.text.toLowerCase().indexOf(ann.original.toLowerCase(), searchFrom)
+        }
+        if (idx === -1) break
+        const key = `${idx}-${idx + ann.original.length}`
+        if (!used.has(key)) {
+          used.add(key)
+          break
+        }
+        searchFrom = idx + 1
+      }
+      if (idx === -1) continue
+      resolved.push({ ...ann, start: idx, end: idx + ann.original.length })
+    }
+
+    resolved.sort((a, b) => a.start - b.start)
+
+    // Remove overlapping ranges (keep the first)
+    const clean = []
+    let lastEnd = 0
+    for (const r of resolved) {
+      if (r.start < lastEnd) continue
+      clean.push(r)
+      lastEnd = r.end
+    }
+
     const parts = []
     let cursor = 0
 
-    for (const ann of entryAnnotations) {
-      const start = Math.max(ann.start, cursor)
-      const end = Math.min(ann.end, entry.text.length)
-      if (start > end) continue
-
-      if (cursor < start) {
-        parts.push(<span key={`t-${cursor}`}>{entry.text.substring(cursor, start)}</span>)
+    for (const ann of clean) {
+      if (cursor < ann.start) {
+        parts.push(<span key={`t-${cursor}`}>{entry.text.substring(cursor, ann.start)}</span>)
       }
 
-      let cls = ''
+      let cls = 'inline cursor-pointer '
       if (ann.severity === 'critical') {
-        cls = 'ring-2 ring-error ring-offset-1 rounded-sm px-0.5 cursor-pointer'
+        cls += 'border-b-2 border-error text-error font-semibold'
       } else if (ann.severity === 'warning') {
-        cls = 'border-b-2 border-tertiary-fixed-dim cursor-pointer'
+        cls += 'border-b-2 border-tertiary-fixed-dim'
       } else {
-        cls = 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
+        cls += 'border-b border-dotted border-on-surface-variant/40'
       }
 
       parts.push(
@@ -232,10 +283,10 @@ export default function DashboardEditor() {
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
           }}
         >
-          {entry.text.substring(start, end)}
+          {entry.text.substring(ann.start, ann.end)}
         </span>
       )
-      cursor = end
+      cursor = ann.end
     }
 
     if (cursor < entry.text.length) {
@@ -269,6 +320,9 @@ export default function DashboardEditor() {
     grammar: 'Grammar',
     legal_term: 'Legal Term',
     punctuation: 'Punctuation',
+    capitalization: 'Capitalization',
+    missing_word: 'Missing Word',
+    extra_word: 'Extra Word',
   }[t] || t)
 
   const transcriptFile = caseData?.case_files?.find((f) => f.file_type === 'transcript')
@@ -496,7 +550,7 @@ export default function DashboardEditor() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">How to read this transcript</p>
             <div className="flex flex-col gap-2.5">
               <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block ring-2 ring-error ring-offset-1 rounded-sm px-1.5 py-0.5 text-[11px] font-mono text-on-surface bg-surface-container-lowest mt-0.5">word</span>
+                <span className="shrink-0 inline-block border-b-2 border-error text-error font-semibold text-[11px] font-mono px-1 mt-0.5">word</span>
                 <span className="text-xs text-on-surface-variant"><span className="font-semibold text-error">Critical error</span> — definite mistake found.</span>
               </div>
               <div className="flex items-start gap-2.5">

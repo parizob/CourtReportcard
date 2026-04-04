@@ -9,10 +9,12 @@ export default function Dashboard() {
 
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [viewTarget, setViewTarget] = useState(null)
+  const [downloading, setDownloading] = useState(null)
 
-  useEffect(() => {
-    fetchCases()
-  }, [])
+  useEffect(() => { fetchCases() }, [])
 
   const fetchCases = async () => {
     setLoading(true)
@@ -20,9 +22,57 @@ export default function Dashboard() {
       .from('cases')
       .select('*, case_files(*)')
       .order('created_at', { ascending: false })
-
     if (!error && data) setCases(data)
     setLoading(false)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const caseFiles = deleteTarget.case_files || []
+      const storagePaths = caseFiles.map((f) => f.storage_path).filter(Boolean)
+
+      if (storagePaths.length > 0) {
+        await supabase.storage.from('case-files').remove(storagePaths)
+      }
+
+      // case_files rows are CASCADE deleted when the case is deleted
+      const { error } = await supabase.from('cases').delete().eq('id', deleteTarget.id)
+      if (error) throw error
+
+      setCases((prev) => prev.filter((c) => c.id !== deleteTarget.id))
+      setDeleteTarget(null)
+    } catch (err) {
+      console.error('Delete failed:', err)
+      alert('Failed to delete case: ' + (err.message || 'Unknown error'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDownload = async (file) => {
+    setDownloading(file.id)
+    try {
+      const { data, error } = await supabase.storage
+        .from('case-files')
+        .download(file.storage_path)
+      if (error) throw error
+
+      const url = URL.createObjectURL(data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.file_name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Download failed:', err)
+      alert('Failed to download file: ' + (err.message || 'Unknown error'))
+    } finally {
+      setDownloading(null)
+    }
   }
 
   const activeCases = cases.filter((c) => c.status === 'uploaded' || c.status === 'processing')
@@ -52,6 +102,15 @@ export default function Dashboard() {
     if (transcripts > 0) parts.push(`${transcripts} transcript${transcripts !== 1 ? 's' : ''}`)
     if (audios > 0) parts.push(`${audios} audio`)
     return parts.join(', ') || 'No files'
+  }
+
+  const originalFiles = (caseRow) =>
+    (caseRow.case_files || []).filter((f) => f.file_type === 'transcript' || f.file_type === 'audio')
+
+  const formatSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
   return (
@@ -135,7 +194,7 @@ export default function Dashboard() {
               </div>
               <h3 className="font-headline text-xl font-bold text-on-surface mb-2">No cases yet</h3>
               <p className="text-sm text-on-surface-variant max-w-md mb-8 leading-relaxed">
-                Your case queue is empty. Upload a transcript and audio file to begin your first AI-powered review. Court Reportcard will analyze your files and surface any errors automatically.
+                Your case queue is empty. Upload a transcript to begin your first AI-powered review.
               </p>
               <Link
                 to="/dashboard/upload"
@@ -147,13 +206,12 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-hidden">
-              {/* Table header */}
               <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
                 <span>Case</span>
                 <span className="w-28 text-center">Files</span>
                 <span className="w-24 text-center">Status</span>
                 <span className="w-28 text-center">Date</span>
-                <span className="w-24 text-center">Actions</span>
+                <span className="w-32 text-center">Actions</span>
               </div>
               {cases.map((c) => (
                 <div
@@ -173,7 +231,14 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <span className="w-28 text-center text-xs text-on-surface-variant">{formatDate(c.created_at)}</span>
-                  <div className="w-24 flex justify-center gap-1">
+                  <div className="w-32 flex justify-center gap-1">
+                    <button
+                      onClick={() => setViewTarget(c)}
+                      title="View Files"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">folder_open</span>
+                    </button>
                     <Link
                       to={`/dashboard/editor?case=${c.id}`}
                       title="Open in Editor"
@@ -188,14 +253,133 @@ export default function Dashboard() {
                     >
                       <span className="material-symbols-outlined text-lg">cloud_download</span>
                     </Link>
+                    <button
+                      onClick={() => setDeleteTarget(c)}
+                      title="Delete Case"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">delete</span>
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </section>
-
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow p-8 max-w-md w-full mx-4 z-10">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-error text-2xl">delete_forever</span>
+              </div>
+              <div>
+                <h2 className="font-headline text-lg font-bold text-on-surface">Delete Case?</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-on-surface-variant mb-2">
+              You are about to permanently delete <span className="font-semibold text-on-surface">{deleteTarget.name}</span> and all associated files:
+            </p>
+            <ul className="text-xs text-on-surface-variant mb-6 space-y-1 pl-4">
+              {(deleteTarget.case_files || []).filter((f) => f.file_type !== 'extracted').map((f) => (
+                <li key={f.id} className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-xs text-on-surface-variant/60">
+                    {f.file_type === 'transcript' ? 'description' : 'audio_file'}
+                  </span>
+                  {f.file_name}
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-error text-on-error px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {deleting ? (
+                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Deleting...</>
+                ) : (
+                  <><span className="material-symbols-outlined text-base">delete</span> Delete Permanently</>
+                )}
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View/Download files modal */}
+      {viewTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewTarget(null)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow p-8 max-w-lg w-full mx-4 z-10">
+            <button
+              onClick={() => setViewTarget(null)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary">folder</span>
+              </div>
+              <div>
+                <h2 className="font-headline text-lg font-bold text-on-surface">{viewTarget.name}</h2>
+                <p className="text-xs text-on-surface-variant">Uploaded {formatDate(viewTarget.created_at)}</p>
+              </div>
+            </div>
+
+            {originalFiles(viewTarget).length === 0 ? (
+              <p className="text-sm text-on-surface-variant text-center py-8">No original files found for this case.</p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Uploaded Files</p>
+                {originalFiles(viewTarget).map((f) => (
+                  <div key={f.id} className="flex items-center justify-between bg-surface-container/40 rounded-xl p-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${f.file_type === 'transcript' ? 'bg-primary/10' : 'bg-tertiary-fixed/20'}`}>
+                        <span className={`material-symbols-outlined text-lg ${f.file_type === 'transcript' ? 'text-primary' : 'text-tertiary-fixed-dim'}`}>
+                          {f.file_type === 'transcript' ? 'description' : 'audio_file'}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-on-surface truncate">{f.file_name}</p>
+                        <p className="text-[10px] text-on-surface-variant">
+                          {f.file_type === 'transcript' ? 'Transcript' : 'Audio'} &middot; {formatSize(f.file_size)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDownload(f)}
+                      disabled={downloading === f.id}
+                      className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline disabled:opacity-50 shrink-0 ml-3"
+                    >
+                      {downloading === f.id ? (
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      ) : (
+                        <span className="material-symbols-outlined text-base">download</span>
+                      )}
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   )
 }

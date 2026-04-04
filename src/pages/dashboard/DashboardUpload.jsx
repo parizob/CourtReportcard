@@ -8,14 +8,13 @@ export default function DashboardUpload() {
   const { user } = useAuth()
   const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
-  const [audioFiles, setAudioFiles] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadPhase, setUploadPhase] = useState('')
   const [done, setDone] = useState(false)
   const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
 
-  const canUpload = caseName.trim().length > 0 && (transcriptFiles.length > 0 || audioFiles.length > 0) && !uploading
+  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
 
   const handleUpload = async () => {
     setError('')
@@ -34,7 +33,6 @@ export default function DashboardUpload() {
 
       const allFiles = [
         ...transcriptFiles.map((f) => ({ file: f, type: 'transcript' })),
-        ...audioFiles.map((f) => ({ file: f, type: 'audio' })),
       ]
 
       setUploadPhase('Uploading files...')
@@ -67,16 +65,23 @@ export default function DashboardUpload() {
         setUploadPhase('Extracting & proofreading with AI...')
 
         for (const file of transcriptFiles) {
-          const rawContent = await file.text()
+          const isPdf = file.name.toLowerCase().endsWith('.pdf')
+          let extractedJson
 
-          const extractedJson = await extractTranscriptWithGemini(rawContent)
+          if (isPdf) {
+            const buffer = await file.arrayBuffer()
+            extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
+          } else {
+            const rawContent = await file.text()
+            extractedJson = await extractTranscriptWithGemini(rawContent)
+          }
 
           const jsonBlob = new Blob(
             [JSON.stringify(extractedJson, null, 2)],
             { type: 'application/json' }
           )
 
-          const jsonFileName = file.name.replace(/\.(rtf|cre)$/i, '') + '_extracted.json'
+          const jsonFileName = file.name.replace(/\.(rtf|cre|pdf)$/i, '') + '_extracted.json'
           const jsonStoragePath = `${user.id}/${caseRow.id}/extracted/${jsonFileName}`
 
           const { error: jsonUpErr } = await supabase.storage
@@ -199,15 +204,15 @@ export default function DashboardUpload() {
               <span className="material-symbols-outlined text-primary text-2xl">description</span>
             </div>
             <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
-            <p className="text-xs text-on-surface-variant mb-5">RTF or CRE format</p>
+            <p className="text-xs text-on-surface-variant mb-5">RTF, CRE, or PDF format</p>
             <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
               <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
               <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-              <span className="text-xs text-on-surface-variant mt-1">.rtf, .cre files accepted</span>
+              <span className="text-xs text-on-surface-variant mt-1">.rtf, .cre, .pdf files accepted</span>
               <input
                 type="file"
                 className="hidden"
-                accept=".rtf,.cre"
+                accept=".rtf,.cre,.pdf"
                 multiple
                 onChange={(e) => setTranscriptFiles([...e.target.files])}
               />
@@ -225,35 +230,22 @@ export default function DashboardUpload() {
             )}
           </div>
 
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all hover:ring-2 hover:ring-primary/20">
-            <div className="w-14 h-14 rounded-xl bg-tertiary-fixed/20 flex items-center justify-center mb-5 group-hover:bg-tertiary-fixed/30 transition-colors">
-              <span className="material-symbols-outlined text-tertiary-fixed-dim text-2xl">audio_file</span>
+          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center opacity-60 relative overflow-hidden">
+            <div className="absolute top-4 right-4">
+              <span className="bg-tertiary-fixed/20 text-on-tertiary-container text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                Coming Soon
+              </span>
             </div>
-            <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Audio Recording</h3>
-            <p className="text-xs text-on-surface-variant mb-5">WAV, MP3, or DSS format</p>
-            <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-tertiary-fixed-dim/40 transition-colors flex flex-col items-center">
-              <span className="material-symbols-outlined text-4xl text-outline mb-3">mic</span>
-              <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-              <span className="text-xs text-on-surface-variant mt-1">.wav, .mp3, .dss files accepted</span>
-              <input
-                type="file"
-                className="hidden"
-                accept=".wav,.mp3,.dss"
-                multiple
-                onChange={(e) => setAudioFiles([...e.target.files])}
-              />
-            </label>
-            {audioFiles.length > 0 && (
-              <div className="mt-4 w-full text-left">
-                {audioFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1.5 text-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-sm text-tertiary-fixed-dim">music_note</span>
-                    <span className="truncate">{f.name}</span>
-                    <span className="text-[10px] text-on-surface-variant/50 ml-auto">{(f.size / 1024).toFixed(0)} KB</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="w-14 h-14 rounded-xl bg-tertiary-fixed/10 flex items-center justify-center mb-5">
+              <span className="material-symbols-outlined text-tertiary-fixed-dim/50 text-2xl">audio_file</span>
+            </div>
+            <h3 className="font-headline font-bold text-lg text-on-surface/60 mb-1">Audio Recording</h3>
+            <p className="text-xs text-on-surface-variant/60 mb-5">WAV, MP3, or DSS format</p>
+            <div className="w-full border-2 border-dashed border-outline-variant/15 rounded-xl p-8 flex flex-col items-center">
+              <span className="material-symbols-outlined text-4xl text-outline/30 mb-3">mic</span>
+              <span className="text-sm font-semibold text-on-surface/40">Audio upload coming soon</span>
+              <span className="text-xs text-on-surface-variant/40 mt-1">Cross-reference audio with transcripts for maximum accuracy</span>
+            </div>
           </div>
         </div>
 
@@ -268,11 +260,11 @@ export default function DashboardUpload() {
                 </svg>
                 {uploadPhase}
               </span>
-            ) : transcriptFiles.length + audioFiles.length === 0 ? (
+            ) : transcriptFiles.length === 0 ? (
               'No files selected'
             ) : (
               <span className="font-semibold text-on-surface">
-                {transcriptFiles.length} transcript{transcriptFiles.length !== 1 ? 's' : ''}, {audioFiles.length} audio file{audioFiles.length !== 1 ? 's' : ''} ready
+                {transcriptFiles.length} transcript{transcriptFiles.length !== 1 ? 's' : ''} ready
               </span>
             )}
           </div>

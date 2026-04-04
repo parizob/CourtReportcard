@@ -8,14 +8,18 @@ function assertApiKey() {
   }
 }
 
-async function callGemini(prompt) {
+async function callGemini(prompt, filePart) {
   assertApiKey()
+
+  const parts = []
+  if (filePart) parts.push(filePart)
+  parts.push({ text: prompt })
 
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts }],
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 65536,
@@ -38,7 +42,46 @@ async function callGemini(prompt) {
   return JSON.parse(cleaned)
 }
 
-const EXTRACT_AND_PROOFREAD_PROMPT = `You are a world-class legal transcript proofreader and extraction engine. You will receive the raw content of a court transcript file (RTF or CRE format). You must perform TWO tasks in a single pass:
+function arrayBufferToBase64(buffer) {
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+/**
+ * Fixes annotation start/end positions by searching for the `original` text
+ * within the entry. Gemini's character offsets are frequently wrong, so this
+ * is the only reliable way to highlight the right word.
+ */
+export function fixAnnotationPositions(entries, annotations) {
+  return annotations.map((a) => {
+    if (!a.original) return a
+
+    const entry = entries.find((e) => e.id === a.entry_id)
+    if (!entry) return a
+
+    const text = entry.text
+    const orig = a.original
+
+    // Try exact match first
+    let idx = text.indexOf(orig)
+    if (idx === -1) {
+      // Try case-insensitive
+      idx = text.toLowerCase().indexOf(orig.toLowerCase())
+    }
+
+    if (idx !== -1) {
+      return { ...a, start: idx, end: idx + orig.length }
+    }
+
+    return a
+  })
+}
+
+const EXTRACT_AND_PROOFREAD_PROMPT = `You are a world-class legal transcript proofreader and extraction engine. You will receive the content of a court transcript file (RTF, CRE, or PDF format). You must perform TWO tasks in a single pass:
 
 TASK 1 — EXTRACTION:
 - Extract every spoken line in order.
@@ -46,22 +89,27 @@ TASK 1 — EXTRACTION:
 - Preserve the original text EXACTLY as written, including all errors. Do NOT correct anything in the entries.
 - If timestamps or line numbers exist, include them.
 - Group consecutive lines under the same speaker into one entry.
-- Strip all RTF formatting codes, headers, footers, page numbers, and metadata.
+- Strip all RTF formatting codes, PDF layout artifacts, headers, footers, page numbers, and metadata.
 
 TASK 2 — PROOFREADING:
-For every entry you extract, analyze the text for errors. Report each error as a separate annotation. Types of errors to find:
-- "spelling": Misspelled words (e.g. "pincipal" → "principal", "iregularities" → "irregularities")
-- "context": Wrong word in context (e.g. "to" vs "too" vs "two", "their" vs "there" vs "they're", "affect" vs "effect", "then" vs "than", "your" vs "you're")
-- "grammar": Grammar mistakes (e.g. subject-verb agreement, tense errors, double negatives)
-- "legal_term": Incorrect legal terminology (e.g. "Statute of Limitats" → "Statute of Limitations", case citation formatting)
-- "punctuation": Missing or incorrect punctuation that changes meaning
+You are a meticulous court transcript proofreader. For every entry you extract, carefully analyze the text for ALL of the following issues. Report each as a separate annotation.
+
+Error types to find:
+- "spelling": Any misspelled word (e.g. "legitatcy" → "legitimacy", "pincipal" → "principal", "iregularities" → "irregularities", "recieve" → "receive", "occured" → "occurred")
+- "context": Wrong word used in context — homophones and commonly confused words (e.g. "to/too/two", "their/there/they're", "affect/effect", "then/than", "your/you're", "its/it's", "who's/whose", "accept/except", "loose/lose", "compliment/complement", "principal/principle", "stationary/stationery", "council/counsel", "proceed/precede")
+- "grammar": Grammar mistakes including subject-verb agreement, tense consistency, sentence fragments, run-on sentences, double negatives, incorrect pronoun usage, dangling modifiers
+- "legal_term": Incorrect legal terminology, misspelled legal terms, incorrect case citations, wrong statute references (e.g. "Statute of Limitats" → "Statute of Limitations", "habeus corpus" → "habeas corpus")
+- "punctuation": Missing periods, commas, question marks, or semicolons that affect meaning or readability. Missing possessive apostrophes. Incorrect comma placement in legal citations. Run-on sentences that need punctuation.
+- "capitalization": Improper capitalization of proper nouns, legal terms, or titles that should be capitalized (e.g. "supreme court" → "Supreme Court", "judge smith" → "Judge Smith")
+- "missing_word": Clearly missing words that make a sentence incomplete or grammatically broken (e.g. "I went the store" → "I went to the store")
+- "extra_word": Duplicated or extraneous words (e.g. "I went to to the store")
 
 Severity levels:
-- "critical": Definite error — the word is clearly wrong.
-- "warning": Likely error — context strongly suggests a different word.
-- "suggestion": Possible improvement — stylistic or minor.
+- "critical": Definite error — the word is clearly wrong or missing.
+- "warning": Likely error — context strongly suggests a different word or punctuation.
+- "suggestion": Possible improvement — stylistic, readability, or minor.
 
-For each annotation, provide the exact character position (start/end) within the entry text where the error occurs. Count from 0.
+IMPORTANT: The "original" field MUST contain the EXACT text as it appears in the entry, character for character. This is used to locate the error in the UI.
 
 OUTPUT — respond with ONLY valid JSON:
 {
@@ -96,10 +144,26 @@ Now extract and proofread the following file content:`
 
 /**
  * Single-pass: extracts structured text AND proofreads for errors.
+ * Accepts either a text string (RTF/CRE) or a File object (PDF).
  * Returns { title, extracted_at, entries[], annotations[] }.
  */
-export async function extractTranscriptWithGemini(fileContent) {
-  const parsed = await callGemini(`${EXTRACT_AND_PROOFREAD_PROMPT}\n\n${fileContent}`)
+export async function extractTranscriptWithGemini(fileOrText, mimeType) {
+  let filePart = null
+  let promptSuffix = ''
+
+  if (mimeType === 'application/pdf' && fileOrText instanceof ArrayBuffer) {
+    filePart = {
+      inlineData: {
+        mimeType: 'application/pdf',
+        data: arrayBufferToBase64(fileOrText),
+      },
+    }
+    promptSuffix = '\n\n[PDF file attached above]'
+  } else {
+    promptSuffix = `\n\n${fileOrText}`
+  }
+
+  const parsed = await callGemini(`${EXTRACT_AND_PROOFREAD_PROMPT}${promptSuffix}`, filePart)
 
   if (!parsed.entries || !Array.isArray(parsed.entries)) {
     throw new Error('Gemini response missing "entries" array.')
@@ -113,7 +177,7 @@ export async function extractTranscriptWithGemini(fileContent) {
     line_number: entry.line_number || null,
   }))
 
-  parsed.annotations = (parsed.annotations || []).map((a, i) => ({
+  let annots = (parsed.annotations || []).map((a, i) => ({
     id: a.id || i + 1,
     entry_id: a.entry_id,
     type: a.type || 'spelling',
@@ -127,6 +191,8 @@ export async function extractTranscriptWithGemini(fileContent) {
     status: 'open',
   }))
 
+  parsed.annotations = fixAnnotationPositions(parsed.entries, annots)
+
   if (!parsed.extracted_at) {
     parsed.extracted_at = new Date().toISOString()
   }
@@ -134,21 +200,24 @@ export async function extractTranscriptWithGemini(fileContent) {
   return parsed
 }
 
-const PROOFREAD_ONLY_PROMPT = `You are a world-class legal transcript proofreader. You will receive a JSON array of transcript entries that have already been extracted. Your ONLY job is to proofread them for errors.
+const PROOFREAD_ONLY_PROMPT = `You are a world-class legal transcript proofreader. You will receive a JSON array of transcript entries that have already been extracted. Your ONLY job is to proofread them for ALL errors.
 
 Find ALL errors of these types:
-- "spelling": Misspelled words
-- "context": Wrong word in context (to/too/two, their/there/they're, affect/effect, then/than, your/you're, etc.)
-- "grammar": Grammar mistakes (subject-verb agreement, tense errors, double negatives)
-- "legal_term": Incorrect legal terminology or case citation formatting
-- "punctuation": Missing or incorrect punctuation that changes meaning
+- "spelling": Any misspelled word
+- "context": Wrong word used in context — homophones and commonly confused words (to/too/two, their/there/they're, affect/effect, then/than, your/you're, its/it's, who's/whose, accept/except, loose/lose, compliment/complement, principal/principle, council/counsel, proceed/precede, etc.)
+- "grammar": Grammar mistakes (subject-verb agreement, tense consistency, sentence fragments, run-on sentences, double negatives, incorrect pronoun usage, dangling modifiers)
+- "legal_term": Incorrect legal terminology, misspelled legal terms, or case citation formatting
+- "punctuation": Missing or incorrect punctuation that affects meaning or readability (periods, commas, question marks, apostrophes, semicolons)
+- "capitalization": Improper capitalization of proper nouns, legal terms, or titles
+- "missing_word": Clearly missing words that break the sentence
+- "extra_word": Duplicated or extraneous words
 
 Severity levels:
-- "critical": Definite error — the word is clearly wrong.
-- "warning": Likely error — context strongly suggests a different word.
-- "suggestion": Possible improvement — stylistic or minor.
+- "critical": Definite error — the word is clearly wrong or missing.
+- "warning": Likely error — context strongly suggests a different word or punctuation.
+- "suggestion": Possible improvement — stylistic, readability, or minor.
 
-For each annotation, provide the exact character position (start/end) within the entry text. Count from 0.
+IMPORTANT: The "original" field MUST contain the EXACT text as it appears in the entry, character for character.
 
 OUTPUT — respond with ONLY a valid JSON object:
 {
@@ -180,7 +249,7 @@ export async function proofreadTranscript(entries) {
     `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`
   )
 
-  return (parsed.annotations || []).map((a, i) => ({
+  let annots = (parsed.annotations || []).map((a, i) => ({
     id: a.id || i + 1,
     entry_id: a.entry_id,
     type: a.type || 'spelling',
@@ -193,4 +262,6 @@ export async function proofreadTranscript(entries) {
     end: a.end ?? 0,
     status: 'open',
   }))
+
+  return fixAnnotationPositions(entries, annots)
 }
