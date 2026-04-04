@@ -1,18 +1,67 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 export default function DashboardUpload() {
+  const { user } = useAuth()
+  const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [audioFiles, setAudioFiles] = useState([])
   const [uploading, setUploading] = useState(false)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleUpload = () => {
+  const canUpload = caseName.trim().length > 0 && (transcriptFiles.length > 0 || audioFiles.length > 0) && !uploading
+
+  const handleUpload = async () => {
+    setError('')
     setUploading(true)
-    setTimeout(() => {
-      setUploading(false)
+
+    try {
+      const { data: caseRow, error: caseErr } = await supabase
+        .from('cases')
+        .insert({ user_id: user.id, name: caseName.trim() })
+        .select()
+        .single()
+
+      if (caseErr) throw caseErr
+
+      const allFiles = [
+        ...transcriptFiles.map((f) => ({ file: f, type: 'transcript' })),
+        ...audioFiles.map((f) => ({ file: f, type: 'audio' })),
+      ]
+
+      for (const { file, type } of allFiles) {
+        const storagePath = `${user.id}/${caseRow.id}/${type}/${file.name}`
+
+        const { error: storageErr } = await supabase.storage
+          .from('case-files')
+          .upload(storagePath, file)
+
+        if (storageErr) throw storageErr
+
+        const { error: fileErr } = await supabase
+          .from('case_files')
+          .insert({
+            case_id: caseRow.id,
+            file_type: type,
+            file_name: file.name,
+            file_size: file.size,
+            storage_path: storagePath,
+            mime_type: file.type || null,
+          })
+
+        if (fileErr) throw fileErr
+      }
+
       setDone(true)
-    }, 2200)
+    } catch (err) {
+      console.error('Upload failed:', err)
+      setError(err.message || 'Upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   if (done) {
@@ -23,24 +72,27 @@ export default function DashboardUpload() {
             <span className="material-symbols-outlined text-green-600 text-3xl">check_circle</span>
           </div>
           <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Upload Complete</h2>
+          <p className="text-sm text-on-surface-variant mb-2">
+            <span className="font-semibold text-on-surface">{caseName}</span> has been created.
+          </p>
           <p className="text-sm text-on-surface-variant mb-8">
-            Your files are queued for AI-powered review. Processing typically takes 2–5 minutes.
+            Your files are queued for AI-powered review.
           </p>
           <div className="flex justify-center gap-3">
             <Link
-              to="/dashboard/editor"
+              to="/dashboard"
               className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
             >
-              <span className="material-symbols-outlined text-base">edit_note</span>
-              Open in Editor
+              <span className="material-symbols-outlined text-base">dashboard</span>
+              View Dashboard
             </Link>
-            <Link
-              to="/dashboard"
+            <button
+              onClick={() => { setDone(false); setCaseName(''); setTranscriptFiles([]); setAudioFiles([]) }}
               className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
             >
-              <span className="material-symbols-outlined text-base">arrow_back</span>
-              Dashboard
-            </Link>
+              <span className="material-symbols-outlined text-base">add</span>
+              Upload Another
+            </button>
           </div>
         </div>
       </main>
@@ -51,7 +103,6 @@ export default function DashboardUpload() {
     <main className="min-h-screen p-8 lg:p-12 bg-background">
       <div className="max-w-5xl mx-auto">
 
-        {/* Header */}
         <header className="mb-10">
           <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm text-primary">cloud_upload</span>
@@ -61,14 +112,34 @@ export default function DashboardUpload() {
             Upload a New Case
           </h1>
           <p className="text-on-surface-variant mt-2 text-sm max-w-xl">
-            Upload your transcript and audio files below. Court Reportcard will analyze them together for the highest accuracy review.
+            Name your case, then upload your transcript and audio files. Court Reportcard will analyze them together for the highest accuracy review.
           </p>
         </header>
 
+        {/* Case name */}
+        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 mb-8">
+          <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+            Case Name
+          </label>
+          <input
+            type="text"
+            value={caseName}
+            onChange={(e) => setCaseName(e.target.value)}
+            placeholder="e.g. State vs. Henderson Motion Hearing"
+            className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          />
+          <p className="text-[11px] text-on-surface-variant mt-2">Give your case a descriptive name so you can find it later.</p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
+            <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
+            {error}
+          </div>
+        )}
+
         {/* Dual drop zones */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-
-          {/* Transcript upload */}
           <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all hover:ring-2 hover:ring-primary/20">
             <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
               <span className="material-symbols-outlined text-primary text-2xl">description</span>
@@ -100,7 +171,6 @@ export default function DashboardUpload() {
             )}
           </div>
 
-          {/* Audio upload */}
           <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all hover:ring-2 hover:ring-primary/20">
             <div className="w-14 h-14 rounded-xl bg-tertiary-fixed/20 flex items-center justify-center mb-5 group-hover:bg-tertiary-fixed/30 transition-colors">
               <span className="material-symbols-outlined text-tertiary-fixed-dim text-2xl">audio_file</span>
@@ -145,7 +215,7 @@ export default function DashboardUpload() {
             )}
           </div>
           <button
-            disabled={transcriptFiles.length + audioFiles.length === 0 || uploading}
+            disabled={!canUpload}
             onClick={handleUpload}
             className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
@@ -155,7 +225,7 @@ export default function DashboardUpload() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Processing...
+                Uploading...
               </>
             ) : (
               <>
