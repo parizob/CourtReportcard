@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { extractTranscriptWithGemini } from '../../lib/gemini'
 
 export default function DashboardUpload() {
   const { user } = useAuth()
@@ -9,7 +10,9 @@ export default function DashboardUpload() {
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [audioFiles, setAudioFiles] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState('')
   const [done, setDone] = useState(false)
+  const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
 
   const canUpload = caseName.trim().length > 0 && (transcriptFiles.length > 0 || audioFiles.length > 0) && !uploading
@@ -17,6 +20,7 @@ export default function DashboardUpload() {
   const handleUpload = async () => {
     setError('')
     setUploading(true)
+    setUploadPhase('Creating case...')
 
     try {
       const { data: caseRow, error: caseErr } = await supabase
@@ -26,11 +30,14 @@ export default function DashboardUpload() {
         .single()
 
       if (caseErr) throw caseErr
+      setCreatedCaseId(caseRow.id)
 
       const allFiles = [
         ...transcriptFiles.map((f) => ({ file: f, type: 'transcript' })),
         ...audioFiles.map((f) => ({ file: f, type: 'audio' })),
       ]
+
+      setUploadPhase('Uploading files...')
 
       for (const { file, type } of allFiles) {
         const storagePath = `${user.id}/${caseRow.id}/${type}/${file.name}`
@@ -55,12 +62,57 @@ export default function DashboardUpload() {
         if (fileErr) throw fileErr
       }
 
+      // Extract text from transcript files via Gemini
+      if (transcriptFiles.length > 0) {
+        setUploadPhase('Extracting & proofreading with AI...')
+
+        for (const file of transcriptFiles) {
+          const rawContent = await file.text()
+
+          const extractedJson = await extractTranscriptWithGemini(rawContent)
+
+          const jsonBlob = new Blob(
+            [JSON.stringify(extractedJson, null, 2)],
+            { type: 'application/json' }
+          )
+
+          const jsonFileName = file.name.replace(/\.(rtf|cre)$/i, '') + '_extracted.json'
+          const jsonStoragePath = `${user.id}/${caseRow.id}/extracted/${jsonFileName}`
+
+          const { error: jsonUpErr } = await supabase.storage
+            .from('case-files')
+            .upload(jsonStoragePath, jsonBlob)
+
+          if (jsonUpErr) throw jsonUpErr
+
+          const { error: jsonFileErr } = await supabase
+            .from('case_files')
+            .insert({
+              case_id: caseRow.id,
+              file_type: 'extracted',
+              file_name: jsonFileName,
+              file_size: jsonBlob.size,
+              storage_path: jsonStoragePath,
+              mime_type: 'application/json',
+            })
+
+          if (jsonFileErr) throw jsonFileErr
+        }
+
+        // Update case status to processing since extraction is done
+        await supabase
+          .from('cases')
+          .update({ status: 'analyzed' })
+          .eq('id', caseRow.id)
+      }
+
       setDone(true)
     } catch (err) {
       console.error('Upload failed:', err)
       setError(err.message || 'Upload failed. Please try again.')
     } finally {
       setUploading(false)
+      setUploadPhase('')
     }
   }
 
@@ -73,26 +125,28 @@ export default function DashboardUpload() {
           </div>
           <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Upload Complete</h2>
           <p className="text-sm text-on-surface-variant mb-2">
-            <span className="font-semibold text-on-surface">{caseName}</span> has been created.
+            <span className="font-semibold text-on-surface">{caseName}</span> has been created and analyzed.
           </p>
           <p className="text-sm text-on-surface-variant mb-8">
-            Your files are queued for AI-powered review.
+            Your transcript has been extracted and proofread. Review flagged issues in the editor.
           </p>
           <div className="flex justify-center gap-3">
+            {createdCaseId && (
+              <Link
+                to={`/dashboard/editor?case=${createdCaseId}`}
+                className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-base">edit_note</span>
+                Open in Editor
+              </Link>
+            )}
             <Link
               to="/dashboard"
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined text-base">dashboard</span>
-              View Dashboard
-            </Link>
-            <button
-              onClick={() => { setDone(false); setCaseName(''); setTranscriptFiles([]); setAudioFiles([]) }}
               className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
             >
-              <span className="material-symbols-outlined text-base">add</span>
-              Upload Another
-            </button>
+              <span className="material-symbols-outlined text-base">dashboard</span>
+              Dashboard
+            </Link>
           </div>
         </div>
       </main>
@@ -206,7 +260,15 @@ export default function DashboardUpload() {
         {/* Upload action */}
         <div className="flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-6 py-4">
           <div className="text-sm text-on-surface-variant">
-            {transcriptFiles.length + audioFiles.length === 0 ? (
+            {uploading ? (
+              <span className="flex items-center gap-2 font-semibold text-primary">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                {uploadPhase}
+              </span>
+            ) : transcriptFiles.length + audioFiles.length === 0 ? (
               'No files selected'
             ) : (
               <span className="font-semibold text-on-surface">
@@ -225,7 +287,7 @@ export default function DashboardUpload() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Uploading...
+                Processing...
               </>
             ) : (
               <>
