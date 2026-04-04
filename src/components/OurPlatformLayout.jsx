@@ -1,4 +1,5 @@
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { icon: 'cloud_upload', label: 'Upload', to: '/ourplatform', end: true },
@@ -8,6 +9,7 @@ const navItems = [
 
 export default function OurPlatformLayout() {
   const { pathname } = useLocation()
+  const { openModal } = useAuth()
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
 
@@ -48,21 +50,21 @@ export default function OurPlatformLayout() {
             <div className="p-4 bg-primary-container rounded-xl text-on-primary-container">
               <p className="text-xs uppercase tracking-widest font-bold mb-1 text-primary-fixed-dim">Ready to Start?</p>
               <p className="text-sm mb-4 text-white/80 leading-relaxed">Get full access to every feature — no credit card required.</p>
-              <Link
-                to="/"
+              <button
+                onClick={() => openModal('signup')}
                 className="block w-full py-2 bg-tertiary-fixed-dim text-on-tertiary-fixed font-bold text-xs rounded uppercase tracking-tighter text-center"
               >
                 Get Early Access
-              </Link>
+              </button>
             </div>
             <Link to="/aboutus" className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors">
               <span className="material-symbols-outlined">info</span>
               <span>About Us</span>
             </Link>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors">
+            <Link to="/support" className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors">
               <span className="material-symbols-outlined">help</span>
               <span>Help Center</span>
-            </a>
+            </Link>
           </div>
         </aside>
 

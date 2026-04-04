@@ -4,12 +4,16 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalTab, setModalTab] = useState('signin')
 
-  const login = () => setIsAuthenticated(true)
+  const login = () => { setIsAuthenticated(true); setModalOpen(false) }
   const logout = () => setIsAuthenticated(false)
+  const openModal = (tab = 'signin') => { setModalTab(tab); setModalOpen(true) }
+  const closeModal = () => setModalOpen(false)
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, login, logout, modalOpen, modalTab, openModal, closeModal }}>
       {children}
     </AuthContext.Provider>
   )

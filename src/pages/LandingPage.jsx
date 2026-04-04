@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import SiteFooter from '../components/SiteFooter'
 
 export default function LandingPage() {
+  const { openModal } = useAuth()
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
 
@@ -16,15 +19,15 @@ export default function LandingPage() {
                 Court Reportcard applies clinical accuracy to court transcripts. Detect conflicts, fix formatting, and ensure every word meets the highest judicial standard.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Link
-                  to="/ourplatform"
+                <button
+                  onClick={() => openModal('signup')}
                   className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-md font-bold text-lg editorial-shadow transition-all hover:translate-y-[-2px]"
                 >
                   Try Now
-                </Link>
-                <button className="text-primary px-8 py-4 font-bold text-lg hover:underline decoration-tertiary-fixed decoration-2 underline-offset-4">
-                  Watch Demo
                 </button>
+                <Link to="/ourplatform" className="text-primary px-8 py-4 font-bold text-lg hover:underline decoration-tertiary-fixed decoration-2 underline-offset-4">
+                  Platform Demo
+                </Link>
               </div>
               <div className="mt-12 flex items-center gap-4">
                 <div className="flex -space-x-3">
@@ -171,23 +174,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full border-t border-outline-variant/15">
-        <div className="bg-[#f8f9fa]">
-          <div className="flex flex-col md:flex-row justify-between items-center px-12 py-8 w-full max-w-[1440px] mx-auto">
-            <div className="mb-6 md:mb-0">
-              <Link to="/" className="font-headline font-bold text-primary text-xl hover:opacity-80 transition-opacity">Court Reportcard</Link>
-              <p className="text-on-surface-variant text-[10px] mt-2 font-body uppercase tracking-widest">© 2024 Court Reportcard. All Rights Reserved. Confidential Legal Tool.</p>
-            </div>
-            <div className="flex gap-8">
-              <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">Terms of Service</a>
-              <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
-              <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">Contact Support</a>
-              <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">Security Audit</a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

@@ -5,20 +5,24 @@ import OurPlatform from './pages/OurPlatform'
 import OurPlatformEditor from './pages/OurPlatformEditor'
 import OurPlatformExport from './pages/OurPlatformExport'
 import AboutUs from './pages/AboutUs'
+import Support from './pages/Support'
 import PageTransition from './components/PageTransition'
 import SiteHeader from './components/SiteHeader'
-import { AuthProvider } from './context/AuthContext'
+import SignInModal from './components/SignInModal'
+import ScrollToTop from './components/ScrollToTop'
+import { AuthProvider, useAuth } from './context/AuthContext'
 
-export default function App() {
+function AppShell() {
+  const { modalOpen, modalTab, closeModal } = useAuth()
   return (
-    <AuthProvider>
-    <BrowserRouter>
-      {/* Header sits outside the transition so it never animates */}
+    <>
+      <ScrollToTop />
       <SiteHeader />
       <PageTransition>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/aboutus" element={<AboutUs />} />
+          <Route path="/support" element={<Support />} />
           <Route path="/ourplatform" element={<OurPlatformLayout />}>
             <Route index element={<OurPlatform />} />
             <Route path="editor" element={<OurPlatformEditor />} />
@@ -27,7 +31,17 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </PageTransition>
-    </BrowserRouter>
+      {modalOpen && <SignInModal initialTab={modalTab} onClose={closeModal} />}
+    </>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppShell />
+      </BrowserRouter>
     </AuthProvider>
   )
 }

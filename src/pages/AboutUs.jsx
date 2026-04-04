@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import SiteFooter from '../components/SiteFooter'
 
 const stats = [
   { value: '94%', label: 'Avg. accuracy on first pass' },
@@ -38,7 +40,7 @@ const timeline = [
     detail: 'A close family friend — a veteran stenographer — showed us her daily workflow: a 4-hour deposition, six hours of solo review, and still a looming certification deadline. We couldn\'t unsee it.',
   },
   {
-    year: '2024',
+    year: '2026',
     heading: 'Research & interviews',
     detail: 'We spent twelve months talking to reporters across the country. Every conversation confirmed the same pain: the work is important, the pressure is relentless, and the tools haven\'t caught up.',
   },
@@ -55,6 +57,7 @@ const timeline = [
 ]
 
 export default function AboutUs() {
+  const { openModal } = useAuth()
   return (
     <div className="bg-background text-on-surface font-body min-h-screen">
 
@@ -211,27 +214,16 @@ export default function AboutUs() {
             <h2 className="font-headline font-extrabold text-3xl mb-2">Ready to see it in action?</h2>
             <p className="text-on-primary/70 text-base">Upload your first transcript in under a minute. No credit card required.</p>
           </div>
-          <Link
-            to="/ourplatform"
+          <button
+            onClick={() => openModal('signup')}
             className="shrink-0 bg-tertiary-fixed-dim text-on-tertiary-fixed px-8 py-4 rounded-md font-bold text-base hover:brightness-105 transition-all editorial-shadow"
           >
             Start for Free →
-          </Link>
+          </button>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-surface-container-low border-t border-outline-variant/20 px-8 py-8">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-on-surface-variant">
-          <span className="font-headline font-black text-primary text-base">Court Reportcard</span>
-          <span>© 2024 Court Reportcard. Built for stenographers who deserve better.</span>
-          <div className="flex gap-6">
-            <Link to="/" className="hover:text-primary transition-colors">Home</Link>
-            <Link to="/ourplatform" className="hover:text-primary transition-colors">Platform</Link>
-            <Link to="/aboutus" className="hover:text-primary transition-colors">About</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
     </div>
   )

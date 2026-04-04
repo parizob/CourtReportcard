@@ -245,7 +245,7 @@ export default function OurPlatform() {
 
       {/* Footer */}
       <footer className="max-w-6xl mx-auto mt-16 border-t border-outline-variant/15 flex flex-col md:flex-row justify-between items-center py-8">
-        <p className="font-body text-xs uppercase tracking-widest text-on-surface-variant mb-4 md:mb-0">© 2024 Court Reportcard. All Rights Reserved.</p>
+        <p className="font-body text-xs uppercase tracking-widest text-on-surface-variant mb-4 md:mb-0">© 2026 Court Reportcard. All Rights Reserved.</p>
         <div className="flex gap-6">
           <a className="font-body text-xs uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
           <a className="font-body text-xs uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>

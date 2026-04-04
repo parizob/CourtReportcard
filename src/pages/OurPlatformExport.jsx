@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const qaStats = [
   { value: '124', label: 'Typos Fixed', color: 'text-primary' },
@@ -37,6 +38,7 @@ const competitors = [
 ]
 
 export default function OurPlatformExport() {
+  const { openModal } = useAuth()
   const [formats, setFormats] = useState({ pdf: true, word: true, txt: false, catalyst: true })
   const selectedCount = Object.values(formats).filter(Boolean).length
   const toggle = (k) => setFormats((p) => ({ ...p, [k]: !p[k] }))
@@ -98,7 +100,7 @@ export default function OurPlatformExport() {
             <div className="space-y-8">
               <div className="border-b border-outline-variant/15 pb-6">
                 <h3 className="font-headline text-xl font-bold text-on-surface">Official Court Transcript</h3>
-                <p className="text-xs text-on-surface-variant mt-1">VOLUME I • FEBRUARY 14, 2024 • Case #4492-B: State vs. Miller</p>
+                <p className="text-xs text-on-surface-variant mt-1">VOLUME I • FEBRUARY 14, 2026 • Case #4492-B: State vs. Miller</p>
               </div>
               <div className="space-y-6 text-on-surface leading-relaxed">
                 <div className="flex items-start gap-4">
@@ -252,19 +254,19 @@ export default function OurPlatformExport() {
             <span className="material-symbols-outlined text-tertiary-fixed-dim text-3xl block mb-2">rocket_launch</span>
             <h3 className="font-headline font-bold text-on-primary text-lg mb-1">Ready to Get Started?</h3>
             <p className="text-on-primary-container text-xs mb-4 leading-relaxed">Join hundreds of court reporters who've eliminated submission rejections entirely.</p>
-            <Link
-              to="/"
+            <button
+              onClick={() => openModal('signup')}
               className="inline-block px-8 py-3 bg-tertiary-fixed-dim text-on-tertiary-fixed font-bold rounded-lg hover:bg-tertiary-fixed transition-colors text-sm"
             >
               Request Early Access
-            </Link>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Footer */}
       <footer className="max-w-6xl mx-auto mt-16 border-t border-outline-variant/15 flex flex-col md:flex-row justify-between items-center py-8">
-        <p className="font-body text-xs uppercase tracking-widest text-on-surface-variant mb-4 md:mb-0">© 2024 Court Reportcard. All Rights Reserved.</p>
+        <p className="font-body text-xs uppercase tracking-widest text-on-surface-variant mb-4 md:mb-0">© 2026 Court Reportcard. All Rights Reserved.</p>
         <div className="flex gap-6">
           <a className="font-body text-xs uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
           <a className="font-body text-xs uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>

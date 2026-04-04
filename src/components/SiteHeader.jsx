@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import SignInModal from './SignInModal'
 
 const navLinkClass = ({ isActive }) =>
   isActive
@@ -9,17 +8,13 @@ const navLinkClass = ({ isActive }) =>
     : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200'
 
 export default function SiteHeader() {
-  const { isAuthenticated } = useAuth()
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalTab, setModalTab] = useState('signin')
+  const { isAuthenticated, openModal } = useAuth()
 
   // Bell notification state
   const [bellRinging, setBellRinging] = useState(false)
   const [hasNotification, setHasNotification] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef(null)
-
-  const openModal = (tab) => { setModalTab(tab); setModalOpen(true) }
 
   // Trigger bell ring + badge after 5s
   useEffect(() => {
@@ -185,7 +180,6 @@ export default function SiteHeader() {
       </div>
       <div className="bg-surface-container-low h-[1px] w-full" />
 
-      {modalOpen && <SignInModal initialTab={modalTab} onClose={() => setModalOpen(false)} />}
     </nav>
   )
 }
