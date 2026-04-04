@@ -6,6 +6,8 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState(initialTab)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -16,9 +18,15 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
     e.preventDefault()
     setError('')
 
-    if (tab === 'signup' && password !== confirm) {
-      setError('Passwords do not match.')
-      return
+    if (tab === 'signup') {
+      if (!firstName.trim() || !lastName.trim()) {
+        setError('First and last name are required.')
+        return
+      }
+      if (password !== confirm) {
+        setError('Passwords do not match.')
+        return
+      }
     }
 
     setSubmitting(true)
@@ -26,7 +34,10 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
       if (tab === 'signin') {
         await signIn(email, password)
       } else {
-        await signUp(email, password)
+        await signUp(email, password, {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+        })
       }
       onClose()
       navigate('/dashboard')
@@ -90,6 +101,38 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {tab === 'signup' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Jane"
+                    className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
+                    className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">
                 Email

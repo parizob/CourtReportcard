@@ -25,13 +25,28 @@ export function AuthProvider({ children }) {
 
   const isAuthenticated = !!user
 
+  const displayName = user?.user_metadata?.first_name && user?.user_metadata?.last_name
+    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
+    : user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User'
+
+  const initials = user?.user_metadata?.first_name && user?.user_metadata?.last_name
+    ? `${user.user_metadata.first_name.charAt(0)}${user.user_metadata.last_name.charAt(0)}`.toUpperCase()
+    : user?.email?.charAt(0).toUpperCase() || 'U'
+
   const signIn = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
-  const signUp = async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password })
+  const signUp = async (email, password, metadata = {}) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
+    })
     if (error) throw error
   }
 
@@ -48,6 +63,8 @@ export function AuthProvider({ children }) {
       user,
       isAuthenticated,
       loading,
+      displayName,
+      initials,
       signIn,
       signUp,
       signOut,

@@ -10,7 +10,7 @@ const navItems = [
 
 export default function DashboardLayout() {
   const { pathname } = useLocation()
-  const { user, signOut } = useAuth()
+  const { displayName, initials, user, signOut } = useAuth()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -26,11 +26,11 @@ export default function DashboardLayout() {
           {/* User info */}
           <div className="mb-8 px-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold">
-              {user?.email?.charAt(0).toUpperCase() || 'U'}
+              {initials}
             </div>
             <div className="min-w-0">
-              <p className="font-body text-sm font-semibold text-on-surface truncate">{user?.email || 'User'}</p>
-              <p className="font-body text-xs text-on-surface-variant">Free Plan</p>
+              <p className="font-body text-sm font-semibold text-on-surface truncate">{displayName}</p>
+              <p className="font-body text-[11px] text-on-surface-variant truncate">{user?.email}</p>
             </div>
           </div>
 
