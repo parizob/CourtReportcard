@@ -234,28 +234,28 @@ export default function Dashboard() {
                   <div className="w-32 flex justify-center gap-1">
                     <button
                       onClick={() => setViewTarget(c)}
-                      title="View Files"
+                      title="View & download original uploaded files"
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">folder_open</span>
                     </button>
                     <Link
                       to={`/dashboard/editor?case=${c.id}`}
-                      title="Open in Editor"
+                      title="Review & proofread this transcript"
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">edit_note</span>
                     </Link>
                     <Link
                       to={`/dashboard/export?case=${c.id}`}
-                      title="Export"
+                      title="Export finalized transcript"
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">cloud_download</span>
                     </Link>
                     <button
                       onClick={() => setDeleteTarget(c)}
-                      title="Delete Case"
+                      title="Permanently delete this case and all its files"
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">delete</span>
