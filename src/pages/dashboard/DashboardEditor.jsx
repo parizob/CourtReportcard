@@ -96,8 +96,11 @@ export default function DashboardEditor() {
         annotations: updatedAnnotations,
       }, null, 2)
       const blob = new Blob([updatedJson], { type: 'application/json' })
-      await supabase.storage.from('case-files').update(extractedFilePath, blob, { upsert: true })
-      setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations }))
+      const { error: upErr } = await supabase.storage
+        .from('case-files')
+        .upload(extractedFilePath, blob, { upsert: true })
+      if (upErr) console.error('Persist JSON storage error:', upErr)
+      else setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations }))
     } catch (err) {
       console.error('Persist JSON failed:', err)
     }
@@ -187,7 +190,7 @@ export default function DashboardEditor() {
       const blob = new Blob([updatedJson], { type: 'application/json' })
       const { error: uploadErr } = await supabase.storage
         .from('case-files')
-        .update(extractedFilePath, blob, { upsert: true })
+        .upload(extractedFilePath, blob, { upsert: true })
       if (uploadErr) throw uploadErr
 
       await supabase.from('case_metrics').upsert({

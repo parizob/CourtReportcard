@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { startAnalysis, isAnalyzing } from '../../lib/backgroundAnalysis'
+import { extractTranscriptWithGemini } from '../../lib/gemini'
 
 export default function DashboardUpload() {
   const { user } = useAuth()
@@ -13,19 +13,21 @@ export default function DashboardUpload() {
   const [done, setDone] = useState(false)
   const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
-  const [analyzing, setAnalyzing] = useState(false)
 
-  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = useRef(null)
 
   useEffect(() => {
-    if (!createdCaseId) return
-    const interval = setInterval(() => {
-      const still = isAnalyzing(createdCaseId)
-      setAnalyzing(still)
-      if (!still) clearInterval(interval)
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [createdCaseId])
+    if (uploadPhase === 'AI is analyzing your transcript...') {
+      setElapsed(0)
+      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
+    } else {
+      clearInterval(timerRef.current)
+    }
+    return () => clearInterval(timerRef.current)
+  }, [uploadPhase])
+
+  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
 
   const handleUpload = async () => {
     setError('')
@@ -65,19 +67,100 @@ export default function DashboardUpload() {
         if (fileErr) throw fileErr
       }
 
+      await supabase.from('cases').update({ status: 'processing' }).eq('id', caseRow.id)
+      setUploadPhase('AI is analyzing your transcript...')
+
+      let totalEntries = 0
+      let totalIssues = 0
+
+      for (const file of transcriptFiles) {
+        const isPdf = file.name.toLowerCase().endsWith('.pdf')
+        let extractedJson
+
+        if (isPdf) {
+          const buffer = await file.arrayBuffer()
+          extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
+        } else {
+          const rawContent = await file.text()
+          extractedJson = await extractTranscriptWithGemini(rawContent)
+        }
+
+        totalEntries += (extractedJson.entries || []).length
+        totalIssues += (extractedJson.annotations || []).length
+
+        const jsonBlob = new Blob(
+          [JSON.stringify(extractedJson, null, 2)],
+          { type: 'application/json' }
+        )
+
+        const jsonFileName = file.name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_extracted.json'
+        const jsonStoragePath = `${user.id}/${caseRow.id}/extracted/${jsonFileName}`
+
+        await supabase.storage.from('case-files').upload(jsonStoragePath, jsonBlob, { upsert: true })
+
+        await supabase.from('case_files').insert({
+          case_id: caseRow.id,
+          file_type: 'extracted',
+          file_name: jsonFileName,
+          file_size: jsonBlob.size,
+          storage_path: jsonStoragePath,
+          mime_type: 'application/json',
+        })
+      }
+
+      await supabase.from('case_metrics').upsert({
+        case_id: caseRow.id,
+        total_entries: totalEntries,
+        total_issues: totalIssues,
+        accepted: 0,
+        ignored: 0,
+        open: totalIssues,
+        last_reviewed_at: new Date().toISOString(),
+      }, { onConflict: 'case_id' })
+
+      await supabase.from('cases').update({ status: 'analyzed' }).eq('id', caseRow.id)
+
       setDone(true)
       setUploading(false)
       setUploadPhase('')
-      setAnalyzing(true)
-
-      const fileCopies = Array.from(transcriptFiles)
-      startAnalysis(caseRow.id, fileCopies, user.id)
     } catch (err) {
       console.error('Upload failed:', err)
       setError(err.message || 'Upload failed. Please try again.')
       setUploading(false)
       setUploadPhase('')
     }
+  }
+
+  if (uploading && uploadPhase === 'AI is analyzing your transcript...') {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background p-8">
+        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-md">
+          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 relative">
+            <span className="material-symbols-outlined text-primary text-4xl">auto_awesome</span>
+            <svg className="absolute inset-0 animate-spin-slow" viewBox="0 0 80 80" fill="none">
+              <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="60 180" className="text-primary/30" />
+            </svg>
+          </div>
+          <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Analyzing Transcript</h2>
+          <p className="text-sm text-on-surface-variant mb-4">
+            <span className="font-semibold text-on-surface">{caseName}</span> is being processed by AI.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-primary font-semibold mb-4">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Extracting text &amp; proofreading...
+          </div>
+          <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
+            This typically takes 1–3 minutes depending on transcript length. Please stay on this page while the analysis completes.
+          </p>
+          <p className="text-xs font-mono text-on-surface-variant/60">
+            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} elapsed
+          </p>
+        </div>
+      </main>
+    )
   }
 
   if (done) {
@@ -87,32 +170,16 @@ export default function DashboardUpload() {
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
             <span className="material-symbols-outlined text-green-600 text-3xl">check_circle</span>
           </div>
-          <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Upload Complete</h2>
+          <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Analysis Complete</h2>
           <p className="text-sm text-on-surface-variant mb-2">
-            <span className="font-semibold text-on-surface">{caseName}</span> has been uploaded successfully.
+            <span className="font-semibold text-on-surface">{caseName}</span> has been uploaded and analyzed.
+          </p>
+          <p className="text-sm text-on-surface-variant mb-8">
+            Your transcript has been extracted and proofread. Review flagged issues in the editor.
           </p>
 
-          {analyzing ? (
-            <div className="mb-8">
-              <div className="flex items-center justify-center gap-2 text-sm text-primary font-semibold mb-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                AI is analyzing your transcript...
-              </div>
-              <p className="text-xs text-on-surface-variant">
-                This runs in the background. You can navigate away — your case will appear as "Processing" on the dashboard and switch to "Analyzed" when ready.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-on-surface-variant mb-8">
-              Your transcript has been extracted and proofread. Review flagged issues in the editor.
-            </p>
-          )}
-
           <div className="flex justify-center gap-3">
-            {createdCaseId && !analyzing && (
+            {createdCaseId && (
               <Link
                 to={`/dashboard/editor?case=${createdCaseId}`}
                 className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"

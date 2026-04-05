@@ -8,25 +8,39 @@ function assertApiKey() {
   }
 }
 
-async function callGemini(prompt, filePart) {
+async function callGemini(prompt, filePart, timeoutMs = 300000) {
   assertApiKey()
 
   const parts = []
   if (filePart) parts.push(filePart)
   parts.push({ text: prompt })
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 65536,
-        responseMimeType: 'application/json',
-      },
-    }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  let response
+  try {
+    response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 65536,
+          responseMimeType: 'application/json',
+        },
+      }),
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    if (err.name === 'AbortError') {
+      throw new Error('Gemini API request timed out. The transcript may be too large — try splitting it into smaller files.')
+    }
+    throw err
+  }
+  clearTimeout(timer)
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))

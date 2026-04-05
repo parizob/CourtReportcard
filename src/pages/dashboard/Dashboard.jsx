@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import Tooltip from '../../components/Tooltip'
+import { retryStuckCases } from '../../lib/backgroundAnalysis'
 
 export default function Dashboard() {
   const { displayName } = useAuth()
@@ -15,23 +16,31 @@ export default function Dashboard() {
   const [viewTarget, setViewTarget] = useState(null)
   const [downloading, setDownloading] = useState(null)
 
-  useEffect(() => { fetchCases() }, [])
+  const retryRan = useRef(false)
+  useEffect(() => {
+    fetchCases(true).then(() => {
+      if (!retryRan.current) {
+        retryRan.current = true
+        retryStuckCases()
+      }
+    })
+  }, [])
 
   useEffect(() => {
     const hasProcessing = cases.some((c) => c.status === 'processing')
     if (!hasProcessing) return
-    const interval = setInterval(fetchCases, 4000)
+    const interval = setInterval(() => fetchCases(false), 4000)
     return () => clearInterval(interval)
   }, [cases])
 
-  const fetchCases = async () => {
-    setLoading(true)
+  const fetchCases = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     const { data, error } = await supabase
       .from('cases')
       .select('*, case_files(*), case_metrics(*)')
       .order('created_at', { ascending: false })
     if (!error && data) setCases(data)
-    setLoading(false)
+    if (showLoading) setLoading(false)
   }
 
   const handleDelete = async () => {
