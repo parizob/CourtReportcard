@@ -95,6 +95,115 @@ export function flexFind(text, search) {
   return null
 }
 
+/**
+ * Builds a "clean content" version of originalText by stripping line-number
+ * prefixes (e.g. " 1  ", " 12  ") from the start of each line.
+ * Returns { cleanContent, parsedLines, cleanToOrig }.
+ * - cleanContent: text with line numbers removed, lines joined by \n
+ * - parsedLines[i]: { prefix, content, fullLine, cleanStart, cleanEnd }
+ * - cleanToOrig[i]: position in originalText of the i-th char in cleanContent
+ */
+export function buildCleanContentMap(text) {
+  const rawLines = text.split('\n')
+  const parsedLines = []
+  const cleanToOrig = []
+  let cleanContent = ''
+  let lineOrigStart = 0
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    const m = line.match(/^(\s*\d{1,4}\s{2,})/)
+    const prefix = m ? m[1] : ''
+    const content = line.substring(prefix.length)
+    const cleanStart = cleanContent.length
+
+    if (i > 0) {
+      cleanContent += '\n'
+      cleanToOrig.push(lineOrigStart - 1)
+    }
+
+    for (let j = 0; j < content.length; j++) {
+      cleanToOrig.push(lineOrigStart + prefix.length + j)
+      cleanContent += content[j]
+    }
+
+    parsedLines.push({ prefix, content, fullLine: line, cleanStart: i === 0 ? 0 : cleanStart + 1, cleanEnd: cleanContent.length })
+    lineOrigStart += line.length + 1
+  }
+
+  return { cleanContent, parsedLines, cleanToOrig }
+}
+
+const _tokenize = (s) => {
+  const tokens = []
+  let i = 0
+  while (i < s.length) {
+    if (/\s/.test(s[i])) {
+      let j = i
+      while (j < s.length && /\s/.test(s[j])) j++
+      tokens.push({ type: 'sep', value: s.substring(i, j) })
+      i = j
+    } else {
+      let j = i
+      while (j < s.length && !/\s/.test(s[j])) j++
+      tokens.push({ type: 'word', value: s.substring(i, j) })
+      i = j
+    }
+  }
+  return tokens
+}
+
+/**
+ * Applies a correction to `text` while preserving original whitespace structure.
+ * Handles court-transcript formatting where line numbers appear between words
+ * (e.g. "as\n 2  identified" when searching for "as identified").
+ * Returns the corrected text, or the original unchanged if not found.
+ */
+export function applyCorrection(text, original, suggestion) {
+  if (!text || !original || !suggestion) return text
+
+  const doReplace = (matchStart, matchEnd, skipLineNums) => {
+    const matchedRegion = text.substring(matchStart, matchEnd)
+    const tokens = _tokenize(matchedRegion)
+    const suggWords = suggestion.split(/\s+/).filter(Boolean)
+
+    const contentIndices = []
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i].type !== 'word') continue
+      if (skipLineNums) {
+        const isLineNum = /^\d+$/.test(tokens[i].value) &&
+          i > 0 && tokens[i - 1].type === 'sep' && /\n/.test(tokens[i - 1].value)
+        if (isLineNum) continue
+      }
+      contentIndices.push(i)
+    }
+
+    if (contentIndices.length === suggWords.length) {
+      let wi = 0
+      for (const idx of contentIndices) {
+        tokens[idx] = { type: 'word', value: suggWords[wi++] }
+      }
+      const rebuilt = tokens.map((t) => t.value).join('')
+      return text.substring(0, matchStart) + rebuilt + text.substring(matchEnd)
+    }
+
+    return text.substring(0, matchStart) + suggestion + text.substring(matchEnd)
+  }
+
+  // Fast path: direct match in text
+  const m = flexFind(text, original)
+  if (m) return doReplace(m.start, m.end, false)
+
+  // Fallback: search in clean content (strips line numbers from .txt transcripts)
+  const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
+  const cm = flexFind(cleanContent, original)
+  if (!cm) return text
+
+  const origStart = cleanToOrig[cm.start]
+  const origEnd = cleanToOrig[Math.min(cm.end - 1, cleanToOrig.length - 1)] + 1
+  return doReplace(origStart, origEnd, true)
+}
+
 export function fixAnnotationPositions(entries, annotations) {
   return annotations.map((a) => {
     if (!a.original) return a

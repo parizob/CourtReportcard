@@ -91,6 +91,7 @@ export default function DashboardUpload() {
 
       for (const file of transcriptFiles) {
         const isPdf = file.name.toLowerCase().endsWith('.pdf')
+        const isTxt = file.name.toLowerCase().endsWith('.txt')
         let extractedJson
 
         if (isPdf) {
@@ -99,6 +100,9 @@ export default function DashboardUpload() {
         } else {
           const rawContent = await file.text()
           extractedJson = await extractTranscriptWithGemini(rawContent)
+          if (isTxt) {
+            extractedJson.originalText = rawContent
+          }
         }
 
         totalEntries += (extractedJson.entries || []).length

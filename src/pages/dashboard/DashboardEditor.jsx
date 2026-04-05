@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind } from '../../lib/gemini'
+import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
@@ -18,10 +18,11 @@ export default function DashboardEditor() {
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
+  const [originalText, setOriginalText] = useState(null)
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ entries, annotations }),
-    [entries, annotations]
+    () => JSON.stringify({ entries, annotations, originalText }),
+    [entries, annotations, originalText]
   )
   const hasChanges = currentSnapshot !== originalSnapshot
 
@@ -66,9 +67,11 @@ export default function DashboardEditor() {
         setTitle(parsed.title || '')
         setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)
+        setOriginalText(parsed.originalText || null)
         setOriginalSnapshot(JSON.stringify({
           entries: dedupedEntries,
           annotations: fixedAnnotations,
+          originalText: parsed.originalText || null,
         }))
       }
     } catch (err) {
@@ -90,27 +93,31 @@ export default function DashboardEditor() {
   }, [])
 
   const persistJsonRef = useRef(null)
-  persistJsonRef.current = async (updatedEntries, updatedAnnotations) => {
+  persistJsonRef.current = async (updatedEntries, updatedAnnotations, updatedOriginalText) => {
     if (!extractedFilePath) return
     try {
-      const updatedJson = JSON.stringify({
+      const payload = {
         title,
         extracted_at: new Date().toISOString(),
         entries: updatedEntries,
         annotations: updatedAnnotations,
-      }, null, 2)
+      }
+      if (updatedOriginalText !== undefined) payload.originalText = updatedOriginalText
+      else if (originalText) payload.originalText = originalText
+
+      const updatedJson = JSON.stringify(payload, null, 2)
       const blob = new Blob([updatedJson], { type: 'application/json' })
       const { error: upErr } = await supabase.storage
         .from('case-files')
         .upload(extractedFilePath, blob, { upsert: true })
       if (upErr) console.error('Persist JSON storage error:', upErr)
-      else setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations }))
+      else setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations, originalText: updatedOriginalText ?? originalText }))
     } catch (err) {
       console.error('Persist JSON failed:', err)
     }
   }
 
-  const syncMetrics = useCallback(async (updatedAnnotations, updatedEntries) => {
+  const syncMetrics = useCallback(async (updatedAnnotations, updatedEntries, updatedOriginalText) => {
     if (!caseId) return
     const accepted = updatedAnnotations.filter((a) => a.status === 'accepted').length
     const ignored = updatedAnnotations.filter((a) => a.status === 'ignored').length
@@ -132,7 +139,7 @@ export default function DashboardEditor() {
     }
 
     if (persistJsonRef.current) {
-      persistJsonRef.current(updatedEntries || entries, updatedAnnotations)
+      persistJsonRef.current(updatedEntries || entries, updatedAnnotations, updatedOriginalText)
     }
   }, [caseId, entries])
 
@@ -149,6 +156,13 @@ export default function DashboardEditor() {
       return { ...e, text: before + ann.suggestion + after }
     })
 
+    // Also apply correction to originalText (preserves formatting)
+    let updatedOriginalText = originalText
+    if (originalText) {
+      updatedOriginalText = applyCorrection(originalText, ann.original, ann.suggestion)
+      setOriginalText(updatedOriginalText)
+    }
+
     const updatedAnnotations = annotations.map((a) =>
       a.id === annotationId ? { ...a, status: 'accepted' } : a
     )
@@ -158,8 +172,8 @@ export default function DashboardEditor() {
     setAnnotations(fixedAnnotations)
     setSaved(false)
 
-    syncMetrics(fixedAnnotations, newEntries)
-  }, [annotations, entries, syncMetrics])
+    syncMetrics(fixedAnnotations, newEntries, updatedOriginalText)
+  }, [annotations, entries, originalText, syncMetrics])
 
   const ignoreAnnotation = useCallback((annotationId) => {
     const updated = annotations.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
@@ -188,7 +202,9 @@ export default function DashboardEditor() {
     setSaving(true)
     setError('')
     try {
-      const updatedJson = JSON.stringify({ title, extracted_at: new Date().toISOString(), entries, annotations }, null, 2)
+      const payload = { title, extracted_at: new Date().toISOString(), entries, annotations }
+      if (originalText) payload.originalText = originalText
+      const updatedJson = JSON.stringify(payload, null, 2)
       const blob = new Blob([updatedJson], { type: 'application/json' })
       const { error: uploadErr } = await supabase.storage
         .from('case-files')
@@ -205,7 +221,7 @@ export default function DashboardEditor() {
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
 
-      setOriginalSnapshot(JSON.stringify({ entries, annotations }))
+      setOriginalSnapshot(JSON.stringify({ entries, annotations, originalText }))
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -220,6 +236,7 @@ export default function DashboardEditor() {
     const snap = JSON.parse(originalSnapshot)
     setEntries(snap.entries)
     setAnnotations(snap.annotations)
+    if (snap.originalText !== undefined) setOriginalText(snap.originalText)
     setSaved(false)
   }
 
@@ -562,7 +579,131 @@ export default function DashboardEditor() {
 
         {/* Transcript Canvas */}
         <section className="flex-1 bg-surface-container-low px-6 lg:px-12 py-10 overflow-y-auto">
-          {entries.length > 0 ? (() => {
+          {originalText ? (() => {
+            // ─── Original-text rendering (preserves exact formatting) ───
+            // Build clean content (line numbers stripped) for annotation searching
+            const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+
+            const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted')
+
+            // Find highlights by searching in cleanContent (which matches Gemini's extracted text)
+            const highlights = []
+            for (const ann of allOpenAnnotations) {
+              const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
+              if (!searchWord) continue
+              const m = flexFind(cleanContent, searchWord)
+              if (!m) continue
+              highlights.push({ ...ann, cleanStart: m.start, cleanEnd: m.end })
+            }
+            highlights.sort((a, b) => a.cleanStart - b.cleanStart)
+            const cleanHighlights = []
+            let lastCleanEnd = 0
+            for (const h of highlights) {
+              if (h.cleanStart < lastCleanEnd) continue
+              cleanHighlights.push(h)
+              lastCleanEnd = h.cleanEnd
+            }
+
+            // Group lines into visual pages
+            const LINES_PER_PAGE = 28
+            const pages = []
+            for (let i = 0; i < parsedLines.length; i += LINES_PER_PAGE) {
+              pages.push(parsedLines.slice(i, i + LINES_PER_PAGE).map((pl, j) => ({ ...pl, lineIdx: i + j })))
+            }
+
+            const renderOriginalLine = (pl, lineKey) => {
+              const { prefix, content, fullLine, cleanStart, cleanEnd } = pl
+
+              // Find highlights overlapping this line's clean content
+              const lineHighlights = cleanHighlights
+                .filter((h) => h.cleanStart < cleanEnd && h.cleanEnd > cleanStart)
+                .map((h) => ({
+                  ...h,
+                  localStart: Math.max(0, h.cleanStart - cleanStart),
+                  localEnd: Math.min(content.length, h.cleanEnd - cleanStart),
+                }))
+                .filter((h) => h.localStart < h.localEnd)
+
+              if (lineHighlights.length === 0) {
+                return (
+                  <div key={lineKey} className="min-h-[1.5rem]">
+                    <span className="whitespace-pre">{fullLine}</span>
+                  </div>
+                )
+              }
+
+              // Render prefix (line number) as plain text, content with highlights
+              const parts = []
+              if (prefix) {
+                parts.push(<span key="pfx" className="whitespace-pre">{prefix}</span>)
+              }
+
+              lineHighlights.sort((a, b) => a.localStart - b.localStart)
+              let cursor = 0
+
+              for (const h of lineHighlights) {
+                if (cursor < h.localStart) {
+                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor, h.localStart)}</span>)
+                }
+
+                let cls = 'inline whitespace-pre '
+                if (h.status === 'accepted') {
+                  cls += 'text-green-600 font-semibold'
+                } else if (h.severity === 'critical') {
+                  cls += 'border-b-2 border-error text-error font-semibold cursor-pointer'
+                } else if (h.severity === 'warning') {
+                  cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
+                } else {
+                  cls += 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
+                }
+
+                parts.push(
+                  <span
+                    key={`a-${h.id}-${h.localStart}`}
+                    className={cls}
+                    title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : `${h.type}: ${h.explanation}`}
+                    onClick={h.status === 'open' ? () => {
+                      const el = document.getElementById(`ann-card-${h.id}`)
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    } : undefined}
+                  >
+                    {content.substring(h.localStart, h.localEnd)}
+                  </span>
+                )
+                cursor = h.localEnd
+              }
+
+              if (cursor < content.length) {
+                parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor)}</span>)
+              }
+
+              return (
+                <div key={lineKey} className="min-h-[1.5rem]">
+                  {parts}
+                </div>
+              )
+            }
+
+            return (
+              <div className="space-y-8">
+                {pages.map((page, pageIdx) => (
+                  <div key={pageIdx} className="max-w-4xl mx-auto bg-surface-container-lowest shadow-sm relative">
+                    <div className="flex items-center justify-between px-8 pt-4 pb-1">
+                      <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
+                      <span className="text-xs text-on-surface-variant/50 font-mono">{pageIdx + 1}</span>
+                    </div>
+                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface">
+                      {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
+                    </div>
+                    {pageIdx < pages.length - 1 && (
+                      <div className="border-b border-dashed border-outline-variant/20" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })() : entries.length > 0 ? (() => {
+            // ─── Entry-based rendering (fallback for RTF/PDF/older cases) ───
             const allLines = []
             for (const entry of entries) {
               const hasAnns = annotationsByEntry[entry.id]?.length > 0
@@ -575,7 +716,6 @@ export default function DashboardEditor() {
               }
 
               if (hasAnns) {
-                // Annotated entries render as ONE block to prevent duplication
                 allLines.push({ type: 'annotated-block', text: entry.text, entryId: entry.id, entry })
               } else {
                 const lines = entry.text.split('\n')

@@ -126,6 +126,7 @@ async function runRetry(caseRow, transcriptDbFiles) {
       }
 
       const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
+      const isTxt = dbFile.file_name.toLowerCase().endsWith('.txt')
       let extractedJson
 
       if (isPdf) {
@@ -134,6 +135,9 @@ async function runRetry(caseRow, transcriptDbFiles) {
       } else {
         const rawContent = await blob.text()
         extractedJson = await extractTranscriptWithGemini(rawContent)
+        if (isTxt) {
+          extractedJson.originalText = rawContent
+        }
       }
 
       totalEntries += (extractedJson.entries || []).length

@@ -10,6 +10,7 @@ export default function DashboardExport() {
   const [entries, setEntries] = useState([])
   const [annotations, setAnnotations] = useState([])
   const [title, setTitle] = useState('')
+  const [originalText, setOriginalText] = useState(null)
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(!!caseId)
   const [error, setError] = useState('')
@@ -47,6 +48,7 @@ export default function DashboardExport() {
         setTitle(parsed.title || '')
         setEntries(parsed.entries || [])
         setAnnotations(parsed.annotations || [])
+        setOriginalText(parsed.originalText || null)
       }
     } catch (err) {
       console.error('Failed to load case:', err)
@@ -120,7 +122,9 @@ export default function DashboardExport() {
   }
 
   const buildJsonExport = () => {
-    return JSON.stringify({ title, entries, annotations }, null, 2)
+    const payload = { title, entries, annotations }
+    if (originalText) payload.originalText = originalText
+    return JSON.stringify(payload, null, 2)
   }
 
   const triggerDownload = (content, filename, mime) => {
@@ -141,7 +145,8 @@ export default function DashboardExport() {
       const baseName = (caseData?.name || 'transcript').replace(/[^a-zA-Z0-9_-]/g, '_')
       switch (format) {
         case 'txt': {
-          triggerDownload(buildPlainText(), `${baseName}.txt`, 'text/plain')
+          const content = originalText || buildPlainText()
+          triggerDownload(content, `${baseName}.txt`, 'text/plain')
           break
         }
         case 'json': {
@@ -320,8 +325,8 @@ export default function DashboardExport() {
               <span className="material-symbols-outlined text-blue-600 text-3xl">article</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-headline font-bold text-on-surface text-base mb-0.5">ASCII Transcript (.txt)</p>
-              <p className="text-xs text-on-surface-variant">Court-standard format with line numbers and page breaks. Ready for filing.</p>
+              <p className="font-headline font-bold text-on-surface text-base mb-0.5">Corrected Transcript (.txt)</p>
+              <p className="text-xs text-on-surface-variant">{originalText ? 'Preserves your original formatting — only accepted corrections are changed.' : 'Court-standard format with line numbers and page breaks. Ready for filing.'}</p>
             </div>
             <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               {exporting === 'txt' ? 'check_circle' : 'download'}
