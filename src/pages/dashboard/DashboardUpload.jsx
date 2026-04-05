@@ -298,15 +298,15 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-2xl">description</span>
                 </div>
                 <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
-                <p className="text-xs text-on-surface-variant mb-5">RTF, CRE, PDF, or TXT format</p>
+                <p className="text-xs text-on-surface-variant mb-5">TXT format</p>
                 <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
                   <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
                   <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-                  <span className="text-xs text-on-surface-variant mt-1">.rtf, .cre, .pdf, .txt files accepted</span>
+                  <span className="text-xs text-on-surface-variant mt-1">.txt files accepted</span>
                   <input
                     type="file"
                     className="hidden"
-                    accept=".rtf,.cre,.pdf,.txt"
+                    accept=".txt"
                     multiple
                     onChange={(e) => setTranscriptFiles([...e.target.files])}
                   />
@@ -334,7 +334,7 @@ export default function DashboardUpload() {
                     <input
                       type="file"
                       className="hidden"
-                      accept=".rtf,.cre,.pdf,.txt"
+                      accept=".txt"
                       multiple
                       onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([...e.target.files]) }}
                     />

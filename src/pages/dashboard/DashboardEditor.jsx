@@ -23,6 +23,13 @@ export default function DashboardEditor() {
   const [originalText, setOriginalText] = useState(null)
   const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
 
+  const entriesRef = useRef(entries)
+  const annotationsRef = useRef(annotations)
+  const originalTextRef = useRef(originalText)
+  useEffect(() => { entriesRef.current = entries }, [entries])
+  useEffect(() => { annotationsRef.current = annotations }, [annotations])
+  useEffect(() => { originalTextRef.current = originalText }, [originalText])
+
   const currentSnapshot = useMemo(
     () => JSON.stringify({ entries, annotations, originalText }),
     [entries, annotations, originalText]
@@ -95,95 +102,107 @@ export default function DashboardEditor() {
     setSaved(false)
   }, [])
 
-  const persistJsonRef = useRef(null)
-  persistJsonRef.current = async (updatedEntries, updatedAnnotations, updatedOriginalText) => {
-    if (!extractedFilePath) return
-    try {
-      const payload = {
-        title,
-        extracted_at: new Date().toISOString(),
-        entries: updatedEntries,
-        annotations: updatedAnnotations,
+  const syncTimerRef = useRef(null)
+
+  const debouncedSync = useCallback(() => {
+    clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(async () => {
+      const latestAnnotations = annotationsRef.current
+      const latestEntries = entriesRef.current
+      const latestOriginalText = originalTextRef.current
+
+      if (!caseId || !extractedFilePath) return
+
+      const accepted = latestAnnotations.filter((a) => a.status === 'accepted').length
+      const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
+      const open = latestAnnotations.filter((a) => a.status === 'open').length
+      const total = latestAnnotations.length
+
+      await supabase.from('case_metrics').upsert({
+        case_id: caseId,
+        total_entries: latestEntries.length,
+        total_issues: total,
+        accepted,
+        ignored,
+        open,
+        last_reviewed_at: new Date().toISOString(),
+      }, { onConflict: 'case_id' })
+
+      if (total > 0 && open === 0) {
+        await supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
       }
-      if (updatedOriginalText !== undefined) payload.originalText = updatedOriginalText
-      else if (originalText) payload.originalText = originalText
 
-      const updatedJson = JSON.stringify(payload, null, 2)
-      const blob = new Blob([updatedJson], { type: 'application/json' })
-      const { error: upErr } = await supabase.storage
-        .from('case-files')
-        .upload(extractedFilePath, blob, { upsert: true })
-      if (upErr) console.error('Persist JSON storage error:', upErr)
-      else setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations, originalText: updatedOriginalText ?? originalText }))
-    } catch (err) {
-      console.error('Persist JSON failed:', err)
-    }
-  }
+      try {
+        const payload = {
+          title,
+          extracted_at: new Date().toISOString(),
+          entries: latestEntries,
+          annotations: latestAnnotations,
+        }
+        if (latestOriginalText) payload.originalText = latestOriginalText
 
-  const syncMetrics = useCallback(async (updatedAnnotations, updatedEntries, updatedOriginalText) => {
-    if (!caseId) return
-    const accepted = updatedAnnotations.filter((a) => a.status === 'accepted').length
-    const ignored = updatedAnnotations.filter((a) => a.status === 'ignored').length
-    const open = updatedAnnotations.filter((a) => a.status === 'open').length
-    const total = updatedAnnotations.length
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+        const { error: upErr } = await supabase.storage
+          .from('case-files')
+          .upload(extractedFilePath, blob, { upsert: true })
+        if (upErr) console.error('Persist JSON storage error:', upErr)
+        else setOriginalSnapshot(JSON.stringify({ entries: latestEntries, annotations: latestAnnotations, originalText: latestOriginalText }))
+      } catch (err) {
+        console.error('Persist JSON failed:', err)
+      }
+    }, 600)
+  }, [caseId, extractedFilePath, title])
 
-    await supabase.from('case_metrics').upsert({
-      case_id: caseId,
-      total_entries: (updatedEntries || entries).length,
-      total_issues: total,
-      accepted,
-      ignored,
-      open,
-      last_reviewed_at: new Date().toISOString(),
-    }, { onConflict: 'case_id' })
-
-    if (total > 0 && open === 0) {
-      await supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
-    }
-
-    if (persistJsonRef.current) {
-      persistJsonRef.current(updatedEntries || entries, updatedAnnotations, updatedOriginalText)
-    }
-  }, [caseId, entries])
+  useEffect(() => () => clearTimeout(syncTimerRef.current), [])
 
   const acceptAnnotation = useCallback((annotationId) => {
-    const ann = annotations.find((a) => a.id === annotationId)
+    const curAnnotations = annotationsRef.current
+    const curEntries = entriesRef.current
+    const curOriginalText = originalTextRef.current
+
+    const ann = curAnnotations.find((a) => a.id === annotationId)
     if (!ann || ann.status !== 'open') return
 
-    const newEntries = entries.map((e) => {
+    const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
       const m = flexFind(e.text, ann.original)
       if (!m) return e
-      const before = e.text.substring(0, m.start)
-      const after = e.text.substring(m.end)
-      return { ...e, text: before + ann.suggestion + after }
+      return { ...e, text: e.text.substring(0, m.start) + ann.suggestion + e.text.substring(m.end) }
     })
 
-    // Also apply correction to originalText (preserves formatting)
-    let updatedOriginalText = originalText
-    if (originalText) {
-      updatedOriginalText = applyCorrection(originalText, ann.original, ann.suggestion)
-      setOriginalText(updatedOriginalText)
+    let updatedOriginalText = curOriginalText
+    if (curOriginalText) {
+      updatedOriginalText = applyCorrection(curOriginalText, ann.original, ann.suggestion)
     }
 
-    const updatedAnnotations = annotations.map((a) =>
+    const updatedAnnotations = curAnnotations.map((a) =>
       a.id === annotationId ? { ...a, status: 'accepted' } : a
     )
     const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
 
+    entriesRef.current = newEntries
+    annotationsRef.current = fixedAnnotations
+    originalTextRef.current = updatedOriginalText
+
     setEntries(newEntries)
     setAnnotations(fixedAnnotations)
+    if (curOriginalText) setOriginalText(updatedOriginalText)
     setSaved(false)
 
-    syncMetrics(fixedAnnotations, newEntries, updatedOriginalText)
-  }, [annotations, entries, originalText, syncMetrics])
+    debouncedSync()
+  }, [debouncedSync])
 
   const ignoreAnnotation = useCallback((annotationId) => {
-    const updated = annotations.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
+    const curAnnotations = annotationsRef.current
+
+    const updated = curAnnotations.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
+
+    annotationsRef.current = updated
     setAnnotations(updated)
     setSaved(false)
-    syncMetrics(updated, entries)
-  }, [annotations, entries, syncMetrics])
+
+    debouncedSync()
+  }, [debouncedSync])
 
   const handleReanalyzeClick = () => {
     setShowReanalyzeConfirm(true)
@@ -248,6 +267,9 @@ export default function DashboardEditor() {
 
   const handleRevert = () => {
     const snap = JSON.parse(originalSnapshot)
+    entriesRef.current = snap.entries
+    annotationsRef.current = snap.annotations
+    originalTextRef.current = snap.originalText ?? null
     setEntries(snap.entries)
     setAnnotations(snap.annotations)
     if (snap.originalText !== undefined) setOriginalText(snap.originalText)
