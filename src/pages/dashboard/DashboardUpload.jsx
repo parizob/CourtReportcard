@@ -14,6 +14,7 @@ export default function DashboardUpload() {
   const [done, setDone] = useState(false)
   const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
+  const [finishing, setFinishing] = useState(false)
 
   const [elapsed, setElapsed] = useState(0)
   const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * courtReporterFacts.length))
@@ -140,9 +141,12 @@ export default function DashboardUpload() {
 
       await supabase.from('cases').update({ status: 'analyzed' }).eq('id', caseRow.id)
 
+      setFinishing(true)
+      await new Promise((r) => setTimeout(r, 800))
       setDone(true)
       setUploading(false)
       setUploadPhase('')
+      setFinishing(false)
     } catch (err) {
       console.error('Upload failed:', err)
       setError(err.message || 'Upload failed. Please try again.')
@@ -157,13 +161,8 @@ export default function DashboardUpload() {
       <main className="min-h-screen flex items-center justify-center bg-background p-8">
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-lg w-full">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
-              </div>
-              <svg className="absolute inset-0 w-12 h-12 animate-spin" style={{ animationDuration: '3s' }} viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2" strokeDasharray="40 100" strokeLinecap="round" className="text-primary/40" />
-              </svg>
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
             </div>
             <div className="text-left">
               <h2 className="font-headline text-lg font-bold text-on-surface">Analyzing Transcript</h2>
@@ -175,8 +174,8 @@ export default function DashboardUpload() {
 
           <div className="w-full bg-surface-container rounded-full h-1.5 mb-8 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(95, Math.max(5, (elapsed / 120) * 100))}%` }}
+              className={`h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all ease-out ${finishing ? 'duration-500' : 'duration-1000'}`}
+              style={{ width: finishing ? '100%' : `${Math.min(95, Math.max(5, (elapsed / 120) * 100))}%` }}
             />
           </div>
 
