@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { proofreadTranscript, fixAnnotationPositions } from '../../lib/gemini'
@@ -85,56 +85,83 @@ export default function DashboardEditor() {
     setSaved(false)
   }, [])
 
+  const persistJsonRef = useRef(null)
+  persistJsonRef.current = async (updatedEntries, updatedAnnotations) => {
+    if (!extractedFilePath) return
+    try {
+      const updatedJson = JSON.stringify({
+        title,
+        extracted_at: new Date().toISOString(),
+        entries: updatedEntries,
+        annotations: updatedAnnotations,
+      }, null, 2)
+      const blob = new Blob([updatedJson], { type: 'application/json' })
+      await supabase.storage.from('case-files').update(extractedFilePath, blob, { upsert: true })
+      setOriginalSnapshot(JSON.stringify({ entries: updatedEntries, annotations: updatedAnnotations }))
+    } catch (err) {
+      console.error('Persist JSON failed:', err)
+    }
+  }
+
+  const syncMetrics = useCallback(async (updatedAnnotations, updatedEntries) => {
+    if (!caseId) return
+    const accepted = updatedAnnotations.filter((a) => a.status === 'accepted').length
+    const ignored = updatedAnnotations.filter((a) => a.status === 'ignored').length
+    const open = updatedAnnotations.filter((a) => a.status === 'open').length
+    const total = updatedAnnotations.length
+
+    await supabase.from('case_metrics').upsert({
+      case_id: caseId,
+      total_entries: (updatedEntries || entries).length,
+      total_issues: total,
+      accepted,
+      ignored,
+      open,
+      last_reviewed_at: new Date().toISOString(),
+    }, { onConflict: 'case_id' })
+
+    if (total > 0 && open === 0) {
+      await supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
+    }
+
+    if (persistJsonRef.current) {
+      persistJsonRef.current(updatedEntries || entries, updatedAnnotations)
+    }
+  }, [caseId, entries])
+
   const acceptAnnotation = useCallback((annotationId) => {
     const ann = annotations.find((a) => a.id === annotationId)
     if (!ann || ann.status !== 'open') return
 
-    setEntries((prev) =>
-      prev.map((e) => {
-        if (e.id !== ann.entry_id) return e
-        // Find the original text dynamically rather than trusting stored positions
-        let realStart = e.text.indexOf(ann.original)
-        if (realStart === -1) realStart = e.text.toLowerCase().indexOf(ann.original.toLowerCase())
-        if (realStart === -1) {
-          // Fallback to stored positions
-          realStart = ann.start
-        }
-        const realEnd = realStart + ann.original.length
-        const before = e.text.substring(0, realStart)
-        const after = e.text.substring(realEnd)
-        return { ...e, text: before + ann.suggestion + after }
-      })
-    )
-
-    setAnnotations((prev) => {
-      const updated = prev.map((a) => {
-        if (a.id === annotationId) return { ...a, status: 'accepted' }
-        return a
-      })
-      // Re-fix positions for remaining open annotations in the same entry
-      const entry = entries.find((e) => e.id === ann.entry_id)
-      if (!entry) return updated
-      const newText = (() => {
-        let realStart = entry.text.indexOf(ann.original)
-        if (realStart === -1) realStart = entry.text.toLowerCase().indexOf(ann.original.toLowerCase())
-        if (realStart === -1) realStart = ann.start
-        const realEnd = realStart + ann.original.length
-        return entry.text.substring(0, realStart) + ann.suggestion + entry.text.substring(realEnd)
-      })()
-      return fixAnnotationPositions(
-        entries.map((e) => (e.id === ann.entry_id ? { ...e, text: newText } : e)),
-        updated
-      )
+    const newEntries = entries.map((e) => {
+      if (e.id !== ann.entry_id) return e
+      let realStart = e.text.indexOf(ann.original)
+      if (realStart === -1) realStart = e.text.toLowerCase().indexOf(ann.original.toLowerCase())
+      if (realStart === -1) realStart = ann.start
+      const realEnd = realStart + ann.original.length
+      const before = e.text.substring(0, realStart)
+      const after = e.text.substring(realEnd)
+      return { ...e, text: before + ann.suggestion + after }
     })
+
+    const updatedAnnotations = annotations.map((a) =>
+      a.id === annotationId ? { ...a, status: 'accepted' } : a
+    )
+    const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
+
+    setEntries(newEntries)
+    setAnnotations(fixedAnnotations)
     setSaved(false)
-  }, [annotations, entries])
+
+    syncMetrics(fixedAnnotations, newEntries)
+  }, [annotations, entries, syncMetrics])
 
   const ignoreAnnotation = useCallback((annotationId) => {
-    setAnnotations((prev) =>
-      prev.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
-    )
+    const updated = annotations.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
+    setAnnotations(updated)
     setSaved(false)
-  }, [])
+    syncMetrics(updated, entries)
+  }, [annotations, entries, syncMetrics])
 
   const handleReanalyze = async () => {
     setAnalyzing(true)
@@ -163,6 +190,16 @@ export default function DashboardEditor() {
         .update(extractedFilePath, blob, { upsert: true })
       if (uploadErr) throw uploadErr
 
+      await supabase.from('case_metrics').upsert({
+        case_id: caseId,
+        total_entries: entries.length,
+        total_issues: annotations.length,
+        accepted: annotations.filter((a) => a.status === 'accepted').length,
+        ignored: annotations.filter((a) => a.status === 'ignored').length,
+        open: annotations.filter((a) => a.status === 'open').length,
+        last_reviewed_at: new Date().toISOString(),
+      }, { onConflict: 'case_id' })
+
       setOriginalSnapshot(JSON.stringify({ entries, annotations }))
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -182,6 +219,23 @@ export default function DashboardEditor() {
   }
 
   // ─── Helpers ───
+
+  const wrapLine = (text, maxWidth) => {
+    if (!text || text.length <= maxWidth) return [text || '']
+    const words = text.split(' ')
+    const lines = []
+    let current = ''
+    for (const word of words) {
+      if (current && (current.length + 1 + word.length) > maxWidth) {
+        lines.push(current)
+        current = word
+      } else {
+        current = current ? current + ' ' + word : word
+      }
+    }
+    if (current) lines.push(current)
+    return lines.length > 0 ? lines : ['']
+  }
 
   const speakerColors = [
     'bg-secondary-container text-on-secondary-container',
@@ -488,58 +542,120 @@ export default function DashboardEditor() {
       <div className="flex items-start bg-surface border-t border-outline-variant/10">
 
         {/* Transcript Canvas */}
-        <section className="flex-1 bg-surface-container-low px-12 py-10">
-          <div className="max-w-3xl mx-auto bg-surface-container-lowest p-12 shadow-sm">
-            <div className="flex items-center justify-between mb-8 pb-4 border-b border-outline-variant/10">
-              <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
-              <span className="text-xs text-on-surface-variant/60 font-mono">{entries.length} entries</span>
-            </div>
+        <section className="flex-1 bg-surface-container-low px-6 lg:px-12 py-10 overflow-y-auto">
+          {entries.length > 0 ? (() => {
+            const allLines = []
+            for (const entry of entries) {
+              const hasOpen = annotationsByEntry[entry.id]?.length > 0
+              if (entry.speaker) {
+                const prevEntry = allLines.length > 0 ? allLines[allLines.length - 1] : null
+                if (prevEntry && prevEntry.type !== 'speaker') {
+                  allLines.push({ type: 'blank', entryId: entry.id })
+                }
+                allLines.push({ type: 'speaker', text: entry.speaker, entryId: entry.id })
+              }
+              const lines = entry.text.split('\n')
+              for (const line of lines) {
+                const wrapped = wrapLine(line, 65)
+                for (const w of wrapped) {
+                  allLines.push({ type: 'text', text: w, entryId: entry.id, entry, hasOpen })
+                }
+              }
+            }
 
-            {entries.length > 0 ? (
-              <div className="space-y-8 font-mono text-[15px] leading-relaxed text-on-surface">
-                {entries.map((entry) => {
-                  const hasOpenAnnotations = annotationsByEntry[entry.id]?.length > 0
-                  return (
-                    <div key={entry.id} className="group">
-                      {entry.speaker && (
-                        <div className="flex items-baseline justify-between mb-2">
-                          <input
-                            type="text"
-                            value={entry.speaker}
-                            onChange={(e) => updateEntrySpeaker(entry.id, e.target.value)}
-                            className={`${speakerColorMap[entry.speaker] || 'bg-surface-container-highest text-on-surface-variant'} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-transparent border-none`}
-                            style={{ width: Math.max(80, entry.speaker.length * 9) + 'px' }}
-                          />
-                          {entry.timestamp && (
-                            <span className="text-[10px] text-on-surface-variant/60">{entry.timestamp}</span>
-                          )}
-                        </div>
-                      )}
-                      <div className="pl-2 border-l-2 border-transparent hover:border-primary-fixed transition-colors">
-                        {hasOpenAnnotations ? (
-                          <p className="leading-relaxed">{renderHighlightedText(entry)}</p>
-                        ) : (
-                          <textarea
-                            value={entry.text}
-                            onChange={(e) => updateEntryText(entry.id, e.target.value)}
-                            className="w-full bg-transparent outline-none resize-none font-mono text-[15px] leading-relaxed text-on-surface focus:bg-primary/[0.03] rounded px-1 -mx-1 transition-colors"
-                            rows={Math.max(1, Math.ceil(entry.text.length / 80))}
-                            onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                            ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
-                          />
-                        )}
-                      </div>
+            const LINES_PER_PAGE = 25
+            const pages = []
+            for (let i = 0; i < allLines.length; i += LINES_PER_PAGE) {
+              pages.push(allLines.slice(i, i + LINES_PER_PAGE))
+            }
+
+            return (
+              <div className="space-y-8">
+                {pages.map((page, pageIdx) => (
+                  <div key={pageIdx} className="max-w-3xl mx-auto bg-surface-container-lowest shadow-sm relative">
+                    <div className="flex items-center justify-between px-12 pt-6 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
+                      <span className="text-xs text-on-surface-variant/50 font-mono">{pageIdx + 1}</span>
                     </div>
-                  )
-                })}
+                    <div className="px-4 pb-8 pt-2">
+                      {page.map((line, lineIdx) => {
+                        const lineNum = lineIdx + 1
+                        if (line.type === 'blank') {
+                          return (
+                            <div key={`${pageIdx}-${lineIdx}`} className="flex h-7">
+                              <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
+                              <div className="flex-1" />
+                            </div>
+                          )
+                        }
+                        if (line.type === 'speaker') {
+                          return (
+                            <div key={`${pageIdx}-${lineIdx}`} className="flex h-7 items-center">
+                              <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
+                              <input
+                                type="text"
+                                value={line.text}
+                                onChange={(e) => updateEntrySpeaker(line.entryId, e.target.value)}
+                                className={`${speakerColorMap[line.text] || 'bg-surface-container-highest text-on-surface-variant'} px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-primary/30 transition-all border-none`}
+                                style={{ width: Math.max(90, line.text.length * 10 + 24) + 'px' }}
+                              />
+                            </div>
+                          )
+                        }
+                        return (
+                          <div key={`${pageIdx}-${lineIdx}`} className="flex min-h-[1.75rem] group/line">
+                            <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
+                            <div className="flex-1 font-mono text-[13px] leading-7 text-on-surface">
+                              {line.hasOpen ? (
+                                <span>{renderHighlightedText(line.entry)}</span>
+                              ) : (
+                                <span
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  className="outline-none focus:bg-primary/[0.03] rounded px-0.5 -mx-0.5 transition-colors inline-block w-full whitespace-pre-wrap"
+                                  onBlur={(e) => {
+                                    const currentLines = line.entry.text.split('\n')
+                                    const wrappedIdx = (() => {
+                                      let count = 0
+                                      for (let li = 0; li < currentLines.length; li++) {
+                                        const w = wrapLine(currentLines[li], 65)
+                                        for (let wi = 0; wi < w.length; wi++) {
+                                          if (w[wi] === line.text) return { li, wi, wLen: w.length }
+                                          count++
+                                        }
+                                      }
+                                      return null
+                                    })()
+                                    if (!wrappedIdx) return
+                                    const newText = e.target.textContent || ''
+                                    const lines = line.entry.text.split('\n')
+                                    const wrapped = wrapLine(lines[wrappedIdx.li], 65)
+                                    wrapped[wrappedIdx.wi] = newText
+                                    lines[wrappedIdx.li] = wrapped.join(' ')
+                                    updateEntryText(line.entry.id, lines.join('\n'))
+                                  }}
+                                >
+                                  {line.text}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {pageIdx < pages.length - 1 && (
+                      <div className="border-b border-dashed border-outline-variant/20" />
+                    )}
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="text-center py-16">
-                <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-4 block">article</span>
-                <p className="text-sm text-on-surface-variant">No extracted transcript data found for this case.</p>
-              </div>
-            )}
-          </div>
+            )
+          })() : (
+            <div className="max-w-3xl mx-auto bg-surface-container-lowest p-12 shadow-sm text-center py-16">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-4 block">article</span>
+              <p className="text-sm text-on-surface-variant">No extracted transcript data found for this case.</p>
+            </div>
+          )}
         </section>
 
         {/* Sidebar */}

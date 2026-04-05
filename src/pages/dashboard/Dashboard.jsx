@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import Tooltip from '../../components/Tooltip'
 
 export default function Dashboard() {
   const { displayName } = useAuth()
@@ -16,11 +17,18 @@ export default function Dashboard() {
 
   useEffect(() => { fetchCases() }, [])
 
+  useEffect(() => {
+    const hasProcessing = cases.some((c) => c.status === 'processing')
+    if (!hasProcessing) return
+    const interval = setInterval(fetchCases, 4000)
+    return () => clearInterval(interval)
+  }, [cases])
+
   const fetchCases = async () => {
     setLoading(true)
     const { data, error } = await supabase
       .from('cases')
-      .select('*, case_files(*)')
+      .select('*, case_files(*), case_metrics(*)')
       .order('created_at', { ascending: false })
     if (!error && data) setCases(data)
     setLoading(false)
@@ -75,21 +83,28 @@ export default function Dashboard() {
     }
   }
 
-  const activeCases = cases.filter((c) => c.status === 'uploaded' || c.status === 'processing')
-  const completedCases = cases.filter((c) => c.status === 'analyzed' || c.status === 'exported')
+  const activeCases = cases.filter((c) => c.status === 'uploaded' || c.status === 'processing' || c.status === 'analyzed')
+  const completedCases = cases.filter((c) => c.status === 'reviewed' || c.status === 'exported')
+
+  const getMetrics = (c) => (c.case_metrics && c.case_metrics.length > 0 ? c.case_metrics[0] : c.case_metrics && !Array.isArray(c.case_metrics) ? c.case_metrics : null)
+
+  const totalIssuesAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.total_issues || 0) }, 0)
+  const totalResolvedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + ((m?.accepted || 0) + (m?.ignored || 0)) }, 0)
+  const avgResolution = totalIssuesAll > 0 ? Math.round((totalResolvedAll / totalIssuesAll) * 100) : null
 
   const stats = [
     { value: String(activeCases.length), label: 'Active Cases', icon: 'folder_open' },
     { value: String(completedCases.length), label: 'Completed Reviews', icon: 'check_circle' },
-    { value: cases.length > 0 ? '—' : '—', label: 'Avg. Accuracy', icon: 'speed' },
-    { value: '0', label: 'Court Rejections', icon: 'gavel' },
+    { value: avgResolution !== null ? `${avgResolution}%` : '—', label: 'Resolution Rate', icon: 'speed' },
+    { value: String(totalIssuesAll), label: 'Total Issues Found', icon: 'auto_awesome' },
   ]
 
-  const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', exported: 'Exported' }[s] || s)
+  const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
   const statusColor = (s) => ({
     uploaded: 'bg-blue-100 text-blue-700',
     processing: 'bg-amber-100 text-amber-700',
-    analyzed: 'bg-green-100 text-green-700',
+    analyzed: 'bg-amber-50 text-amber-600',
+    reviewed: 'bg-green-100 text-green-700',
     exported: 'bg-purple-100 text-purple-700',
   }[s] || 'bg-gray-100 text-gray-700')
 
@@ -206,17 +221,23 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
                 <span>Case</span>
                 <span className="w-28 text-center">Files</span>
                 <span className="w-24 text-center">Status</span>
+                <span className="w-32 text-center">Review</span>
                 <span className="w-28 text-center">Date</span>
                 <span className="w-32 text-center">Actions</span>
               </div>
-              {cases.map((c) => (
+              {cases.map((c) => {
+                const m = getMetrics(c)
+                const resolved = m ? (m.accepted || 0) + (m.ignored || 0) : 0
+                const total = m?.total_issues || 0
+                const pct = total > 0 ? Math.round((resolved / total) * 100) : null
+                return (
                 <div
                   key={c.id}
-                  className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-4 items-center border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container/30 transition-colors"
+                  className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-6 py-4 items-center border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container/30 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -226,43 +247,71 @@ export default function Dashboard() {
                   </div>
                   <span className="w-28 text-center text-xs text-on-surface-variant">{fileCountLabel(c)}</span>
                   <div className="w-24 flex justify-center">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${statusColor(c.status)}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1.5 ${statusColor(c.status)}`}>
+                      {c.status === 'processing' && (
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      )}
                       {statusLabel(c.status)}
                     </span>
                   </div>
+                  <div className="w-32 flex justify-center">
+                    {pct !== null ? (
+                      <Tooltip text={`${resolved}/${total} issues resolved`}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className={`text-[10px] font-bold ${pct === 100 ? 'text-green-600' : 'text-on-surface-variant'}`}>{pct}%</span>
+                        </div>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-[10px] text-on-surface-variant/50">—</span>
+                    )}
+                  </div>
                   <span className="w-28 text-center text-xs text-on-surface-variant">{formatDate(c.created_at)}</span>
                   <div className="w-32 flex justify-center gap-1">
-                    <button
-                      onClick={() => setViewTarget(c)}
-                      title="View & download original uploaded files"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">folder_open</span>
-                    </button>
-                    <Link
-                      to={`/dashboard/editor?case=${c.id}`}
-                      title="Review & proofread this transcript"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">edit_note</span>
-                    </Link>
-                    <Link
-                      to={`/dashboard/export?case=${c.id}`}
-                      title="Export finalized transcript"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">cloud_download</span>
-                    </Link>
-                    <button
-                      onClick={() => setDeleteTarget(c)}
-                      title="Permanently delete this case and all its files"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">delete</span>
-                    </button>
+                    <Tooltip text="View & download files">
+                      <button
+                        onClick={() => setViewTarget(c)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-lg">folder_open</span>
+                      </button>
+                    </Tooltip>
+                    <Tooltip text="Proofread transcript">
+                      <Link
+                        to={`/dashboard/editor?case=${c.id}`}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-lg">edit_note</span>
+                      </Link>
+                    </Tooltip>
+                    <Tooltip text="Export transcript">
+                      <Link
+                        to={`/dashboard/export?case=${c.id}`}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-lg">cloud_download</span>
+                      </Link>
+                    </Tooltip>
+                    <Tooltip text="Delete case">
+                      <button
+                        onClick={() => setDeleteTarget(c)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>

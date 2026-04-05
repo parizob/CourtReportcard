@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { extractTranscriptWithGemini } from '../../lib/gemini'
+import { startAnalysis, isAnalyzing } from '../../lib/backgroundAnalysis'
 
 export default function DashboardUpload() {
   const { user } = useAuth()
@@ -13,8 +13,19 @@ export default function DashboardUpload() {
   const [done, setDone] = useState(false)
   const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
 
   const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
+
+  useEffect(() => {
+    if (!createdCaseId) return
+    const interval = setInterval(() => {
+      const still = isAnalyzing(createdCaseId)
+      setAnalyzing(still)
+      if (!still) clearInterval(interval)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [createdCaseId])
 
   const handleUpload = async () => {
     setError('')
@@ -31,91 +42,39 @@ export default function DashboardUpload() {
       if (caseErr) throw caseErr
       setCreatedCaseId(caseRow.id)
 
-      const allFiles = [
-        ...transcriptFiles.map((f) => ({ file: f, type: 'transcript' })),
-      ]
-
       setUploadPhase('Uploading files...')
 
-      for (const { file, type } of allFiles) {
-        const storagePath = `${user.id}/${caseRow.id}/${type}/${file.name}`
+      for (const file of transcriptFiles) {
+        const storagePath = `${user.id}/${caseRow.id}/transcript/${file.name}`
 
         const { error: storageErr } = await supabase.storage
           .from('case-files')
           .upload(storagePath, file)
-
         if (storageErr) throw storageErr
 
         const { error: fileErr } = await supabase
           .from('case_files')
           .insert({
             case_id: caseRow.id,
-            file_type: type,
+            file_type: 'transcript',
             file_name: file.name,
             file_size: file.size,
             storage_path: storagePath,
             mime_type: file.type || null,
           })
-
         if (fileErr) throw fileErr
       }
 
-      // Extract text from transcript files via Gemini
-      if (transcriptFiles.length > 0) {
-        setUploadPhase('Extracting & proofreading with AI...')
-
-        for (const file of transcriptFiles) {
-          const isPdf = file.name.toLowerCase().endsWith('.pdf')
-          let extractedJson
-
-          if (isPdf) {
-            const buffer = await file.arrayBuffer()
-            extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
-          } else {
-            const rawContent = await file.text()
-            extractedJson = await extractTranscriptWithGemini(rawContent)
-          }
-
-          const jsonBlob = new Blob(
-            [JSON.stringify(extractedJson, null, 2)],
-            { type: 'application/json' }
-          )
-
-          const jsonFileName = file.name.replace(/\.(rtf|cre|pdf)$/i, '') + '_extracted.json'
-          const jsonStoragePath = `${user.id}/${caseRow.id}/extracted/${jsonFileName}`
-
-          const { error: jsonUpErr } = await supabase.storage
-            .from('case-files')
-            .upload(jsonStoragePath, jsonBlob)
-
-          if (jsonUpErr) throw jsonUpErr
-
-          const { error: jsonFileErr } = await supabase
-            .from('case_files')
-            .insert({
-              case_id: caseRow.id,
-              file_type: 'extracted',
-              file_name: jsonFileName,
-              file_size: jsonBlob.size,
-              storage_path: jsonStoragePath,
-              mime_type: 'application/json',
-            })
-
-          if (jsonFileErr) throw jsonFileErr
-        }
-
-        // Update case status to processing since extraction is done
-        await supabase
-          .from('cases')
-          .update({ status: 'analyzed' })
-          .eq('id', caseRow.id)
-      }
-
       setDone(true)
+      setUploading(false)
+      setUploadPhase('')
+      setAnalyzing(true)
+
+      const fileCopies = Array.from(transcriptFiles)
+      startAnalysis(caseRow.id, fileCopies, user.id)
     } catch (err) {
       console.error('Upload failed:', err)
       setError(err.message || 'Upload failed. Please try again.')
-    } finally {
       setUploading(false)
       setUploadPhase('')
     }
@@ -130,13 +89,30 @@ export default function DashboardUpload() {
           </div>
           <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Upload Complete</h2>
           <p className="text-sm text-on-surface-variant mb-2">
-            <span className="font-semibold text-on-surface">{caseName}</span> has been created and analyzed.
+            <span className="font-semibold text-on-surface">{caseName}</span> has been uploaded successfully.
           </p>
-          <p className="text-sm text-on-surface-variant mb-8">
-            Your transcript has been extracted and proofread. Review flagged issues in the editor.
-          </p>
+
+          {analyzing ? (
+            <div className="mb-8">
+              <div className="flex items-center justify-center gap-2 text-sm text-primary font-semibold mb-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                AI is analyzing your transcript...
+              </div>
+              <p className="text-xs text-on-surface-variant">
+                This runs in the background. You can navigate away — your case will appear as "Processing" on the dashboard and switch to "Analyzed" when ready.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-on-surface-variant mb-8">
+              Your transcript has been extracted and proofread. Review flagged issues in the editor.
+            </p>
+          )}
+
           <div className="flex justify-center gap-3">
-            {createdCaseId && (
+            {createdCaseId && !analyzing && (
               <Link
                 to={`/dashboard/editor?case=${createdCaseId}`}
                 className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
@@ -199,34 +175,72 @@ export default function DashboardUpload() {
 
         {/* Dual drop zones */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all hover:ring-2 hover:ring-primary/20">
-            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
-              <span className="material-symbols-outlined text-primary text-2xl">description</span>
-            </div>
-            <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
-            <p className="text-xs text-on-surface-variant mb-5">RTF, CRE, or PDF format</p>
-            <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
-              <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
-              <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-              <span className="text-xs text-on-surface-variant mt-1">.rtf, .cre, .pdf files accepted</span>
-              <input
-                type="file"
-                className="hidden"
-                accept=".rtf,.cre,.pdf"
-                multiple
-                onChange={(e) => setTranscriptFiles([...e.target.files])}
-              />
-            </label>
-            {transcriptFiles.length > 0 && (
-              <div className="mt-4 w-full text-left">
-                {transcriptFiles.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1.5 text-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-sm text-primary">insert_drive_file</span>
-                    <span className="truncate">{f.name}</span>
-                    <span className="text-[10px] text-on-surface-variant/50 ml-auto">{(f.size / 1024).toFixed(0)} KB</span>
+          <div className={`bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all ${transcriptFiles.length > 0 ? 'ring-2 ring-primary/30' : 'hover:ring-2 hover:ring-primary/20'}`}>
+            {transcriptFiles.length === 0 ? (
+              <>
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
+                  <span className="material-symbols-outlined text-primary text-2xl">description</span>
+                </div>
+                <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
+                <p className="text-xs text-on-surface-variant mb-5">RTF, CRE, PDF, or TXT format</p>
+                <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
+                  <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
+                  <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
+                  <span className="text-xs text-on-surface-variant mt-1">.rtf, .cre, .pdf, .txt files accepted</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".rtf,.cre,.pdf,.txt"
+                    multiple
+                    onChange={(e) => setTranscriptFiles([...e.target.files])}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <div className="w-full flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-green-600 text-xl">check_circle</span>
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-headline font-bold text-on-surface text-sm">
+                        {transcriptFiles.length} file{transcriptFiles.length !== 1 ? 's' : ''} selected
+                      </h3>
+                      <p className="text-[10px] text-on-surface-variant">
+                        {(Array.from(transcriptFiles).reduce((s, f) => s + f.size, 0) / 1024).toFixed(0)} KB total
+                      </p>
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-primary cursor-pointer hover:underline">
+                    <span className="material-symbols-outlined text-sm">swap_horiz</span>
+                    Change
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".rtf,.cre,.pdf,.txt"
+                      multiple
+                      onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([...e.target.files]) }}
+                    />
+                  </label>
+                </div>
+                <div className="w-full space-y-2">
+                  {Array.from(transcriptFiles).map((f, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-surface-container/50 rounded-lg px-4 py-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-primary text-base">description</span>
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-semibold text-on-surface truncate">{f.name}</p>
+                        <p className="text-[10px] text-on-surface-variant">
+                          {f.name.split('.').pop().toUpperCase()} &middot; {(f.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined text-green-500 text-lg shrink-0">check</span>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -279,7 +293,7 @@ export default function DashboardUpload() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Processing...
+                Uploading...
               </>
             ) : (
               <>
