@@ -17,7 +17,7 @@ const gettingStartedSteps = [
 
 export default function DashboardLayout() {
   const { pathname } = useLocation()
-  const { displayName, initials, user, signOut } = useAuth()
+  const { signOut, tokenBalance } = useAuth()
   const navigate = useNavigate()
   const [showGettingStarted, setShowGettingStarted] = useState(false)
 
@@ -31,16 +31,25 @@ export default function DashboardLayout() {
       <div className="flex flex-1">
 
         <aside className="hidden md:flex flex-col w-64 shrink-0 sticky top-[65px] h-[calc(100vh-65px)] bg-surface-container-low py-6 pl-4 overflow-y-auto font-body text-sm font-medium">
-          {/* User info */}
-          <div className="mb-8 px-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold">
-              {initials}
+          {/* Token balance */}
+          <NavLink
+            to="/dashboard/billing"
+            className={({ isActive }) =>
+              `mb-6 mx-2 flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                isActive
+                  ? 'bg-tertiary-fixed/15 ring-1 ring-tertiary-fixed-dim/20'
+                  : 'bg-surface-container/60 hover:bg-surface-container-high'
+              }`
+            }
+          >
+            <div className="w-9 h-9 rounded-lg bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-on-tertiary-container text-lg">toll</span>
             </div>
             <div className="min-w-0">
-              <p className="font-body text-sm font-semibold text-on-surface truncate">{displayName}</p>
-              <p className="font-body text-[11px] text-on-surface-variant truncate">{user?.email}</p>
+              <p className="font-body text-lg font-extrabold text-on-surface leading-tight">{tokenBalance ?? '—'}</p>
+              <p className="font-body text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">transcript tokens</p>
             </div>
-          </div>
+          </NavLink>
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 pr-0">

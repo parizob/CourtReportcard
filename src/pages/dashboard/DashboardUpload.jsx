@@ -6,7 +6,7 @@ import { extractTranscriptWithGemini } from '../../lib/gemini'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
 export default function DashboardUpload() {
-  const { user } = useAuth()
+  const { user, tokenBalance, spendToken, refreshTokens } = useAuth()
   const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -48,6 +48,18 @@ export default function DashboardUpload() {
 
   const handleUpload = async () => {
     setError('')
+
+    if (tokenBalance !== null && tokenBalance <= 0) {
+      setError('You have no upload tokens remaining. Purchase more in Plans & Billing.')
+      return
+    }
+
+    const tokenOk = await spendToken()
+    if (!tokenOk) {
+      setError('Failed to use upload token. Please try again.')
+      return
+    }
+
     setUploading(true)
     setUploadPhase('Creating case...')
 
@@ -147,6 +159,7 @@ export default function DashboardUpload() {
       setUploading(false)
       setUploadPhase('')
       setFinishing(false)
+      refreshTokens()
     } catch (err) {
       console.error('Upload failed:', err)
       setError(err.message || 'Upload failed. Please try again.')
@@ -385,26 +398,32 @@ export default function DashboardUpload() {
               </span>
             )}
           </div>
-          <button
-            disabled={!canUpload}
-            onClick={handleUpload}
-            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {uploading ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Uploading...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-base">cloud_upload</span>
-                Upload &amp; Analyze
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-on-surface-variant font-semibold flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">toll</span>
+              {tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''} available
+            </span>
+            <button
+              disabled={!canUpload}
+              onClick={handleUpload}
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {uploading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-base">cloud_upload</span>
+                  Upload &amp; Analyze
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Tips */}

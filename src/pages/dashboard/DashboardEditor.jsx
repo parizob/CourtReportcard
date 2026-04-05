@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
   const caseId = searchParams.get('case')
+  const { tokenBalance, spendToken, refreshTokens } = useAuth()
 
   const [caseData, setCaseData] = useState(null)
   const [entries, setEntries] = useState([])
@@ -19,6 +21,7 @@ export default function DashboardEditor() {
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [originalText, setOriginalText] = useState(null)
+  const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
 
   const currentSnapshot = useMemo(
     () => JSON.stringify({ entries, annotations, originalText }),
@@ -182,13 +185,24 @@ export default function DashboardEditor() {
     syncMetrics(updated, entries)
   }, [annotations, entries, syncMetrics])
 
-  const handleReanalyze = async () => {
+  const handleReanalyzeClick = () => {
+    setShowReanalyzeConfirm(true)
+  }
+
+  const handleReanalyzeConfirm = async () => {
+    setShowReanalyzeConfirm(false)
+    const ok = await spendToken()
+    if (!ok) {
+      setError('Insufficient tokens. Purchase more in Plans & Billing.')
+      return
+    }
     setAnalyzing(true)
     setError('')
     try {
       const freshAnnotations = await proofreadTranscript(entries)
       setAnnotations(freshAnnotations)
       setSaved(false)
+      refreshTokens()
     } catch (err) {
       console.error('Re-analysis failed:', err)
       setError(err.message || 'Re-analysis failed.')
@@ -927,7 +941,7 @@ export default function DashboardEditor() {
           {/* Re-analyze */}
           <div className="px-5 py-4 border-t border-outline-variant/10">
             <button
-              onClick={handleReanalyze}
+              onClick={handleReanalyzeClick}
               disabled={analyzing}
               className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -991,6 +1005,42 @@ export default function DashboardEditor() {
           </div>
         </aside>
       </div>
+
+      {/* Reanalyze confirmation modal */}
+      {showReanalyzeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-6 pt-6 pb-4 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-on-tertiary-container text-xl">toll</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-on-surface mb-1">Use a Token?</h3>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  Re-analyzing this transcript with AI will use <span className="font-bold text-on-surface">1 upload token</span>.
+                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span> remaining.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 pb-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowReanalyzeConfirm(false)}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReanalyzeConfirm}
+                disabled={tokenBalance === 0}
+                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-base">auto_awesome</span>
+                Re-analyze (1 Token)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
