@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { proofreadTranscript, fixAnnotationPositions } from '../../lib/gemini'
+import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript } from '../../lib/gemini'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
@@ -57,13 +57,17 @@ export default function DashboardEditor() {
         if (dlErr) throw dlErr
 
         const parsed = JSON.parse(await blob.text())
-        const loadedEntries = parsed.entries || []
-        const fixedAnnotations = fixAnnotationPositions(loadedEntries, parsed.annotations || [])
+
+        // Deduplicate entries at load time (cleans up any Gemini duplication in stored JSON)
+        const { entries: dedupedEntries, annotations: dedupedAnnotations } =
+          deduplicateTranscript(parsed.entries || [], parsed.annotations || [])
+
+        const fixedAnnotations = fixAnnotationPositions(dedupedEntries, dedupedAnnotations)
         setTitle(parsed.title || '')
-        setEntries(loadedEntries)
+        setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)
         setOriginalSnapshot(JSON.stringify({
-          entries: loadedEntries,
+          entries: dedupedEntries,
           annotations: fixedAnnotations,
         }))
       }
@@ -261,7 +265,7 @@ export default function DashboardEditor() {
   const annotationsByEntry = useMemo(() => {
     const map = {}
     for (const a of annotations) {
-      if (a.status !== 'open') continue
+      if (a.status !== 'open' && a.status !== 'accepted') continue
       if (!map[a.entry_id]) map[a.entry_id] = []
       map[a.entry_id].push(a)
     }
@@ -277,21 +281,20 @@ export default function DashboardEditor() {
       return <span>{entry.text}</span>
     }
 
-    // Build resolved positions by searching for `original` in the text
     const resolved = []
     const used = new Set()
     for (const ann of entryAnnotations) {
-      if (!ann.original) continue
+      const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
+      if (!searchWord) continue
       let idx = -1
       let searchFrom = 0
-      // Find an occurrence that hasn't been claimed by another annotation
       while (true) {
-        idx = entry.text.indexOf(ann.original, searchFrom)
+        idx = entry.text.indexOf(searchWord, searchFrom)
         if (idx === -1) {
-          idx = entry.text.toLowerCase().indexOf(ann.original.toLowerCase(), searchFrom)
+          idx = entry.text.toLowerCase().indexOf(searchWord.toLowerCase(), searchFrom)
         }
         if (idx === -1) break
-        const key = `${idx}-${idx + ann.original.length}`
+        const key = `${idx}-${idx + searchWord.length}`
         if (!used.has(key)) {
           used.add(key)
           break
@@ -299,12 +302,11 @@ export default function DashboardEditor() {
         searchFrom = idx + 1
       }
       if (idx === -1) continue
-      resolved.push({ ...ann, start: idx, end: idx + ann.original.length })
+      resolved.push({ ...ann, start: idx, end: idx + searchWord.length })
     }
 
     resolved.sort((a, b) => a.start - b.start)
 
-    // Remove overlapping ranges (keep the first)
     const clean = []
     let lastEnd = 0
     for (const r of resolved) {
@@ -321,24 +323,26 @@ export default function DashboardEditor() {
         parts.push(<span key={`t-${cursor}`}>{entry.text.substring(cursor, ann.start)}</span>)
       }
 
-      let cls = 'inline cursor-pointer '
-      if (ann.severity === 'critical') {
-        cls += 'border-b-2 border-error text-error font-semibold'
+      let cls = 'inline '
+      if (ann.status === 'accepted') {
+        cls += 'text-green-600 font-semibold'
+      } else if (ann.severity === 'critical') {
+        cls += 'border-b-2 border-error text-error font-semibold cursor-pointer'
       } else if (ann.severity === 'warning') {
-        cls += 'border-b-2 border-tertiary-fixed-dim'
+        cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
       } else {
-        cls += 'border-b border-dotted border-on-surface-variant/40'
+        cls += 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
       }
 
       parts.push(
         <span
           key={`a-${ann.id}`}
           className={cls}
-          title={`${ann.type}: ${ann.explanation}`}
-          onClick={() => {
+          title={ann.status === 'accepted' ? `Accepted: "${ann.original}" → "${ann.suggestion}"` : `${ann.type}: ${ann.explanation}`}
+          onClick={ann.status === 'open' ? () => {
             const el = document.getElementById(`ann-card-${ann.id}`)
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }}
+          } : undefined}
         >
           {entry.text.substring(ann.start, ann.end)}
         </span>
@@ -361,13 +365,13 @@ export default function DashboardEditor() {
 
   const severityLabelClass = (s) => ({
     critical: 'text-error',
-    warning: 'text-on-tertiary-container',
+    warning: 'text-amber-600',
     suggestion: 'text-primary',
   }[s] || 'text-on-surface-variant')
 
   const severityCardBorder = (s) => ({
     critical: 'border-l-4 border-error bg-error-container/30',
-    warning: 'border-l-4 border-tertiary-fixed-dim bg-surface-container',
+    warning: 'border-l-4 border-amber-500 bg-amber-50',
     suggestion: 'border-l-4 border-primary/30 bg-primary/5',
   }[s] || 'border-l-4 border-outline-variant bg-surface-container')
 
@@ -549,7 +553,7 @@ export default function DashboardEditor() {
           {entries.length > 0 ? (() => {
             const allLines = []
             for (const entry of entries) {
-              const hasOpen = annotationsByEntry[entry.id]?.length > 0
+              const hasAnns = annotationsByEntry[entry.id]?.length > 0
               if (entry.speaker) {
                 const prevEntry = allLines.length > 0 ? allLines[allLines.length - 1] : null
                 if (prevEntry && prevEntry.type !== 'speaker') {
@@ -557,11 +561,17 @@ export default function DashboardEditor() {
                 }
                 allLines.push({ type: 'speaker', text: entry.speaker, entryId: entry.id })
               }
-              const lines = entry.text.split('\n')
-              for (const line of lines) {
-                const wrapped = wrapLine(line, 65)
-                for (const w of wrapped) {
-                  allLines.push({ type: 'text', text: w, entryId: entry.id, entry, hasOpen })
+
+              if (hasAnns) {
+                // Annotated entries render as ONE block to prevent duplication
+                allLines.push({ type: 'annotated-block', text: entry.text, entryId: entry.id, entry })
+              } else {
+                const lines = entry.text.split('\n')
+                for (const line of lines) {
+                  const wrapped = wrapLine(line, 65)
+                  for (const w of wrapped) {
+                    allLines.push({ type: 'text', text: w, entryId: entry.id, entry })
+                  }
                 }
               }
             }
@@ -605,42 +615,48 @@ export default function DashboardEditor() {
                             </div>
                           )
                         }
+                        if (line.type === 'annotated-block') {
+                          return (
+                            <div key={`${pageIdx}-${lineIdx}`} className="flex min-h-[1.75rem] group/line">
+                              <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
+                              <div className="flex-1 font-mono text-[13px] leading-7 text-on-surface" style={{ maxWidth: '42.25em' }}>
+                                {renderHighlightedText(line.entry)}
+                              </div>
+                            </div>
+                          )
+                        }
                         return (
                           <div key={`${pageIdx}-${lineIdx}`} className="flex min-h-[1.75rem] group/line">
                             <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
                             <div className="flex-1 font-mono text-[13px] leading-7 text-on-surface">
-                              {line.hasOpen ? (
-                                <span>{renderHighlightedText(line.entry)}</span>
-                              ) : (
-                                <span
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  className="outline-none focus:bg-primary/[0.03] rounded px-0.5 -mx-0.5 transition-colors inline-block w-full whitespace-pre-wrap"
-                                  onBlur={(e) => {
-                                    const currentLines = line.entry.text.split('\n')
-                                    const wrappedIdx = (() => {
-                                      let count = 0
-                                      for (let li = 0; li < currentLines.length; li++) {
-                                        const w = wrapLine(currentLines[li], 65)
-                                        for (let wi = 0; wi < w.length; wi++) {
-                                          if (w[wi] === line.text) return { li, wi, wLen: w.length }
-                                          count++
-                                        }
+                              <span
+                                contentEditable
+                                suppressContentEditableWarning
+                                className="outline-none focus:bg-primary/[0.03] rounded px-0.5 -mx-0.5 transition-colors inline-block w-full whitespace-pre-wrap"
+                                onBlur={(e) => {
+                                  const currentLines = line.entry.text.split('\n')
+                                  const wrappedIdx = (() => {
+                                    let count = 0
+                                    for (let li = 0; li < currentLines.length; li++) {
+                                      const w = wrapLine(currentLines[li], 65)
+                                      for (let wi = 0; wi < w.length; wi++) {
+                                        if (w[wi] === line.text) return { li, wi, wLen: w.length }
+                                        count++
                                       }
-                                      return null
-                                    })()
-                                    if (!wrappedIdx) return
-                                    const newText = e.target.textContent || ''
-                                    const lines = line.entry.text.split('\n')
-                                    const wrapped = wrapLine(lines[wrappedIdx.li], 65)
-                                    wrapped[wrappedIdx.wi] = newText
-                                    lines[wrappedIdx.li] = wrapped.join(' ')
-                                    updateEntryText(line.entry.id, lines.join('\n'))
-                                  }}
-                                >
-                                  {line.text}
-                                </span>
-                              )}
+                                    }
+                                    return null
+                                  })()
+                                  if (!wrappedIdx) return
+                                  const newText = e.target.textContent || ''
+                                  const lines = line.entry.text.split('\n')
+                                  const wrapped = wrapLine(lines[wrappedIdx.li], 65)
+                                  wrapped[wrappedIdx.wi] = newText
+                                  lines[wrappedIdx.li] = wrapped.join(' ')
+                                  updateEntryText(line.entry.id, lines.join('\n'))
+                                }}
+                              >
+                                {line.text}
+                              </span>
                             </div>
                           </div>
                         )
@@ -673,8 +689,8 @@ export default function DashboardEditor() {
                 <span className="text-xs text-on-surface-variant"><span className="font-semibold text-error">Critical error</span> — definite mistake found.</span>
               </div>
               <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block border-b-2 border-tertiary-fixed-dim text-[11px] font-mono text-on-surface px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-on-tertiary-container">Warning</span> — likely error, verify context.</span>
+                <span className="shrink-0 inline-block border-b-2 border-amber-500 text-amber-700 text-[11px] font-mono px-1 mt-0.5">word</span>
+                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-amber-600">Warning</span> — likely error, verify context.</span>
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="shrink-0 inline-block border-b border-dotted border-on-surface-variant/40 text-[11px] font-mono text-on-surface px-1 mt-0.5">word</span>

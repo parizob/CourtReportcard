@@ -7,10 +7,6 @@ const publicNavClass = ({ isActive }) =>
     ? 'text-primary border-b-2 border-primary pb-1 font-headline font-bold tracking-tight'
     : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200'
 
-const appNavClass = ({ isActive }) =>
-  isActive
-    ? 'text-primary font-headline font-bold tracking-tight text-sm border-b-2 border-primary pb-1'
-    : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight text-sm transition-colors duration-200'
 
 export default function SiteHeader() {
   const { isAuthenticated, user, displayName, initials, openModal, signOut } = useAuth()
@@ -69,38 +65,14 @@ export default function SiteHeader() {
       <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
         <div className="flex justify-between items-center w-full px-8 h-[65px]">
 
-          <div className="flex items-center gap-8">
-            <Link
-              to="/dashboard"
-              className="text-xl font-black text-primary font-headline tracking-tight hover:opacity-80 transition-opacity"
-            >
-              Court Reportcard
-            </Link>
-            <div className="hidden md:flex gap-6 items-center">
-              <NavLink to="/dashboard" end className={appNavClass}>Dashboard</NavLink>
-              <NavLink to="/dashboard/upload" className={appNavClass}>Upload</NavLink>
-              <NavLink to="/dashboard/editor" className={appNavClass}>Editor</NavLink>
-              <NavLink to="/dashboard/export" className={appNavClass}>Export</NavLink>
-            </div>
-          </div>
+          <Link
+            to="/dashboard"
+            className="text-xl font-black text-primary font-headline tracking-tight hover:opacity-80 transition-opacity"
+          >
+            Court Reportcard
+          </Link>
 
           <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center bg-surface-container-lowest px-4 py-2 rounded-md">
-              <span className="material-symbols-outlined text-outline text-sm">search</span>
-              <input
-                className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2"
-                placeholder="Search cases..."
-                type="text"
-              />
-            </div>
-
-            <Link
-              to="/dashboard/upload"
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2 rounded-md font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
-            >
-              New Upload
-            </Link>
-
             <button className="flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
             </button>

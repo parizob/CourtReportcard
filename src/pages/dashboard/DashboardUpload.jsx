@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { extractTranscriptWithGemini } from '../../lib/gemini'
+import courtReporterFacts from '../../data/courtReporterFacts'
 
 export default function DashboardUpload() {
   const { user } = useAuth()
@@ -15,16 +16,31 @@ export default function DashboardUpload() {
   const [error, setError] = useState('')
 
   const [elapsed, setElapsed] = useState(0)
+  const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * courtReporterFacts.length))
+  const [factVisible, setFactVisible] = useState(true)
   const timerRef = useRef(null)
+  const factTimerRef = useRef(null)
 
   useEffect(() => {
     if (uploadPhase === 'AI is analyzing your transcript...') {
       setElapsed(0)
       timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
+
+      factTimerRef.current = setInterval(() => {
+        setFactVisible(false)
+        setTimeout(() => {
+          setFactIndex((prev) => (prev + 1) % courtReporterFacts.length)
+          setFactVisible(true)
+        }, 500)
+      }, 10000)
     } else {
       clearInterval(timerRef.current)
+      clearInterval(factTimerRef.current)
     }
-    return () => clearInterval(timerRef.current)
+    return () => {
+      clearInterval(timerRef.current)
+      clearInterval(factTimerRef.current)
+    }
   }, [uploadPhase])
 
   const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
@@ -132,31 +148,48 @@ export default function DashboardUpload() {
   }
 
   if (uploading && uploadPhase === 'AI is analyzing your transcript...') {
+    const currentFact = courtReporterFacts[factIndex]
     return (
       <main className="min-h-screen flex items-center justify-center bg-background p-8">
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-md">
-          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 relative">
-            <span className="material-symbols-outlined text-primary text-4xl">auto_awesome</span>
-            <svg className="absolute inset-0 animate-spin-slow" viewBox="0 0 80 80" fill="none">
-              <circle cx="40" cy="40" r="38" stroke="currentColor" strokeWidth="2" strokeDasharray="60 180" className="text-primary/30" />
-            </svg>
+        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-lg w-full">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+              </div>
+              <svg className="absolute inset-0 w-12 h-12 animate-spin" style={{ animationDuration: '3s' }} viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2" strokeDasharray="40 100" strokeLinecap="round" className="text-primary/40" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <h2 className="font-headline text-lg font-bold text-on-surface">Analyzing Transcript</h2>
+              <p className="text-xs text-on-surface-variant">
+                <span className="font-semibold text-on-surface">{caseName}</span> &middot; {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+              </p>
+            </div>
           </div>
-          <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Analyzing Transcript</h2>
-          <p className="text-sm text-on-surface-variant mb-4">
-            <span className="font-semibold text-on-surface">{caseName}</span> is being processed by AI.
-          </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-primary font-semibold mb-4">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Extracting text &amp; proofreading...
+
+          <div className="w-full bg-surface-container rounded-full h-1.5 mb-8 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${Math.min(95, Math.max(5, (elapsed / 120) * 100))}%` }}
+            />
           </div>
-          <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
-            This typically takes 1–3 minutes depending on transcript length. Please stay on this page while the analysis completes.
-          </p>
-          <p className="text-xs font-mono text-on-surface-variant/60">
-            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} elapsed
+
+          <div className="bg-surface-container/50 rounded-xl p-6 mb-6 min-h-[120px] flex flex-col items-center justify-center">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-xs">history_edu</span>
+              {currentFact.category}
+            </span>
+            <p
+              className={`text-sm text-on-surface leading-relaxed transition-all duration-300 ${factVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+            >
+              {currentFact.fact}
+            </p>
+          </div>
+
+          <p className="text-[11px] text-on-surface-variant/50">
+            Please stay on this page while the analysis completes.
           </p>
         </div>
       </main>

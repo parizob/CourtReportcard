@@ -80,10 +80,8 @@ export function fixAnnotationPositions(entries, annotations) {
     const text = entry.text
     const orig = a.original
 
-    // Try exact match first
     let idx = text.indexOf(orig)
     if (idx === -1) {
-      // Try case-insensitive
       idx = text.toLowerCase().indexOf(orig.toLowerCase())
     }
 
@@ -95,48 +93,129 @@ export function fixAnnotationPositions(entries, annotations) {
   })
 }
 
-const EXTRACT_AND_PROOFREAD_PROMPT = `You are a world-class legal transcript proofreader and extraction engine. You will receive the content of a court transcript file (RTF, CRE, or PDF format). You must perform TWO tasks in a single pass:
+/**
+ * Deduplicates entries by normalized speaker+text.
+ * Remaps all annotations from removed duplicates to the surviving entry.
+ * Returns { entries, annotations } with clean sequential IDs.
+ */
+export function deduplicateTranscript(rawEntries, rawAnnotations) {
+  const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const entryKeyMap = {}
+  const idRemapTable = {}
+  const deduped = []
 
-TASK 1 — EXTRACTION:
-- Extract every spoken line in order.
-- Identify speakers (e.g. "MR. HENDERSON", "MS. MILLER", "THE COURT", "Q", "A", etc.). Use "UNKNOWN" if unclear.
-- Preserve the original text EXACTLY as written, including all errors. Do NOT correct anything in the entries.
-- If timestamps or line numbers exist, include them.
-- Group consecutive lines under the same speaker into one entry.
-- Strip all RTF formatting codes, PDF layout artifacts, headers, footers, page numbers, and metadata.
+  for (const entry of rawEntries) {
+    const key = `${normalize(entry.speaker)}|||${normalize(entry.text)}`
+    if (entryKeyMap[key] !== undefined) {
+      idRemapTable[entry.id] = entryKeyMap[key]
+    } else {
+      deduped.push(entry)
+      entryKeyMap[key] = entry.id
+    }
+  }
 
-TASK 2 — PROOFREADING:
-You are a meticulous court transcript proofreader. For every entry you extract, carefully analyze the text for ALL of the following issues. Report each as a separate annotation.
+  if (deduped.length < rawEntries.length) {
+    console.log(`Deduplication removed ${rawEntries.length - deduped.length} duplicate entries`)
+  }
 
-Error types to find:
-- "spelling": Any misspelled word (e.g. "legitatcy" → "legitimacy", "pincipal" → "principal", "iregularities" → "irregularities", "recieve" → "receive", "occured" → "occurred")
-- "context": Wrong word used in context — homophones and commonly confused words (e.g. "to/too/two", "their/there/they're", "affect/effect", "then/than", "your/you're", "its/it's", "who's/whose", "accept/except", "loose/lose", "compliment/complement", "principal/principle", "stationary/stationery", "council/counsel", "proceed/precede")
-- "grammar": Grammar mistakes including subject-verb agreement, tense consistency, sentence fragments, run-on sentences, double negatives, incorrect pronoun usage, dangling modifiers
-- "legal_term": Incorrect legal terminology, misspelled legal terms, incorrect case citations, wrong statute references (e.g. "Statute of Limitats" → "Statute of Limitations", "habeus corpus" → "habeas corpus")
-- "punctuation": Missing periods, commas, question marks, or semicolons that affect meaning or readability. Missing possessive apostrophes. Incorrect comma placement in legal citations. Run-on sentences that need punctuation.
-- "capitalization": Improper capitalization of proper nouns, legal terms, or titles that should be capitalized (e.g. "supreme court" → "Supreme Court", "judge smith" → "Judge Smith")
-- "missing_word": Clearly missing words that make a sentence incomplete or grammatically broken (e.g. "I went the store" → "I went to the store")
-- "extra_word": Duplicated or extraneous words (e.g. "I went to to the store")
+  const oldToNewId = {}
+  deduped.forEach((e, i) => {
+    oldToNewId[e.id] = i + 1
+    e.id = i + 1
+  })
 
-Severity levels:
-- "critical": Definite error — the word is clearly wrong or missing.
-- "warning": Likely error — context strongly suggests a different word or punctuation.
-- "suggestion": Possible improvement — stylistic, readability, or minor.
+  let annots = (rawAnnotations || []).map((a) => {
+    let targetId = a.entry_id
+    if (idRemapTable[targetId] !== undefined) targetId = idRemapTable[targetId]
+    if (oldToNewId[targetId] !== undefined) targetId = oldToNewId[targetId]
+    return { ...a, entry_id: targetId }
+  })
 
-IMPORTANT: The "original" field MUST contain the EXACT text as it appears in the entry, character for character. This is used to locate the error in the UI.
+  const entryIds = new Set(deduped.map((e) => e.id))
+  annots = annots.filter((a) => entryIds.has(a.entry_id))
+
+  const seenAnnotations = new Set()
+  annots = annots.filter((a) => {
+    const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
+    if (seenAnnotations.has(key)) return false
+    seenAnnotations.add(key)
+    return true
+  })
+
+  annots.forEach((a, i) => { a.id = i + 1 })
+
+  return { entries: deduped, annotations: annots }
+}
+
+// ── PASS 1: Extraction only (no proofreading) ──
+
+const EXTRACTION_ONLY_PROMPT = `You are a world-class legal transcript extraction engine. You will receive the content of a court transcript file (RTF, CRE, TXT, or PDF format). Your ONLY job is to extract all text into structured JSON entries. Do NOT proofread or flag any errors.
+
+EXTRACTION RULES:
+- Extract the ENTIRE transcript content in order, preserving ALL sections:
+  * Cover/title page (court name, case number, parties, caption)
+  * Appearances page (attorneys and their information)
+  * Index/table of contents
+  * Certificate pages (reporter certificate, certificate of oath)
+  * Errata sheets and read-and-sign letters
+  * Exhibit lists
+  * ALL testimony and colloquy (Q&A, speaker dialogue, stipulations, on/off-record notes)
+- For non-testimony sections, use a descriptive speaker label: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", or "HEADING".
+- For testimony sections, identify speakers (e.g. "MR. HENDERSON", "MS. MILLER", "THE COURT", "THE WITNESS", "Q", "A").
+- Preserve the original text EXACTLY as written, including all errors. Do NOT correct anything.
+- Group consecutive lines under the same speaker/section into ONE entry.
+- Strip only raw formatting codes (RTF control words, PDF artifacts). Preserve all actual text.
+
+CRITICAL RULE — EVERY PASSAGE APPEARS EXACTLY ONCE:
+- Each passage of text must appear as EXACTLY ONE entry. NEVER duplicate an entry.
+- If you see repeated text in the source, include it only ONCE.
 
 OUTPUT — respond with ONLY valid JSON:
 {
-  "title": "<case title if found, otherwise empty string>",
-  "extracted_at": "<current ISO timestamp>",
+  "title": "<case title if found>",
   "entries": [
-    {
-      "id": 1,
-      "speaker": "SPEAKER NAME",
-      "text": "The original text exactly as written...",
-      "timestamp": "00:00:00 or null"
-    }
-  ],
+    { "id": 1, "speaker": "SPEAKER NAME", "text": "The original text exactly as written..." }
+  ]
+}
+
+Now extract the following file content:`
+
+// ── PASS 2: Proofreading only ──
+
+const PROOFREAD_ONLY_PROMPT = `You are a seasoned, meticulous court transcript proofreader with decades of experience. You will receive a JSON array of transcript entries that have already been extracted. Your ONLY job is to proofread them for errors.
+
+Read the transcript the way a professional scopist or proofreader would — line by line, word by word. Understand the MEANING and CONTEXT of what is being said.
+
+Your proofreading approach:
+1. READ FOR MEANING FIRST. Understand what the speaker is trying to say. Does each sentence make logical sense?
+2. CHECK EVERY WORD IN CONTEXT. A word can be spelled correctly but be the WRONG word. "He went too the store" — "too" is wrong. "The injuries were do to the accident" — "do" should be "due". These contextual errors are the MOST IMPORTANT to catch.
+3. CHECK FLOW AND COHERENCE. Does the sentence read naturally? Are words missing? Are there repeated/doubled words?
+4. VERIFY LEGAL ACCURACY. Are legal terms, statutes, and citations correct?
+5. CHECK PUNCTUATION CAREFULLY. Missing commas, question marks, apostrophes that change meaning.
+
+Error types to flag:
+- "spelling": Misspelled words
+- "context": WRONG word used — spelled correctly but wrong based on meaning. Homophones (to/too/two, their/there/they're, hear/here, affect/effect, its/it's, your/you're, council/counsel, principal/principle, do/due, are/our, where/were/we're, lose/loose, passed/past, brake/break, bare/bear, cite/site/sight, peace/piece, etc.), near-homophones, and phonetic mistranscriptions.
+- "grammar": Subject-verb agreement, tense consistency, fragments, run-ons, double negatives, pronoun errors, dangling modifiers
+- "legal_term": Misspelled legal terms, incorrect citations, wrong statute references
+- "punctuation": Missing or incorrect punctuation affecting meaning or readability
+- "capitalization": Improper capitalization of proper nouns, titles, court names, legal terms
+- "missing_word": Clearly missing words that make a sentence incomplete
+- "extra_word": Duplicated or extraneous words
+
+Severity levels:
+- "critical": Definite error — clearly wrong, misspelled, or missing.
+- "warning": Likely error — context strongly suggests a different word or punctuation.
+- "suggestion": Possible improvement — stylistic, readability, or minor.
+
+IMPORTANT RULES:
+- The "original" field MUST contain the EXACT text as it appears in the entry, character for character. This is used to locate the error in the UI.
+- Do NOT flag proper nouns or technical terms that are simply unfamiliar — only flag if clearly misspelled.
+- Skip entries with speaker labels like "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS" — only proofread actual testimony.
+- Each annotation must reference the entry_id of the entry that contains the error.
+
+OUTPUT — respond with ONLY a valid JSON object:
+{
   "annotations": [
     {
       "id": 1,
@@ -146,20 +225,17 @@ OUTPUT — respond with ONLY valid JSON:
       "original": "pincipal",
       "suggestion": "principal",
       "explanation": "Missing letter 'r' — misspelling of 'principal'.",
-      "confidence": 0.99,
-      "start": 4,
-      "end": 12,
-      "status": "open"
+      "confidence": 0.99
     }
   ]
 }
 
-Now extract and proofread the following file content:`
+Here are the transcript entries to proofread:`
 
 /**
- * Single-pass: extracts structured text AND proofreads for errors.
- * Accepts either a text string (RTF/CRE) or a File object (PDF).
- * Returns { title, extracted_at, entries[], annotations[] }.
+ * Two-pass extraction + proofreading.
+ * Pass 1: Extract entries only (no proofreading — eliminates duplication).
+ * Pass 2: Send clean entries back to Gemini for proofreading only.
  */
 export async function extractTranscriptWithGemini(fileOrText, mimeType) {
   let filePart = null
@@ -177,13 +253,15 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     promptSuffix = `\n\n${fileOrText}`
   }
 
-  const parsed = await callGemini(`${EXTRACT_AND_PROOFREAD_PROMPT}${promptSuffix}`, filePart)
+  // ── PASS 1: Extract entries ──
+  console.log('Gemini Pass 1: Extracting transcript entries...')
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart)
 
-  if (!parsed.entries || !Array.isArray(parsed.entries)) {
+  if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
 
-  parsed.entries = parsed.entries.map((entry, i) => ({
+  let entries = extractionResult.entries.map((entry, i) => ({
     id: entry.id || i + 1,
     speaker: entry.speaker || 'UNKNOWN',
     text: entry.text || '',
@@ -191,7 +269,19 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     line_number: entry.line_number || null,
   }))
 
-  let annots = (parsed.annotations || []).map((a, i) => ({
+  // Deduplicate entries from pass 1
+  const { entries: cleanEntries } = deduplicateTranscript(entries, [])
+  entries = cleanEntries
+
+  console.log(`Pass 1 complete: ${entries.length} unique entries extracted.`)
+
+  // ── PASS 2: Proofread entries ──
+  console.log('Gemini Pass 2: Proofreading transcript...')
+  const proofreadResult = await callGemini(
+    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`
+  )
+
+  let annots = (proofreadResult.annotations || []).map((a, i) => ({
     id: a.id || i + 1,
     entry_id: a.entry_id,
     type: a.type || 'spelling',
@@ -205,54 +295,31 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     status: 'open',
   }))
 
-  parsed.annotations = fixAnnotationPositions(parsed.entries, annots)
+  // Filter to valid entries and dedup annotations
+  const entryIds = new Set(entries.map((e) => e.id))
+  annots = annots.filter((a) => entryIds.has(a.entry_id))
 
-  if (!parsed.extracted_at) {
-    parsed.extracted_at = new Date().toISOString()
+  const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const seenAnnotations = new Set()
+  annots = annots.filter((a) => {
+    const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
+    if (seenAnnotations.has(key)) return false
+    seenAnnotations.add(key)
+    return true
+  })
+  annots.forEach((a, i) => { a.id = i + 1 })
+
+  const finalAnnotations = fixAnnotationPositions(entries, annots)
+
+  console.log(`Pass 2 complete: ${finalAnnotations.length} issues found.`)
+
+  return {
+    title: extractionResult.title || '',
+    extracted_at: new Date().toISOString(),
+    entries,
+    annotations: finalAnnotations,
   }
-
-  return parsed
 }
-
-const PROOFREAD_ONLY_PROMPT = `You are a world-class legal transcript proofreader. You will receive a JSON array of transcript entries that have already been extracted. Your ONLY job is to proofread them for ALL errors.
-
-Find ALL errors of these types:
-- "spelling": Any misspelled word
-- "context": Wrong word used in context — homophones and commonly confused words (to/too/two, their/there/they're, affect/effect, then/than, your/you're, its/it's, who's/whose, accept/except, loose/lose, compliment/complement, principal/principle, council/counsel, proceed/precede, etc.)
-- "grammar": Grammar mistakes (subject-verb agreement, tense consistency, sentence fragments, run-on sentences, double negatives, incorrect pronoun usage, dangling modifiers)
-- "legal_term": Incorrect legal terminology, misspelled legal terms, or case citation formatting
-- "punctuation": Missing or incorrect punctuation that affects meaning or readability (periods, commas, question marks, apostrophes, semicolons)
-- "capitalization": Improper capitalization of proper nouns, legal terms, or titles
-- "missing_word": Clearly missing words that break the sentence
-- "extra_word": Duplicated or extraneous words
-
-Severity levels:
-- "critical": Definite error — the word is clearly wrong or missing.
-- "warning": Likely error — context strongly suggests a different word or punctuation.
-- "suggestion": Possible improvement — stylistic, readability, or minor.
-
-IMPORTANT: The "original" field MUST contain the EXACT text as it appears in the entry, character for character.
-
-OUTPUT — respond with ONLY a valid JSON object:
-{
-  "annotations": [
-    {
-      "id": 1,
-      "entry_id": 1,
-      "type": "spelling",
-      "severity": "critical",
-      "original": "pincipal",
-      "suggestion": "principal",
-      "explanation": "Missing letter 'r' — misspelling of 'principal'.",
-      "confidence": 0.99,
-      "start": 4,
-      "end": 12,
-      "status": "open"
-    }
-  ]
-}
-
-Here are the transcript entries to proofread:`
 
 /**
  * Standalone proofreading: takes already-extracted entries and returns fresh annotations.

@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [deleting, setDeleting] = useState(false)
   const [viewTarget, setViewTarget] = useState(null)
   const [downloading, setDownloading] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const retryRan = useRef(false)
   useEffect(() => {
@@ -92,8 +93,11 @@ export default function Dashboard() {
     }
   }
 
-  const activeCases = cases.filter((c) => c.status === 'uploaded' || c.status === 'processing' || c.status === 'analyzed')
-  const completedCases = cases.filter((c) => c.status === 'reviewed' || c.status === 'exported')
+  const filteredCases = searchQuery.trim()
+    ? cases.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : cases
+  const activeCases = filteredCases.filter((c) => c.status === 'uploaded' || c.status === 'processing' || c.status === 'analyzed')
+  const completedCases = filteredCases.filter((c) => c.status === 'reviewed' || c.status === 'exported')
 
   const getMetrics = (c) => (c.case_metrics && c.case_metrics.length > 0 ? c.case_metrics[0] : c.case_metrics && !Array.isArray(c.case_metrics) ? c.case_metrics : null)
 
@@ -195,12 +199,31 @@ export default function Dashboard() {
               <h2 className="font-headline text-xl font-bold text-on-surface">Case Queue</h2>
               <p className="text-xs text-on-surface-variant mt-0.5">Your uploaded transcripts and audio files.</p>
             </div>
-            {cases.length > 0 && (
-              <button onClick={fetchCases} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">refresh</span>
-                Refresh
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {cases.length > 0 && (
+                <div className="flex items-center bg-surface-container-lowest px-3 py-2 rounded-lg border border-outline-variant/20 editorial-shadow">
+                  <span className="material-symbols-outlined text-outline text-sm">search</span>
+                  <input
+                    className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2 placeholder:text-on-surface-variant/50"
+                    placeholder="Search cases..."
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="text-on-surface-variant/50 hover:text-on-surface-variant transition-colors">
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+              )}
+              {cases.length > 0 && (
+                <button onClick={fetchCases} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">refresh</span>
+                  Refresh
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
