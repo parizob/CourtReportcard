@@ -70,23 +70,47 @@ function arrayBufferToBase64(buffer) {
  * within the entry. Gemini's character offsets are frequently wrong, so this
  * is the only reliable way to highlight the right word.
  */
+/**
+ * Searches for `search` in `text`, treating all whitespace (spaces, newlines,
+ * tabs) as equivalent. Returns { start, end } in the ORIGINAL text coordinates,
+ * or null if not found.
+ */
+export function flexFind(text, search) {
+  if (!text || !search) return null
+  // First try exact match (fast path)
+  let idx = text.indexOf(search)
+  if (idx !== -1) return { start: idx, end: idx + search.length }
+  // Case-insensitive exact match
+  idx = text.toLowerCase().indexOf(search.toLowerCase())
+  if (idx !== -1) return { start: idx, end: idx + search.length }
+  // Whitespace-flexible match: treat any whitespace in `search` as matching
+  // any whitespace in `text` (handles \n vs space mismatches)
+  try {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = escaped.replace(/\s+/g, '\\s+')
+    const regex = new RegExp(pattern, 'i')
+    const match = text.match(regex)
+    if (match) return { start: match.index, end: match.index + match[0].length }
+  } catch (_) { /* regex safety */ }
+  return null
+}
+
 export function fixAnnotationPositions(entries, annotations) {
   return annotations.map((a) => {
     if (!a.original) return a
 
+    // Try the referenced entry first
     const entry = entries.find((e) => e.id === a.entry_id)
-    if (!entry) return a
-
-    const text = entry.text
-    const orig = a.original
-
-    let idx = text.indexOf(orig)
-    if (idx === -1) {
-      idx = text.toLowerCase().indexOf(orig.toLowerCase())
+    if (entry) {
+      const m = flexFind(entry.text, a.original)
+      if (m) return { ...a, start: m.start, end: m.end }
     }
 
-    if (idx !== -1) {
-      return { ...a, start: idx, end: idx + orig.length }
+    // Text not found in referenced entry — search ALL entries and reassign
+    for (const e of entries) {
+      if (e.id === a.entry_id) continue
+      const m = flexFind(e.text, a.original)
+      if (m) return { ...a, entry_id: e.id, start: m.start, end: m.end }
     }
 
     return a
@@ -130,6 +154,9 @@ export function deduplicateTranscript(rawEntries, rawAnnotations) {
     if (oldToNewId[targetId] !== undefined) targetId = oldToNewId[targetId]
     return { ...a, entry_id: targetId }
   })
+
+  // Fix entry_ids by searching for original text across all entries BEFORE filtering
+  annots = fixAnnotationPositions(deduped, annots)
 
   const entryIds = new Set(deduped.map((e) => e.id))
   annots = annots.filter((a) => entryIds.has(a.entry_id))
@@ -295,7 +322,10 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     status: 'open',
   }))
 
-  // Filter to valid entries and dedup annotations
+  // Fix entry_ids by searching for original text across all entries BEFORE filtering
+  annots = fixAnnotationPositions(entries, annots)
+
+  // Now filter to valid entries and dedup annotations
   const entryIds = new Set(entries.map((e) => e.id))
   annots = annots.filter((a) => entryIds.has(a.entry_id))
 
@@ -309,15 +339,13 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
   })
   annots.forEach((a, i) => { a.id = i + 1 })
 
-  const finalAnnotations = fixAnnotationPositions(entries, annots)
-
-  console.log(`Pass 2 complete: ${finalAnnotations.length} issues found.`)
+  console.log(`Pass 2 complete: ${annots.length} issues found.`)
 
   return {
     title: extractionResult.title || '',
     extracted_at: new Date().toISOString(),
     entries,
-    annotations: finalAnnotations,
+    annotations: annots,
   }
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript } from '../../lib/gemini'
+import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind } from '../../lib/gemini'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
@@ -142,12 +142,10 @@ export default function DashboardEditor() {
 
     const newEntries = entries.map((e) => {
       if (e.id !== ann.entry_id) return e
-      let realStart = e.text.indexOf(ann.original)
-      if (realStart === -1) realStart = e.text.toLowerCase().indexOf(ann.original.toLowerCase())
-      if (realStart === -1) realStart = ann.start
-      const realEnd = realStart + ann.original.length
-      const before = e.text.substring(0, realStart)
-      const after = e.text.substring(realEnd)
+      const m = flexFind(e.text, ann.original)
+      if (!m) return e
+      const before = e.text.substring(0, m.start)
+      const after = e.text.substring(m.end)
       return { ...e, text: before + ann.suggestion + after }
     })
 
@@ -264,16 +262,41 @@ export default function DashboardEditor() {
 
   const annotationsByEntry = useMemo(() => {
     const map = {}
+    const entryIdSet = new Set(entries.map((e) => e.id))
+
     for (const a of annotations) {
       if (a.status !== 'open' && a.status !== 'accepted') continue
-      if (!map[a.entry_id]) map[a.entry_id] = []
-      map[a.entry_id].push(a)
+
+      let targetId = a.entry_id
+      let matched = false
+
+      // Verify the original text is in the referenced entry (whitespace-flexible)
+      if (entryIdSet.has(targetId) && a.original) {
+        const entry = entries.find((e) => e.id === targetId)
+        if (entry && flexFind(entry.text, a.original)) {
+          matched = true
+        }
+      }
+
+      // If not matched, search all entries by text
+      if (!matched && a.original) {
+        for (const e of entries) {
+          if (flexFind(e.text, a.original)) {
+            targetId = e.id
+            matched = true
+            break
+          }
+        }
+      }
+
+      if (!map[targetId]) map[targetId] = []
+      map[targetId].push({ ...a, entry_id: targetId })
     }
     for (const key of Object.keys(map)) {
       map[key].sort((a, b) => a.start - b.start)
     }
     return map
-  }, [annotations])
+  }, [annotations, entries])
 
   const renderHighlightedText = (entry) => {
     const entryAnnotations = annotationsByEntry[entry.id]
@@ -286,23 +309,12 @@ export default function DashboardEditor() {
     for (const ann of entryAnnotations) {
       const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
       if (!searchWord) continue
-      let idx = -1
-      let searchFrom = 0
-      while (true) {
-        idx = entry.text.indexOf(searchWord, searchFrom)
-        if (idx === -1) {
-          idx = entry.text.toLowerCase().indexOf(searchWord.toLowerCase(), searchFrom)
-        }
-        if (idx === -1) break
-        const key = `${idx}-${idx + searchWord.length}`
-        if (!used.has(key)) {
-          used.add(key)
-          break
-        }
-        searchFrom = idx + 1
-      }
-      if (idx === -1) continue
-      resolved.push({ ...ann, start: idx, end: idx + searchWord.length })
+      const m = flexFind(entry.text, searchWord)
+      if (!m) continue
+      const key = `${m.start}-${m.end}`
+      if (used.has(key)) continue
+      used.add(key)
+      resolved.push({ ...ann, start: m.start, end: m.end })
     }
 
     resolved.sort((a, b) => a.start - b.start)
