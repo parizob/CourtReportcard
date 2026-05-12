@@ -108,7 +108,7 @@ export default function OurPlatform() {
               </div>
               <h3 className="font-headline text-base font-bold text-on-surface mb-1 text-center px-4">Drop Your Transcript</h3>
               <p className="text-on-surface-variant font-body text-xs mb-4 text-center px-6">
-                RTF format. Exported directly from Case CATalyst, Eclipse, or any steno software.
+                .txt format. Plain text exported from Case CATalyst, Eclipse, or any steno software.
               </p>
               <button className="px-5 py-2 bg-secondary text-on-secondary text-xs font-bold rounded-md transition-all active:scale-95 hover:opacity-90">
                 Browse Files
@@ -151,7 +151,7 @@ export default function OurPlatform() {
           <div className="p-4 bg-tertiary-fixed/20 border-l-4 border-tertiary-fixed rounded-lg flex items-start gap-3">
             <span className="material-symbols-outlined text-on-tertiary-container mt-0.5 shrink-0">tips_and_updates</span>
             <p className="text-sm text-on-surface">
-              <span className="font-bold">Why upload both?</span> When your RTF/CRE transcript is paired with the audio recording, our AI can detect word-level mismatches — catching errors that neither document alone would reveal. Accuracy jumps from 94% to 99.8%.
+              <span className="font-bold">Why upload both?</span> When your .txt transcript is paired with the audio recording, our AI can detect word-level mismatches — catching errors that neither document alone would reveal. Accuracy jumps from 94% to 99.8%.
             </p>
           </div>
         </section>

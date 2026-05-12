@@ -22,7 +22,7 @@ const tiers = [
     price: '$49',
     period: '/mo',
     tokens: 2000,
-    features: ['2,000 tokens/mo (2,000 pages)', 'Priority AI analysis', 'All export formats', 'Audio cross-reference', 'Priority support'],
+    features: ['2,000 tokens/mo (2,000 pages)', 'Priority AI analysis', 'TXT & JSON exports', 'Audio cross-reference', 'Priority support'],
     cta: 'Coming Soon',
   },
   {
@@ -31,7 +31,7 @@ const tiers = [
     price: 'Custom',
     period: '',
     tokens: null,
-    features: ['Unlimited tokens', 'Team collaboration', 'All export formats', 'Audio cross-reference', 'Dedicated account manager', 'Custom integrations'],
+    features: ['Unlimited tokens', 'Team collaboration', 'TXT & JSON exports', 'Audio cross-reference', 'Dedicated account manager', 'Custom integrations'],
     cta: 'Coming Soon',
   },
 ]

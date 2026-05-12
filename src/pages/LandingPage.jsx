@@ -101,7 +101,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-primary group-hover:text-on-primary">cloud_upload</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">Upload Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">Securely upload your RAW files. We support all major stenography software exports and standard text formats.</p>
+                <p className="text-on-surface-variant leading-relaxed">Securely upload your transcript as a .txt file — plain text exported from any steno software. Additional file formats coming soon.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">01</div>
               </div>
               {/* Step 2 */}

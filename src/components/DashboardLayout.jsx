@@ -10,9 +10,9 @@ const navItems = [
 ]
 
 const gettingStartedSteps = [
-  { step: '1', icon: 'cloud_upload', title: 'Upload', desc: 'Drag and drop your transcript (RTF/CRE) and audio recording (WAV/MP3/DSS). Give your case a name so you can find it later.' },
+  { step: '1', icon: 'cloud_upload', title: 'Upload', desc: 'Drag and drop your transcript (.txt). Give your case a name so you can find it later.' },
   { step: '2', icon: 'edit_note', title: 'Review', desc: 'Our AI highlights errors, low-confidence words, and suggests corrections in real time. Accept or ignore each suggestion with a single click.' },
-  { step: '3', icon: 'cloud_download', title: 'Export', desc: 'Download court-ready transcripts in PDF, Word, or Case CATalyst format with a full audit trail included.' },
+  { step: '3', icon: 'cloud_download', title: 'Export', desc: 'Download your reviewed transcript as .txt or .json. More export formats coming soon.' },
 ]
 
 export default function DashboardLayout() {
@@ -46,8 +46,10 @@ export default function DashboardLayout() {
               <span className="material-symbols-outlined text-on-tertiary-container text-lg">toll</span>
             </div>
             <div className="min-w-0">
-              <p className="font-body text-lg font-extrabold text-on-surface leading-tight">{tokenBalance ?? '—'}</p>
-              <p className="font-body text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">tokens (1 = 1 page)</p>
+              <p className="font-body text-lg font-extrabold text-on-surface leading-tight">
+                {tokenBalance ?? '—'} <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">tokens</span>
+              </p>
+              <p className="font-body text-[9px] text-on-surface-variant/70 italic normal-case tracking-normal">1 token = 1 page</p>
             </div>
           </NavLink>
 

@@ -15,7 +15,7 @@ const categories = [
 const faqs = [
   {
     q: 'What file formats can I upload?',
-    a: 'Court Reportcard accepts RTF and CRE transcript files alongside WAV, MP3, and DSS audio files.',
+    a: 'Court Reportcard accepts .txt transcript files. Support for additional file formats is coming soon.',
   },
   {
     q: 'How long does AI review take?',
@@ -27,7 +27,7 @@ const faqs = [
   },
   {
     q: 'Can I export to court-specific formats?',
-    a: 'Court Reportcard supports PDF, Word (.docx), plain text, and Catalyst/ASCII export formats, all auto-formatted to Federal and District Court standards.',
+    a: 'Court Reportcard currently supports .txt and .json exports. PDF, Word, and additional formats are coming soon.',
   },
 ]
 
@@ -45,7 +45,7 @@ export default function Support() {
     const body = encodeURIComponent(
       `Name: ${form.name}\nCategory: ${form.category}\n\n${form.message}`
     )
-    window.location.href = `mailto:support@courtreportcard.com?subject=${encodeURIComponent(form.subject || 'Support Request')}&body=${body}`
+    window.location.href = `mailto:courtreportcard@gmail.com?subject=${encodeURIComponent(form.subject || 'Support Request')}&body=${body}`
     setSubmitted(true)
   }
 
@@ -78,8 +78,8 @@ export default function Support() {
                 <h2 className="font-headline font-bold text-2xl text-on-surface mb-2">Message sent!</h2>
                 <p className="text-on-surface-variant text-sm mb-6">
                   Your email client should have opened. If not, email us directly at{' '}
-                  <a href="mailto:support@courtreportcard.com" className="text-primary underline">
-                    support@courtreportcard.com
+                  <a href="mailto:courtreportcard@gmail.com" className="text-primary underline">
+                    courtreportcard@gmail.com
                   </a>
                 </p>
                 <button
@@ -162,8 +162,8 @@ export default function Support() {
 
                 <p className="text-[11px] text-on-surface-variant text-center">
                   Or email us directly at{' '}
-                  <a href="mailto:support@courtreportcard.com" className="text-primary underline">
-                    support@courtreportcard.com
+                  <a href="mailto:courtreportcard@gmail.com" className="text-primary underline">
+                    courtreportcard@gmail.com
                   </a>
                 </p>
 
@@ -181,8 +181,8 @@ export default function Support() {
                 <span className="material-symbols-outlined text-primary mt-0.5">mail</span>
                 <div>
                   <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-0.5">Email</p>
-                  <a href="mailto:support@courtreportcard.com" className="text-sm text-primary hover:underline">
-                    support@courtreportcard.com
+                  <a href="mailto:courtreportcard@gmail.com" className="text-sm text-primary hover:underline">
+                    courtreportcard@gmail.com
                   </a>
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function Support() {
             </div>
 
             {/* Back link */}
-            <Link to="/" className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
+            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
               <span className="material-symbols-outlined text-sm">arrow_back</span>
               Back to Home
             </Link>

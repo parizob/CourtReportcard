@@ -39,7 +39,7 @@ const competitors = [
 
 export default function OurPlatformExport() {
   const { openModal } = useAuth()
-  const [formats, setFormats] = useState({ pdf: true, word: true, txt: false, catalyst: true })
+  const [formats, setFormats] = useState({ txt: true, json: false })
   const selectedCount = Object.values(formats).filter(Boolean).length
   const toggle = (k) => setFormats((p) => ({ ...p, [k]: !p[k] }))
   const [exported, setExported] = useState(false)
@@ -180,9 +180,8 @@ export default function OurPlatformExport() {
             <p className="text-xs text-on-surface-variant mb-6">Choose the formats you need — all generated simultaneously.</p>
             <div className="space-y-3">
               {[
-                { key: 'pdf', icon: 'picture_as_pdf', iconClass: 'text-red-600 bg-red-50', label: 'Adobe PDF', sub: 'Standard Legal Layout — court-submission ready' },
-                { key: 'word', icon: 'description', iconClass: 'text-blue-600 bg-blue-50', label: 'Microsoft Word', sub: 'Editable .docx for further annotation' },
-                { key: 'txt', icon: 'article', iconClass: 'text-on-surface-variant bg-surface-container-high', label: 'Plain Text', sub: 'Unformatted .txt for archiving' },
+                { key: 'txt', icon: 'article', iconClass: 'text-on-surface-variant bg-surface-container-high', label: 'Plain Text (.txt)', sub: 'Corrected transcript — ready for archiving or submission' },
+                { key: 'json', icon: 'data_object', iconClass: 'text-amber-600 bg-amber-50', label: 'Annotated JSON (.json)', sub: 'Full AI analysis with per-word confidence scores' },
               ].map(({ key, icon, iconClass, label, sub }) => (
                 <label key={key} className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${formats[key] ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-primary/40'}`}>
                   <div className="flex items-center gap-4">
@@ -199,19 +198,25 @@ export default function OurPlatformExport() {
               ))}
 
               <div className="pt-3">
-                <p className="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-3">Stenography Specialized</p>
-                <label className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${formats.catalyst ? 'border-primary bg-primary/5' : 'border-primary/20 hover:border-primary/50'}`}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded bg-primary text-on-primary flex items-center justify-center">
-                      <span className="material-symbols-outlined">keyboard</span>
+                <p className="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-3">Coming Soon</p>
+                {[
+                  { icon: 'picture_as_pdf', iconClass: 'text-red-400 bg-red-50', label: 'Adobe PDF', sub: 'Standard legal layout' },
+                  { icon: 'description', iconClass: 'text-blue-400 bg-blue-50', label: 'Microsoft Word (.docx)', sub: 'Editable for further annotation' },
+                  { icon: 'keyboard', iconClass: 'text-on-surface-variant/40 bg-surface-container-high', label: 'Case CATalyst / Eclipse', sub: 'Raw steno & dictionary sync' },
+                ].map(({ icon, iconClass, label, sub }) => (
+                  <div key={label} className="flex items-center justify-between p-4 border border-outline-variant/10 rounded-xl opacity-50 mb-2">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded flex items-center justify-center ${iconClass}`}>
+                        <span className="material-symbols-outlined">{icon}</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-on-surface-variant">{label}</p>
+                        <p className="text-xs text-on-surface-variant">{sub}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm">Case CATalyst / Eclipse</p>
-                      <p className="text-xs text-on-surface-variant">Raw steno &amp; dictionary sync</p>
-                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant bg-surface-container px-2 py-1 rounded-full">Soon</span>
                   </div>
-                  <input type="checkbox" checked={formats.catalyst} onChange={() => toggle('catalyst')} className="w-5 h-5 rounded-sm text-primary cursor-pointer" />
-                </label>
+                ))}
               </div>
             </div>
 
