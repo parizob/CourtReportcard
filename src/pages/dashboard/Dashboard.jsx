@@ -158,22 +158,13 @@ export default function Dashboard() {
                   : 'Here\'s an overview of your cases.'}
               </p>
             </div>
-            <div className="flex gap-3">
-              <Link
-                to="/dashboard/upload"
-                className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
-              >
-                <span className="material-symbols-outlined text-base">cloud_upload</span>
-                Upload New Case
-              </Link>
-              <Link
-                to="/dashboard/export"
-                className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
-              >
-                <span className="material-symbols-outlined text-base">download</span>
-                Exports
-              </Link>
-            </div>
+            <Link
+              to="/dashboard/upload"
+              className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+            >
+              <span className="material-symbols-outlined text-base">cloud_upload</span>
+              Upload New Case
+            </Link>
           </div>
         </header>
 
