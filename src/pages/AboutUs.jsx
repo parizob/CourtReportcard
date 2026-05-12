@@ -3,9 +3,9 @@ import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
 const stats = [
-  { value: '94%', label: 'Avg. accuracy on first pass' },
-  { value: '3×', label: 'Faster than manual review' },
-  { value: '60%', label: 'Reduction in correction costs' },
+  { value: '98%', label: 'Avg. accuracy on first pass' },
+  { value: '100×', label: 'Faster than manual review' },
+  { value: '80%', label: 'Reduction in correction costs' },
   { value: '1', label: 'Secure place for every file' },
 ]
 
