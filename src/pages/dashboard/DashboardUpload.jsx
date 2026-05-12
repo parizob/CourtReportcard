@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { extractTranscriptWithGemini } from '../../lib/gemini'
+import { countPages } from '../../lib/pageCount'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
 export default function DashboardUpload() {
-  const { user, tokenBalance, spendToken, refreshTokens } = useAuth()
+  const { user, tokenBalance, spendTokens, refreshTokens } = useAuth()
   const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -15,6 +16,9 @@ export default function DashboardUpload() {
   const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
   const [finishing, setFinishing] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingPages, setPendingPages] = useState(0)
+  const [counting, setCounting] = useState(false)
 
   const [elapsed, setElapsed] = useState(0)
   const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * courtReporterFacts.length))
@@ -44,19 +48,34 @@ export default function DashboardUpload() {
     }
   }, [uploadPhase])
 
-  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading
+  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading && !counting
 
-  const handleUpload = async () => {
+  const handleUploadClick = async () => {
+    setError('')
+    setCounting(true)
+    try {
+      let totalPages = 0
+      for (const file of transcriptFiles) {
+        const text = await file.text()
+        totalPages += countPages(text)
+      }
+      setPendingPages(totalPages)
+      setConfirmOpen(true)
+    } catch (err) {
+      console.error('Page count failed:', err)
+      setError('Could not read transcript file. Please try again.')
+    } finally {
+      setCounting(false)
+    }
+  }
+
+  const handleConfirmUpload = async () => {
+    setConfirmOpen(false)
     setError('')
 
-    if (tokenBalance !== null && tokenBalance <= 0) {
-      setError('You have no upload tokens remaining. Purchase more in Plans & Billing.')
-      return
-    }
-
-    const tokenOk = await spendToken()
+    const tokenOk = await spendTokens(pendingPages)
     if (!tokenOk) {
-      setError('Failed to use upload token. Please try again.')
+      setError('Failed to use tokens. Please try again.')
       return
     }
 
@@ -405,16 +424,16 @@ export default function DashboardUpload() {
             </span>
             <button
               disabled={!canUpload}
-              onClick={handleUpload}
+              onClick={handleUploadClick}
               className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {uploading ? (
+              {uploading || counting ? (
                 <>
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Uploading...
+                  {counting ? 'Counting pages...' : 'Uploading...'}
                 </>
               ) : (
                 <>
@@ -444,6 +463,69 @@ export default function DashboardUpload() {
         </div>
 
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow max-w-md w-full p-8">
+            {(tokenBalance ?? 0) < pendingPages ? (
+              <>
+                <div className="w-12 h-12 rounded-xl bg-error-container/40 flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-error text-2xl">error</span>
+                </div>
+                <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Insufficient Tokens</h3>
+                <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
+                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages} page{pendingPages !== 1 ? 's' : ''}</span> and
+                  would cost <span className="font-bold text-on-surface">{pendingPages} token{pendingPages !== 1 ? 's' : ''}</span>.
+                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span>.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setConfirmOpen(false)}
+                    className="border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <Link
+                    to="/dashboard/billing"
+                    className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">add_shopping_cart</span>
+                    Buy More Tokens
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-primary text-2xl">toll</span>
+                </div>
+                <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Confirm Upload</h3>
+                <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
+                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages} page{pendingPages !== 1 ? 's' : ''}</span> and
+                  will cost <span className="font-bold text-on-surface">{pendingPages} token{pendingPages !== 1 ? 's' : ''}</span>.
+                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span>.
+                  Do you wish to proceed?
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setConfirmOpen(false)}
+                    className="border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmUpload}
+                    className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">cloud_upload</span>
+                    Proceed
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   )
 }

@@ -3,28 +3,28 @@ import { useAuth } from '../../context/AuthContext'
 const tiers = [
   {
     name: 'Starter',
-    price: 'Free',
-    period: '',
-    tokens: 3,
-    features: ['3 transcript uploads', 'AI proofreading', 'Basic export (TXT)', 'Email support'],
-    cta: 'Current Plan',
-    active: true,
+    price: '$25',
+    period: '/mo',
+    tokens: 500,
+    features: ['500 tokens/mo (500 pages)', 'AI proofreading', 'Basic export (TXT)', 'Email support'],
+    cta: 'Coming Soon',
+    active: false,
   },
   {
     name: 'Professional',
     price: '$49',
     period: '/mo',
-    tokens: 25,
-    features: ['25 transcript uploads/mo', 'Priority AI analysis', 'All export formats', 'Audio cross-reference', 'Priority support'],
+    tokens: 2000,
+    features: ['2,000 tokens/mo (2,000 pages)', 'Priority AI analysis', 'All export formats', 'Audio cross-reference', 'Priority support'],
     cta: 'Coming Soon',
     active: false,
   },
   {
-    name: 'Firm',
-    price: '$149',
-    period: '/mo',
-    tokens: 100,
-    features: ['100 transcript uploads/mo', 'Team collaboration', 'All export formats', 'Audio cross-reference', 'Dedicated account manager', 'Custom integrations'],
+    name: 'Enterprise',
+    price: 'Custom',
+    period: '',
+    tokens: null,
+    features: ['Unlimited tokens', 'Team collaboration', 'All export formats', 'Audio cross-reference', 'Dedicated account manager', 'Custom integrations'],
     cta: 'Coming Soon',
     active: false,
   },
@@ -70,7 +70,7 @@ export default function DashboardBilling() {
           </div>
           <div className="text-right">
             <p className="text-xs text-on-surface-variant">Plan</p>
-            <p className="text-sm font-bold text-primary">Starter (Free)</p>
+            <p className="text-sm font-bold text-primary">No active plan</p>
           </div>
         </section>
 
@@ -99,7 +99,7 @@ export default function DashboardBilling() {
                   {tier.period && <span className="text-sm text-on-surface-variant">{tier.period}</span>}
                 </div>
                 <p className="text-xs text-on-surface-variant mb-4">
-                  {tier.tokens} upload token{tier.tokens !== 1 ? 's' : ''} included
+                  {tier.tokens !== null ? `${tier.tokens.toLocaleString()} tokens/mo` : 'Custom token volume'}
                 </p>
                 <ul className="space-y-2.5 flex-1 mb-6">
                   {tier.features.map((f) => (
@@ -133,10 +133,10 @@ export default function DashboardBilling() {
                   <span className="material-symbols-outlined text-on-tertiary-container text-2xl">token</span>
                 </div>
                 <div>
-                  <h3 className="font-headline text-lg font-bold text-on-surface mb-1">Upload Tokens</h3>
+                  <h3 className="font-headline text-lg font-bold text-on-surface mb-1">Transcript Tokens</h3>
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
-                    Need more uploads without committing to a plan? Purchase tokens individually.
-                    <span className="font-semibold text-on-surface"> 1 token = 1 transcript upload.</span>
+                    Need more pages without committing to a plan? Purchase tokens individually.
+                    <span className="font-semibold text-on-surface"> 1 token = 1 transcript page.</span>
                   </p>
                 </div>
               </div>

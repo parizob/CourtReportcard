@@ -199,13 +199,13 @@ export default function SiteHeader() {
                     <span className="material-symbols-outlined text-tertiary-fixed-dim text-base">card_giftcard</span>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 3 free evaluations</p>
-                    <p className="text-xs text-on-surface-variant leading-relaxed">Create your free account now and we'll run your first 3 transcripts through our full AI review pipeline, completely free.</p>
+                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 50 free tokens</p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">Create your account now and receive 50 tokens to start reviewing transcripts through our full AI pipeline.</p>
                     <button
                       onClick={() => { dismissNotification(); openModal('signup') }}
                       className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
                     >
-                      Claim Free Evaluations →
+                      Claim 50 Free Tokens →
                     </button>
                   </div>
                 </div>

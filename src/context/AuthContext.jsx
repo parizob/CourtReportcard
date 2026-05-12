@@ -20,14 +20,15 @@ export function AuthProvider({ children }) {
     setTokenBalance(data?.balance ?? 0)
   }, [])
 
-  const spendToken = useCallback(async () => {
-    if (!user || tokenBalance === null || tokenBalance <= 0) return false
+  const spendTokens = useCallback(async (amount = 1) => {
+    if (!user || tokenBalance === null || amount <= 0) return false
+    if (tokenBalance < amount) return false
     const { error } = await supabase
       .from('user_tokens')
-      .update({ balance: tokenBalance - 1, updated_at: new Date().toISOString() })
+      .update({ balance: tokenBalance - amount, updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
     if (error) return false
-    setTokenBalance((b) => b - 1)
+    setTokenBalance((b) => b - amount)
     return true
   }, [user, tokenBalance])
 
@@ -95,7 +96,7 @@ export function AuthProvider({ children }) {
       displayName,
       initials,
       tokenBalance,
-      spendToken,
+      spendTokens,
       refreshTokens: () => user && fetchTokenBalance(user.id),
       signIn,
       signUp,

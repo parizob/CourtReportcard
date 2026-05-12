@@ -47,7 +47,7 @@ export default function DashboardLayout() {
             </div>
             <div className="min-w-0">
               <p className="font-body text-lg font-extrabold text-on-surface leading-tight">{tokenBalance ?? '—'}</p>
-              <p className="font-body text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">transcript tokens</p>
+              <p className="font-body text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">tokens (1 = 1 page)</p>
             </div>
           </NavLink>
 

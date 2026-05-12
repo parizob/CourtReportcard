@@ -67,7 +67,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
         <div className="px-8 pt-8 pb-10">
           <p className="font-headline font-black text-xl text-primary tracking-tight mb-1">Court Reportcard</p>
           <p className="text-xs text-on-surface-variant mb-7">
-            {tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your free account to get started.'}
+            {tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
           </p>
 
           <div className="flex bg-surface-container rounded-lg p-1 mb-6">

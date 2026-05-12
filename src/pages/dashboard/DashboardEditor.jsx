@@ -3,11 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
+import { countPages } from '../../lib/pageCount'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
   const caseId = searchParams.get('case')
-  const { tokenBalance, spendToken, refreshTokens } = useAuth()
+  const { tokenBalance, spendTokens, refreshTokens } = useAuth()
 
   const [caseData, setCaseData] = useState(null)
   const [entries, setEntries] = useState([])
@@ -208,9 +209,15 @@ export default function DashboardEditor() {
     setShowReanalyzeConfirm(true)
   }
 
+  const reanalyzePages = useMemo(() => {
+    if (originalText) return countPages(originalText)
+    if (entries.length > 0) return Math.max(1, Math.ceil(entries.length / 25))
+    return 1
+  }, [originalText, entries])
+
   const handleReanalyzeConfirm = async () => {
     setShowReanalyzeConfirm(false)
-    const ok = await spendToken()
+    const ok = await spendTokens(reanalyzePages)
     if (!ok) {
       setError('Insufficient tokens. Purchase more in Plans & Billing.')
       return
@@ -1037,9 +1044,10 @@ export default function DashboardEditor() {
                 <span className="material-symbols-outlined text-on-tertiary-container text-xl">toll</span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-on-surface mb-1">Use a Token?</h3>
+                <h3 className="text-lg font-bold text-on-surface mb-1">Re-analyze Transcript?</h3>
                 <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Re-analyzing this transcript with AI will use <span className="font-bold text-on-surface">1 upload token</span>.
+                  This transcript consists of <span className="font-bold text-on-surface">{reanalyzePages} page{reanalyzePages !== 1 ? 's' : ''}</span> and
+                  will cost <span className="font-bold text-on-surface">{reanalyzePages} token{reanalyzePages !== 1 ? 's' : ''}</span> (1 per page).
                   You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span> remaining.
                 </p>
               </div>
@@ -1053,11 +1061,11 @@ export default function DashboardEditor() {
               </button>
               <button
                 onClick={handleReanalyzeConfirm}
-                disabled={tokenBalance === 0}
+                disabled={(tokenBalance ?? 0) < reanalyzePages}
                 className="px-5 py-2.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-base">auto_awesome</span>
-                Re-analyze (1 Token)
+                Re-analyze ({reanalyzePages} Token{reanalyzePages !== 1 ? 's' : ''})
               </button>
             </div>
           </div>
