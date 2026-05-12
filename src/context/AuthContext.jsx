@@ -9,26 +9,36 @@ export function AuthProvider({ children }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTab, setModalTab] = useState('signin')
   const [tokenBalance, setTokenBalance] = useState(null)
+  const [userPlan, setUserPlan] = useState(null)
+  const [planRenewsAt, setPlanRenewsAt] = useState(null)
 
   const fetchTokenBalance = useCallback(async (uid) => {
-    if (!uid) { setTokenBalance(null); return }
+    if (!uid) { setTokenBalance(null); setUserPlan(null); setPlanRenewsAt(null); return }
     const { data } = await supabase
-      .from('user_tokens')
-      .select('balance')
+      .from('user_profiles')
+      .select('balance, plan, plan_renews_at')
       .eq('user_id', uid)
       .single()
     setTokenBalance(data?.balance ?? 0)
+    setUserPlan(data?.plan ?? null)
+    setPlanRenewsAt(data?.plan_renews_at ?? null)
   }, [])
 
   const spendTokens = useCallback(async (amount = 1) => {
     if (!user || tokenBalance === null || amount <= 0) return false
     if (tokenBalance < amount) return false
+    const newBalance = tokenBalance - amount
     const { error } = await supabase
-      .from('user_tokens')
-      .update({ balance: tokenBalance - amount, updated_at: new Date().toISOString() })
+      .from('user_profiles')
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
     if (error) return false
-    setTokenBalance((b) => b - amount)
+    await supabase.from('token_ledger').insert({
+      user_id: user.id,
+      amount: -amount,
+      type: 'spend',
+    })
+    setTokenBalance(newBalance)
     return true
   }, [user, tokenBalance])
 
@@ -46,6 +56,8 @@ export function AuthProvider({ children }) {
         fetchTokenBalance(session.user.id)
       } else {
         setTokenBalance(null)
+        setUserPlan(null)
+        setPlanRenewsAt(null)
       }
     })
 
@@ -83,6 +95,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
     setUser(null)
     setTokenBalance(null)
+    setUserPlan(null)
+    setPlanRenewsAt(null)
   }
 
   const openModal = (tab = 'signin') => { setModalTab(tab); setModalOpen(true) }
@@ -96,6 +110,8 @@ export function AuthProvider({ children }) {
       displayName,
       initials,
       tokenBalance,
+      userPlan,
+      planRenewsAt,
       spendTokens,
       refreshTokens: () => user && fetchTokenBalance(user.id),
       signIn,

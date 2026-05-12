@@ -1,32 +1,38 @@
 import { useAuth } from '../../context/AuthContext'
 
+const PLAN_LABELS = {
+  starter: 'Starter',
+  professional: 'Professional',
+  enterprise: 'Enterprise',
+}
+
 const tiers = [
   {
+    id: 'starter',
     name: 'Starter',
     price: '$25',
     period: '/mo',
     tokens: 500,
     features: ['500 tokens/mo (500 pages)', 'AI proofreading', 'Basic export (TXT)', 'Email support'],
     cta: 'Coming Soon',
-    active: false,
   },
   {
+    id: 'professional',
     name: 'Professional',
     price: '$49',
     period: '/mo',
     tokens: 2000,
     features: ['2,000 tokens/mo (2,000 pages)', 'Priority AI analysis', 'All export formats', 'Audio cross-reference', 'Priority support'],
     cta: 'Coming Soon',
-    active: false,
   },
   {
+    id: 'enterprise',
     name: 'Enterprise',
     price: 'Custom',
     period: '',
     tokens: null,
     features: ['Unlimited tokens', 'Team collaboration', 'All export formats', 'Audio cross-reference', 'Dedicated account manager', 'Custom integrations'],
     cta: 'Coming Soon',
-    active: false,
   },
 ]
 
@@ -37,8 +43,12 @@ const tokenPacks = [
 ]
 
 export default function DashboardBilling() {
-  const { tokenBalance } = useAuth()
+  const { tokenBalance, userPlan, planRenewsAt } = useAuth()
   const tokenCount = tokenBalance ?? 0
+  const planLabel = userPlan ? (PLAN_LABELS[userPlan] ?? userPlan) : null
+  const renewalDate = planRenewsAt
+    ? new Date(planRenewsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
 
   return (
     <main className="min-h-screen p-8 lg:p-12 bg-background">
@@ -70,7 +80,10 @@ export default function DashboardBilling() {
           </div>
           <div className="text-right">
             <p className="text-xs text-on-surface-variant">Plan</p>
-            <p className="text-sm font-bold text-primary">No active plan</p>
+            <p className="text-sm font-bold text-primary">{planLabel ?? 'No active plan'}</p>
+            {renewalDate && (
+              <p className="text-xs text-on-surface-variant mt-0.5">Renews {renewalDate}</p>
+            )}
           </div>
         </section>
 
@@ -81,14 +94,16 @@ export default function DashboardBilling() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-5">
-            {tiers.map((tier) => (
+            {tiers.map((tier) => {
+              const isCurrent = userPlan === tier.id
+              return (
               <div
                 key={tier.name}
                 className={`bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex flex-col ${
-                  tier.active ? 'ring-2 ring-primary/30' : ''
+                  isCurrent ? 'ring-2 ring-primary/30' : ''
                 }`}
               >
-                {tier.active && (
+                {isCurrent && (
                   <span className="self-start bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
                     Current
                   </span>
@@ -110,17 +125,18 @@ export default function DashboardBilling() {
                   ))}
                 </ul>
                 <button
-                  disabled={!tier.active}
+                  disabled={!isCurrent}
                   className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all ${
-                    tier.active
+                    isCurrent
                       ? 'bg-primary/10 text-primary cursor-default'
                       : 'bg-surface-container text-on-surface-variant/60 cursor-not-allowed'
                   }`}
                 >
-                  {tier.cta}
+                  {isCurrent ? 'Current Plan' : tier.cta}
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </section>
 
