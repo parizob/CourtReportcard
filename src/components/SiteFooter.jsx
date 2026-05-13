@@ -13,7 +13,7 @@ export default function SiteFooter() {
               © 2026 Court Reportcard. All Rights Reserved. Confidential Legal Tool.
             </p>
           </div>
-          <div className="flex gap-8">
+          <div className="flex gap-8 md:ml-auto">
             <Link to="/terms" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Terms of Service
             </Link>
@@ -23,9 +23,6 @@ export default function SiteFooter() {
             <Link to="/support" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Contact Support
             </Link>
-            <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">
-              Security Audit
-            </a>
           </div>
         </div>
       </div>
