@@ -1,3 +1,5 @@
+const MODEL = 'gemini-2.5-pro'
+
 async function callGemini(prompt, filePart, timeoutMs = 300000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -8,7 +10,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ prompt, filePart }),
+      body: JSON.stringify({ prompt, filePart, model: MODEL }),
     })
   } catch (err) {
     clearTimeout(timer)

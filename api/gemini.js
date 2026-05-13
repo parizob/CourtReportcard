@@ -1,5 +1,5 @@
-const MODEL = 'gemini-2.5-flash'
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`
+const ALLOWED_MODELS = ['gemini-2.5-pro']
+const DEFAULT_MODEL = 'gemini-2.5-pro'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,7 +10,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Gemini API key not configured on server.' })
   }
 
-  const { prompt, filePart } = req.body
+  const { prompt, filePart, model: requestedModel } = req.body
+  const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : DEFAULT_MODEL
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
 
   const parts = []
   if (filePart) parts.push(filePart)
