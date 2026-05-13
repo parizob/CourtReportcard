@@ -17,9 +17,9 @@ export default function SiteFooter() {
             <Link to="/terms" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Terms of Service
             </Link>
-            <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">
+            <Link to="/privacy" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Privacy Policy
-            </a>
+            </Link>
             <Link to="/support" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Contact Support
             </Link>

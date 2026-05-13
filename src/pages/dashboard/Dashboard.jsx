@@ -39,6 +39,7 @@ export default function Dashboard() {
     const { data, error } = await supabase
       .from('cases')
       .select('*, case_files(*), case_metrics(*)')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
     if (!error && data) setCases(data)
     if (showLoading) setLoading(false)
@@ -55,8 +56,14 @@ export default function Dashboard() {
         await supabase.storage.from('case-files').remove(storagePaths)
       }
 
-      // case_files rows are CASCADE deleted when the case is deleted
-      const { error } = await supabase.from('cases').delete().eq('id', deleteTarget.id)
+      // Remove case_files rows (storage already cleaned above)
+      await supabase.from('case_files').delete().eq('case_id', deleteTarget.id)
+
+      // Soft-delete the case so metrics are preserved for platform analytics
+      const { error } = await supabase
+        .from('cases')
+        .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
+        .eq('id', deleteTarget.id)
       if (error) throw error
 
       setCases((prev) => prev.filter((c) => c.id !== deleteTarget.id))
@@ -123,13 +130,37 @@ export default function Dashboard() {
 
   const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-  const fileCountLabel = (caseRow) => {
-    const transcripts = caseRow.case_files?.filter((f) => f.file_type === 'transcript').length || 0
-    const audios = caseRow.case_files?.filter((f) => f.file_type === 'audio').length || 0
-    const parts = []
-    if (transcripts > 0) parts.push(`${transcripts} transcript${transcripts !== 1 ? 's' : ''}`)
-    if (audios > 0) parts.push(`${audios} audio`)
-    return parts.join(', ') || 'No files'
+  const RETENTION_DAYS = 90
+
+  const daysLeft = (createdAt) => {
+    const ms = Date.now() - new Date(createdAt).getTime()
+    const daysSince = Math.floor(ms / (1000 * 60 * 60 * 24))
+    return Math.max(0, RETENTION_DAYS - daysSince)
+  }
+
+  const RetentionBadge = ({ caseRow }) => {
+    if (caseRow.purged_at) {
+      return (
+        <Tooltip text="File content has been permanently deleted">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap bg-surface-container text-on-surface-variant/70">
+            <span className="material-symbols-outlined text-xs">lock</span>
+            Purged
+          </span>
+        </Tooltip>
+      )
+    }
+    const n = daysLeft(caseRow.created_at)
+    let cls = 'bg-surface-container text-on-surface-variant'
+    if (n <= 10) cls = 'bg-error-container/60 text-error'
+    else if (n <= 30) cls = 'bg-amber-100 text-amber-700'
+    return (
+      <Tooltip text="Files auto-purge 90 days after upload">
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${cls}`}>
+          <span className="material-symbols-outlined text-xs">schedule</span>
+          {n} day{n !== 1 ? 's' : ''} left
+        </span>
+      </Tooltip>
+    )
   }
 
   const originalFiles = (caseRow) =>
@@ -244,12 +275,11 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
                 <span>Case</span>
-                <span className="w-28 text-center">Files</span>
                 <span className="w-24 text-center">Status</span>
                 <span className="w-32 text-center">Review</span>
-                <span className="w-28 text-center">Date</span>
+                <span className="w-32 text-center">Days Left</span>
                 <span className="w-32 text-center">Actions</span>
               </div>
               {cases.map((c) => {
@@ -260,15 +290,19 @@ export default function Dashboard() {
                 return (
                 <div
                   key={c.id}
-                  className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-6 py-4 items-center border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container/30 transition-colors"
+                  className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-4 items-center border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container/30 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-primary text-lg">folder</span>
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${c.purged_at ? 'bg-surface-container text-on-surface-variant/60' : 'bg-primary/10 text-primary'}`}>
+                      <span className="material-symbols-outlined text-lg">{c.purged_at ? 'lock' : 'folder'}</span>
                     </div>
-                    <span className="text-sm font-semibold text-on-surface truncate">{c.name}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-on-surface truncate">{c.name}</p>
+                      {c.purged_at && (
+                        <p className="text-[10px] text-on-surface-variant/60 italic truncate">Text deleted for security</p>
+                      )}
+                    </div>
                   </div>
-                  <span className="w-28 text-center text-xs text-on-surface-variant">{fileCountLabel(c)}</span>
                   <div className="w-24 flex justify-center">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1.5 ${statusColor(c.status)}`}>
                       {c.status === 'processing' && (
@@ -297,31 +331,51 @@ export default function Dashboard() {
                       <span className="text-[10px] text-on-surface-variant/50">—</span>
                     )}
                   </div>
-                  <span className="w-28 text-center text-xs text-on-surface-variant">{formatDate(c.created_at)}</span>
+                  <div className="w-32 flex justify-center">
+                    <RetentionBadge caseRow={c} />
+                  </div>
                   <div className="w-32 flex justify-center gap-1">
-                    <Tooltip text="View & download files">
-                      <button
-                        onClick={() => setViewTarget(c)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-lg">folder_open</span>
-                      </button>
+                    <Tooltip text={c.purged_at ? 'File content has been purged' : 'View & download files'}>
+                      {c.purged_at ? (
+                        <span className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 cursor-not-allowed">
+                          <span className="material-symbols-outlined text-lg">folder_open</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setViewTarget(c)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">folder_open</span>
+                        </button>
+                      )}
                     </Tooltip>
-                    <Tooltip text="Proofread transcript">
-                      <Link
-                        to={`/dashboard/editor?case=${c.id}`}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-lg">edit_note</span>
-                      </Link>
+                    <Tooltip text={c.purged_at ? 'File content has been purged' : 'Proofread transcript'}>
+                      {c.purged_at ? (
+                        <span className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 cursor-not-allowed">
+                          <span className="material-symbols-outlined text-lg">edit_note</span>
+                        </span>
+                      ) : (
+                        <Link
+                          to={`/dashboard/editor?case=${c.id}`}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">edit_note</span>
+                        </Link>
+                      )}
                     </Tooltip>
-                    <Tooltip text="Export transcript">
-                      <Link
-                        to={`/dashboard/export?case=${c.id}`}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-lg">cloud_download</span>
-                      </Link>
+                    <Tooltip text={c.purged_at ? 'File content has been purged' : 'Export transcript'}>
+                      {c.purged_at ? (
+                        <span className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 cursor-not-allowed">
+                          <span className="material-symbols-outlined text-lg">cloud_download</span>
+                        </span>
+                      ) : (
+                        <Link
+                          to={`/dashboard/export?case=${c.id}`}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">cloud_download</span>
+                        </Link>
+                      )}
                     </Tooltip>
                     <Tooltip text="Delete case">
                       <button

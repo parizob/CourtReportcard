@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage'
 import OurPlatform from './pages/OurPlatform'
 import AboutUs from './pages/AboutUs'
 import TermsOfService from './pages/TermsOfService'
+import Privacy from './pages/Privacy'
 import Support from './pages/Support'
 import PageTransition from './components/PageTransition'
 import SiteHeader from './components/SiteHeader'
@@ -31,6 +32,7 @@ function AppShell() {
           <Route path="/support" element={<Support />} />
           <Route path="/ourplatform" element={<OurPlatform />} />
           <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route
             path="/dashboard"
             element={

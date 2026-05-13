@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
+import { countByType } from '../../lib/annotationStats'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
@@ -128,6 +129,7 @@ export default function DashboardEditor() {
         accepted,
         ignored,
         open,
+        annotations_by_type: countByType(latestAnnotations),
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
 
@@ -260,6 +262,7 @@ export default function DashboardEditor() {
         accepted: annotations.filter((a) => a.status === 'accepted').length,
         ignored: annotations.filter((a) => a.status === 'ignored').length,
         open: annotations.filter((a) => a.status === 'open').length,
+        annotations_by_type: countByType(annotations),
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
 
@@ -674,6 +677,17 @@ export default function DashboardEditor() {
 
             const renderOriginalLine = (pl, lineKey) => {
               const { prefix, content, fullLine, cleanStart, cleanEnd } = pl
+
+              // Never highlight page-break lines (e.g. "                5") — they
+              // can fall inside a cross-page-break match range but have no real text.
+              const isPageBreakLine = /^\s*\d{1,4}\s*$/.test(content)
+              if (isPageBreakLine) {
+                return (
+                  <div key={lineKey} className="min-h-[1.5rem]">
+                    <span className="whitespace-pre">{fullLine}</span>
+                  </div>
+                )
+              }
 
               // Find highlights overlapping this line's clean content
               const lineHighlights = cleanHighlights

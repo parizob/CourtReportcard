@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { extractTranscriptWithGemini } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
+import { countByType } from '../../lib/annotationStats'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
 export default function DashboardUpload() {
@@ -122,6 +123,7 @@ export default function DashboardUpload() {
 
       let totalEntries = 0
       let totalIssues = 0
+      const byType = {}
 
       for (const file of transcriptFiles) {
         const isPdf = file.name.toLowerCase().endsWith('.pdf')
@@ -141,6 +143,10 @@ export default function DashboardUpload() {
 
         totalEntries += (extractedJson.entries || []).length
         totalIssues += (extractedJson.annotations || []).length
+        const fileByType = countByType(extractedJson.annotations || [])
+        for (const [k, v] of Object.entries(fileByType)) {
+          byType[k] = (byType[k] || 0) + v
+        }
 
         const jsonBlob = new Blob(
           [JSON.stringify(extractedJson, null, 2)],
@@ -169,6 +175,7 @@ export default function DashboardUpload() {
         accepted: 0,
         ignored: 0,
         open: totalIssues,
+        annotations_by_type: byType,
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
 

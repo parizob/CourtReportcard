@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
@@ -58,6 +59,26 @@ const timeline = [
 
 export default function AboutUs() {
   const { openModal } = useAuth()
+  const timelineRefs = useRef([])
+
+  useEffect(() => {
+    const items = timelineRefs.current.filter(Boolean)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.style.opacity = '1'
+            entry.target.style.transform = 'translateY(0)'
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.15 }
+    )
+    items.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <div className="bg-background text-on-surface font-body min-h-screen">
 
@@ -194,7 +215,17 @@ export default function AboutUs() {
           {/* Right — timeline */}
           <div className="relative pl-6 border-l-2 border-outline-variant/30 space-y-10">
             {timeline.map((t, i) => (
-              <div key={t.year} className="relative">
+              <div
+                key={t.year}
+                ref={(el) => { timelineRefs.current[i] = el }}
+                className="relative"
+                style={{
+                  opacity: 0,
+                  transform: 'translateY(20px)',
+                  transition: `opacity 0.55s ease, transform 0.55s ease`,
+                  transitionDelay: `${i * 120}ms`,
+                }}
+              >
                 <span className="absolute -left-[2.15rem] top-1 w-7 h-7 rounded-full bg-surface-container-lowest border-2 border-primary flex items-center justify-center">
                   <span className="w-2.5 h-2.5 rounded-full bg-primary block" />
                 </span>

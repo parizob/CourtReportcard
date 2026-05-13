@@ -92,6 +92,16 @@ export function flexFind(text, search) {
     const match = text.match(regex)
     if (match) return { start: match.index, end: match.index + match[0].length }
   } catch (_) { /* regex safety */ }
+  // Cross-page-break match: allow a standalone page number (e.g. "\n   5\n") to
+  // appear inside what looks like whitespace between words. This handles annotations
+  // whose text spans a page boundary in court-reporter .txt files.
+  try {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = escaped.replace(/\s+/g, '(?:\\s+\\d+)?\\s+')
+    const regex = new RegExp(pattern, 'i')
+    const match = text.match(regex)
+    if (match) return { start: match.index, end: match.index + match[0].length }
+  } catch (_) { /* regex safety */ }
   return null
 }
 
