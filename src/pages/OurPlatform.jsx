@@ -230,7 +230,7 @@ export default function OurPlatform() {
                 <h3 className="font-headline font-bold text-lg text-on-primary mb-3">After Court Reportcard</h3>
                 <ul className="space-y-2.5 text-sm text-on-primary-container/90">
                   {[
-                    'Under 3 minutes to surface every issue in a 200-page file',
+                    'Under 3 minutes to surface every issue in a transcript',
                     'Every word evaluated — no fatigue, no off days',
                     'Full audit trail exported with every transcript',
                     'Turnaround measured in minutes',

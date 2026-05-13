@@ -58,10 +58,16 @@ export default function Support() {
 
         {/* Page header */}
         <div className="mb-12">
-          <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-            <span className="material-symbols-outlined text-sm text-tertiary-fixed-dim">support_agent</span>
-            We're here to help
-          </span>
+          <div className="flex items-start justify-between mb-3">
+            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <span className="material-symbols-outlined text-sm text-tertiary-fixed-dim">support_agent</span>
+              We're here to help
+            </span>
+            <Link to={isAuthenticated ? '/dashboard' : '/'} className="inline-flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
+              <span className="material-symbols-outlined text-sm">arrow_back</span>
+              {isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
+            </Link>
+          </div>
           <h1 className="font-headline font-extrabold text-5xl text-on-surface tracking-tight mb-3">
             Contact Support
           </h1>
@@ -229,11 +235,6 @@ export default function Support() {
               </div>
             </div>
 
-            {/* Back link */}
-            <Link to={isAuthenticated ? '/dashboard' : '/'} className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-sm">arrow_back</span>
-              {isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
-            </Link>
 
           </div>
         </div>

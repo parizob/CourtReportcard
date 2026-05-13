@@ -29,13 +29,12 @@ export default function LandingPage() {
                   Platform Demo
                 </Link>
               </div>
-              <div className="mt-12 flex items-center gap-4">
-                <div className="flex -space-x-3">
-                  <div className="w-10 h-10 rounded-full border-2 border-surface bg-secondary-container"></div>
-                  <div className="w-10 h-10 rounded-full border-2 border-surface bg-surface-container"></div>
-                  <div className="w-10 h-10 rounded-full border-2 border-surface bg-surface-container-high"></div>
-                </div>
-                <p className="text-sm text-on-surface-variant">Trusted by <span className="font-bold text-on-surface">500+</span> Court Reporters</p>
+              <div className="mt-12 flex items-center gap-3">
+                <span className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                  Early Access — Now Open
+                </span>
+                <span className="text-xs text-on-surface-variant">· No credit card required</span>
               </div>
             </div>
 
