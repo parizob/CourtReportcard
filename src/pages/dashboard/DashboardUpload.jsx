@@ -190,7 +190,7 @@ export default function DashboardUpload() {
       refreshTokens()
     } catch (err) {
       console.error('Upload failed:', err)
-      setError(err.message || 'Upload failed. Please try again.')
+      setError(err.message === 'TRANSCRIPT_TOO_LARGE' ? 'TRANSCRIPT_TOO_LARGE' : (err.message || 'Upload failed. Please try again.'))
       setUploading(false)
       setUploadPhase('')
     }
@@ -311,10 +311,22 @@ export default function DashboardUpload() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
-            <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
-            {error}
-          </div>
+          error === 'TRANSCRIPT_TOO_LARGE' ? (
+            <div className="mb-6 p-5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-4">
+              <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">volunteer_activism</span>
+              <div>
+                <p className="text-sm font-bold text-on-surface mb-1">Thanks for trusting us with your transcript.</p>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  We&rsquo;re currently in beta, so our processing resources are a bit limited. This file looks like it&rsquo;s on the larger side — try breaking it into chunks of <span className="font-semibold text-on-surface">~100 pages each</span> and uploading them separately. We&rsquo;ll get through every page, just in a couple of passes.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
+              <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
+              {error}
+            </div>
+          )
         )}
 
         {/* Dual drop zones */}

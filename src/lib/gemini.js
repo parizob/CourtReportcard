@@ -13,7 +13,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
   } catch (err) {
     clearTimeout(timer)
     if (err.name === 'AbortError') {
-      throw new Error('Gemini API request timed out. The transcript may be too large — try splitting it into smaller files.')
+      throw new Error('TRANSCRIPT_TOO_LARGE')
     }
     throw err
   }
