@@ -26,6 +26,7 @@ export default function DashboardEditor() {
   const [title, setTitle] = useState('')
   const [originalText, setOriginalText] = useState(null)
   const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
+  const [customTexts, setCustomTexts] = useState({})
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
@@ -160,7 +161,7 @@ export default function DashboardEditor() {
 
   useEffect(() => () => clearTimeout(syncTimerRef.current), [])
 
-  const acceptAnnotation = useCallback((annotationId) => {
+  const acceptAnnotation = useCallback((annotationId, customSuggestion) => {
     const curAnnotations = annotationsRef.current
     const curEntries = entriesRef.current
     const curOriginalText = originalTextRef.current
@@ -168,20 +169,22 @@ export default function DashboardEditor() {
     const ann = curAnnotations.find((a) => a.id === annotationId)
     if (!ann || ann.status !== 'open') return
 
+    const finalSuggestion = customSuggestion ?? ann.suggestion
+
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
       const m = flexFind(e.text, ann.original)
       if (!m) return e
-      return { ...e, text: e.text.substring(0, m.start) + ann.suggestion + e.text.substring(m.end) }
+      return { ...e, text: e.text.substring(0, m.start) + finalSuggestion + e.text.substring(m.end) }
     })
 
     let updatedOriginalText = curOriginalText
     if (curOriginalText) {
-      updatedOriginalText = applyCorrection(curOriginalText, ann.original, ann.suggestion)
+      updatedOriginalText = applyCorrection(curOriginalText, ann.original, finalSuggestion)
     }
 
     const updatedAnnotations = curAnnotations.map((a) =>
-      a.id === annotationId ? { ...a, status: 'accepted' } : a
+      a.id === annotationId ? { ...a, status: 'accepted', suggestion: finalSuggestion } : a
     )
     const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
 
@@ -1010,6 +1013,33 @@ export default function DashboardEditor() {
                 >
                   Accept: &quot;{ann.suggestion}&quot;
                 </button>
+                <div className="mt-2 relative">
+                  <input
+                    type="text"
+                    value={customTexts[ann.id] || ''}
+                    onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                        acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                        setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                      }
+                    }}
+                    placeholder="Or enter your own correction…"
+                    className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
+                  />
+                  {customTexts[ann.id]?.trim() && (
+                    <button
+                      onClick={() => {
+                        acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                        setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                      }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                      title="Apply custom correction"
+                    >
+                      <span className="material-symbols-outlined text-[11px]">check</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
