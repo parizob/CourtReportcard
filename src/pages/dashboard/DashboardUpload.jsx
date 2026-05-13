@@ -215,8 +215,8 @@ export default function DashboardUpload() {
 
           <div className="w-full bg-surface-container rounded-full h-1.5 mb-8 overflow-hidden">
             <div
-              className={`h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all ease-out ${finishing ? 'duration-500' : 'duration-1000'}`}
-              style={{ width: finishing ? '100%' : `${Math.min(95, Math.max(5, (elapsed / 120) * 100))}%` }}
+              className={`h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all ease-out ${finishing ? 'duration-500' : 'duration-[2000ms]'}`}
+              style={{ width: finishing ? '100%' : `${Math.max(4, (90 * elapsed) / (elapsed + 90))}%` }}
             />
           </div>
 

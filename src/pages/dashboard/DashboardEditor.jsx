@@ -768,7 +768,7 @@ export default function DashboardEditor() {
                       <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
                       <span className="text-xs text-on-surface-variant/50 font-mono">{page[0]?.pageNum ?? pageIdx + 1}</span>
                     </div>
-                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface">
+                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface overflow-x-hidden">
                       {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
                     </div>
                     {pageIdx < pages.length - 1 && (
