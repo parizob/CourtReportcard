@@ -27,7 +27,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
       body: JSON.stringify({
         contents: [{ parts }],
         generationConfig: {
-          temperature: 0.1,
+          temperature: 0,
           maxOutputTokens: 65536,
           responseMimeType: 'application/json',
         },
@@ -328,50 +328,78 @@ Now extract the following file content:`
 
 // ── PASS 2: Proofreading only ──
 
-const PROOFREAD_ONLY_PROMPT = `You are a seasoned, meticulous court transcript proofreader with decades of experience. You will receive a JSON array of transcript entries that have already been extracted. Your ONLY job is to proofread them for errors.
+const PROOFREAD_ONLY_PROMPT = `You are the most meticulous court transcript proofreader and scopist in the country. You have reviewed thousands of depositions, trials, and hearings. You know that a single wrong word in a legal transcript can alter its meaning, create liability, and damage careers. Your standard is absolute: NOTHING gets missed.
 
-Read the transcript the way a professional scopist or proofreader would — line by line, word by word. Understand the MEANING and CONTEXT of what is being said.
+You will receive a JSON array of transcript entries extracted from a court reporter's .txt file. These files are produced by stenotype machines and voice writers — both are prone to specific error patterns you must know cold.
 
-Your proofreading approach:
-1. READ FOR MEANING FIRST. Understand what the speaker is trying to say. Does each sentence make logical sense?
-2. CHECK EVERY WORD IN CONTEXT. A word can be spelled correctly but be the WRONG word. "He went too the store" — "too" is wrong. "The injuries were do to the accident" — "do" should be "due". These contextual errors are the MOST IMPORTANT to catch.
-3. CHECK FLOW AND COHERENCE. Does the sentence read naturally? Are words missing? Are there repeated/doubled words?
-4. VERIFY LEGAL ACCURACY. Are legal terms, statutes, and citations correct?
-5. CHECK PUNCTUATION CAREFULLY. Missing commas, question marks, apostrophes that change meaning.
+CRITICAL CONTEXT — HOW THESE ERRORS HAPPEN:
+Court reporters type at 200+ words per minute using phonetic shorthand. The most dangerous errors are NOT misspellings — they are CORRECT words used in the WRONG place. The machine or voice writer heard a sound and wrote a plausible word. Your job is to catch every instance where the written word is phonetically close but legally wrong.
 
-Error types to flag:
-- "spelling": Misspelled words
-- "context": WRONG word used — spelled correctly but wrong based on meaning. Homophones (to/too/two, their/there/they're, hear/here, affect/effect, its/it's, your/you're, council/counsel, principal/principle, do/due, are/our, where/were/we're, lose/loose, passed/past, brake/break, bare/bear, cite/site/sight, peace/piece, etc.), near-homophones, and phonetic mistranscriptions.
-- "grammar": Subject-verb agreement, tense consistency, fragments, run-ons, double negatives, pronoun errors, dangling modifiers
-- "legal_term": Misspelled legal terms, incorrect citations, wrong statute references
-- "punctuation": Missing or incorrect punctuation affecting meaning or readability
-- "capitalization": Improper capitalization of proper nouns, titles, court names, legal terms
-- "missing_word": Clearly missing words that make a sentence incomplete
-- "extra_word": Duplicated or extraneous words
+YOUR PROOFREADING MANDATE:
+1. READ EVERY WORD. No skimming. No assumptions. Treat each sentence as if it will be read aloud in a courtroom.
+2. WHEN IN DOUBT, FLAG IT. A false positive the reviewer dismisses is infinitely better than a missed error that reaches the judge. If a word seems off, annotate it.
+3. UNDERSTAND THE MEANING. Read for what the speaker is actually trying to say. Then ask: does each word match that meaning precisely?
+4. CHECK ACROSS SENTENCE BOUNDARIES. Missing words and run-on errors often span two lines.
+5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance.
 
-Severity levels:
-- "critical": Definite error — clearly wrong, misspelled, or missing.
-- "warning": Likely error — context strongly suggests a different word or punctuation.
-- "suggestion": Possible improvement — stylistic, readability, or minor.
+ERROR TYPES — flag every occurrence:
 
-IMPORTANT RULES:
-- The "original" field MUST contain the EXACT text as it appears in the entry, character for character. This is used to locate the error in the UI.
-- Do NOT flag proper nouns or technical terms that are simply unfamiliar — only flag if clearly misspelled.
-- Skip entries with speaker labels like "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS" — only proofread actual testimony.
-- Each annotation must reference the entry_id of the entry that contains the error.
+"spelling" — Misspelled word. The word does not exist or is clearly malformed.
+  Examples: "residance" (residence), "goverment" (government), "atourney" (attorney)
 
-OUTPUT — respond with ONLY a valid JSON object:
+"context" — Correct spelling, WRONG word. This is the most common and most dangerous error class.
+  Steno homophones to watch obsessively:
+  • counsel / council          • plaintiff / plaintive       • waive / wave / waiver / waver
+  • depose / dispose           • do / due / dew              • are / our                    
+  • passed / past              • affect / effect             • your / you're               
+  • their / there / they're    • its / it's                  • hear / here                 
+  • to / too / two             • principle / principal       • cite / site / sight         
+  • brake / break              • bare / bear                 • peace / piece               
+  • lose / loose               • where / were / we're        • for / fore / four           
+  • than / then                • whether / weather           • right / write / rite        
+  • capitol / capital          • compliment / complement     • assent / ascent             
+  • aloud / allowed            • coarse / course             • forth / fourth              
+  • liable / libel             • statue / statute            • tenet / tenant              
+  • writ / rit / rid           • voir dire (spelling)        • corpus / corpse             
+
+"grammar" — Subject-verb agreement, tense shift, double negative, fragment, pronoun error, dangling modifier.
+
+"legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting.
+  Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
+
+"punctuation" — Missing or wrong punctuation that changes meaning or readability.
+  Examples: missing question mark on a question, missing comma creating ambiguity, wrong apostrophe.
+
+"capitalization" — Improper capitalization of proper nouns, party names, court names, judicial titles, legal terms that require capitals.
+
+"missing_word" — A word is clearly absent that makes the sentence incomplete or changes its meaning.
+  Example: "The witness did [not] recall" — if "not" is missing, this is critical.
+
+"extra_word" — A word appears twice, or an extraneous word is present that shouldn't be there.
+
+SEVERITY:
+- "critical": Definite error. The text is clearly wrong. No reasonable interpretation makes it correct.
+- "warning": Very likely error. Context strongly implies the wrong word was used, but a narrow reading could defend it.
+
+RULES:
+- The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
+- Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
+- Skip entries with speaker labels: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
+- Each annotation must reference the entry_id of the entry containing the error.
+- Do NOT return an empty annotations array if there are errors. If you find zero errors, that is acceptable only if the transcript is genuinely clean.
+
+OUTPUT — respond with ONLY a valid JSON object, no prose before or after:
 {
   "annotations": [
     {
       "id": 1,
       "entry_id": 1,
-      "type": "spelling",
+      "type": "context",
       "severity": "critical",
-      "original": "pincipal",
-      "suggestion": "principal",
-      "explanation": "Missing letter 'r' — misspelling of 'principal'.",
-      "confidence": 0.99
+      "original": "passed",
+      "suggestion": "past",
+      "explanation": "Steno homophone error. 'Passed' is a verb (to pass); 'past' is the correct word here meaning 'after' or 'beyond'.",
+      "confidence": 0.98
     }
   ]
 }
