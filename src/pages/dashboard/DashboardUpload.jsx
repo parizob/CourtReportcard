@@ -19,6 +19,7 @@ export default function DashboardUpload() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingPages, setPendingPages] = useState(0)
   const [counting, setCounting] = useState(false)
+  const [phiCertified, setPhiCertified] = useState(false)
 
   const [elapsed, setElapsed] = useState(0)
   const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * courtReporterFacts.length))
@@ -60,6 +61,7 @@ export default function DashboardUpload() {
         totalPages += countPages(text)
       }
       setPendingPages(totalPages)
+      setPhiCertified(false)
       setConfirmOpen(true)
     } catch (err) {
       console.error('Page count failed:', err)
@@ -500,12 +502,22 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-2xl">toll</span>
                 </div>
                 <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Confirm Upload</h3>
-                <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
+                <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
                   This transcript consists of <span className="font-bold text-on-surface">{pendingPages} page{pendingPages !== 1 ? 's' : ''}</span> and
                   will cost <span className="font-bold text-on-surface">{pendingPages} token{pendingPages !== 1 ? 's' : ''}</span>.
                   You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span>.
-                  Do you wish to proceed?
                 </p>
+                <label className="flex items-start gap-3 cursor-pointer group mb-6 p-3 rounded-lg bg-error-container/20 border border-error/20">
+                  <input
+                    type="checkbox"
+                    checked={phiCertified}
+                    onChange={(e) => setPhiCertified(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
+                  />
+                  <span className="text-xs text-on-surface leading-relaxed">
+                    I certify that this transcript contains <span className="font-bold">no Protected Health Information (PHI)</span> and does not include any data regulated under HIPAA.
+                  </span>
+                </label>
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setConfirmOpen(false)}
@@ -515,7 +527,8 @@ export default function DashboardUpload() {
                   </button>
                   <button
                     onClick={handleConfirmUpload}
-                    className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
+                    disabled={!phiCertified}
+                    className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="material-symbols-outlined text-base">cloud_upload</span>
                     Proceed

@@ -14,9 +14,9 @@ export default function SiteFooter() {
             </p>
           </div>
           <div className="flex gap-8">
-            <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">
+            <Link to="/terms" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">
               Terms of Service
-            </a>
+            </Link>
             <a className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100" href="#">
               Privacy Policy
             </a>

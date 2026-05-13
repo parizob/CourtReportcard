@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
@@ -13,6 +14,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [agreedToTos, setAgreedToTos] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -25,6 +27,10 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
       }
       if (password !== confirm) {
         setError('Passwords do not match.')
+        return
+      }
+      if (!agreedToTos) {
+        setError('You must read and agree to the Terms of Service to create an account.')
         return
       }
     }
@@ -53,7 +59,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]">
 
         <div className="h-1 w-full bg-gradient-to-r from-primary via-secondary to-tertiary-fixed-dim" />
 
@@ -183,6 +189,30 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
                   Forgot password?
                 </button>
               </div>
+            )}
+
+            {tab === 'signup' && (
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreedToTos}
+                  onChange={(e) => setAgreedToTos(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
+                />
+                <span className="text-xs text-on-surface-variant leading-relaxed group-hover:text-on-surface transition-colors">
+                  I have read and agree to the{' '}
+                  <Link
+                    to="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-semibold hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Terms of Service
+                  </Link>
+                  , including the strict prohibition on uploading Protected Health Information (PHI).
+                </span>
+              </label>
             )}
 
             <button

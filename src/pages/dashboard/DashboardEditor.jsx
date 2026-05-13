@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -1068,8 +1069,8 @@ export default function DashboardEditor() {
       </div>
 
       {/* Reanalyze confirmation modal */}
-      {showReanalyzeConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      {showReanalyzeConfirm && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in-95">
             <div className="px-6 pt-6 pb-4 flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
@@ -1101,7 +1102,8 @@ export default function DashboardEditor() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </main>
   )
