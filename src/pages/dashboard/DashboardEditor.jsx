@@ -41,10 +41,14 @@ export default function DashboardEditor() {
   )
   const hasChanges = currentSnapshot !== originalSnapshot
 
-  const openAnnotations = useMemo(
-    () => annotations.filter((a) => a.status === 'open'),
-    [annotations]
-  )
+  const openAnnotations = useMemo(() => {
+    const entryIndexMap = new Map(entries.map((e, i) => [e.id, i]))
+    return annotations
+      .filter((a) => a.status === 'open')
+      .map((a) => ({ a, ei: entryIndexMap.get(a.entry_id) ?? Infinity, s: a.start ?? 0 }))
+      .sort((x, y) => x.ei !== y.ei ? x.ei - y.ei : x.s - y.s)
+      .map(({ a }) => a)
+  }, [annotations, entries])
 
   useEffect(() => {
     if (!caseId) return
