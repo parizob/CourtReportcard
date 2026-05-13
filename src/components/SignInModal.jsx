@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import BrandLogo from './BrandLogo'
 
 export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const { signIn, signUp } = useAuth()
@@ -90,7 +91,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
         </button>
 
         <div className="px-8 pt-8 pb-10">
-          <p className="font-headline font-black text-xl text-primary tracking-tight mb-1">Court Reportcard</p>
+          <div className="mb-1"><BrandLogo size={26} className="text-xl" /></div>
           <p className="text-xs text-on-surface-variant mb-7">
             {forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
           </p>

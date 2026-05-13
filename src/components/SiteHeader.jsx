@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import BrandLogo from './BrandLogo'
 
 const publicNavClass = ({ isActive }) =>
   isActive
@@ -65,11 +66,8 @@ export default function SiteHeader() {
       <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
         <div className="flex justify-between items-center w-full px-8 h-[65px]">
 
-          <Link
-            to="/dashboard"
-            className="text-xl font-black text-primary font-headline tracking-tight hover:opacity-80 transition-opacity"
-          >
-            Court Reportcard
+          <Link to="/dashboard" className="hover:opacity-80 transition-opacity">
+            <BrandLogo size={26} className="text-xl" />
           </Link>
 
           <div className="flex items-center gap-3">
@@ -149,11 +147,8 @@ export default function SiteHeader() {
       <div className="flex justify-between items-center w-full px-8 h-[65px]">
 
         <div className="flex items-center gap-8">
-          <Link
-            to="/"
-            className="text-xl font-black text-primary font-headline tracking-tight hover:opacity-80 transition-opacity"
-          >
-            Court Reportcard
+          <Link to="/" className="hover:opacity-80 transition-opacity">
+            <BrandLogo size={26} className="text-xl" />
           </Link>
           <div className="hidden md:flex gap-6 items-center">
             <NavLink to="/" end className={publicNavClass}>Home</NavLink>
