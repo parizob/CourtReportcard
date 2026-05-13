@@ -70,16 +70,21 @@ export default function LandingPage() {
                       <p>And did you see the vehicle? We have a <span className="border-b-2 border-dotted border-primary italic">conflicting report</span> about the color.</p>
                     </div>
                   </div>
-                  {/* Float Overlay */}
-                  <div className="absolute bottom-6 right-6 glass-panel p-4 rounded-xl editorial-shadow border border-white/50 flex gap-4 items-center">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Confidence Score</span>
-                      <span className="text-xl font-headline font-black text-primary">98.4%</span>
+                  {/* Status Bar */}
+                  <div className="mt-6 pt-4 border-t border-outline-variant/15 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">AI Review Complete</span>
                     </div>
-                    <div className="h-8 w-[1px] bg-outline-variant/30"></div>
-                    <button className="bg-primary text-on-primary p-2 rounded-lg">
-                      <span className="material-symbols-outlined text-lg">auto_fix_high</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Confidence Score</span>
+                        <span className="text-lg font-headline font-black text-primary leading-none">98.4%</span>
+                      </div>
+                      <button className="bg-primary text-on-primary p-2 rounded-lg">
+                        <span className="material-symbols-outlined text-lg">auto_fix_high</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -110,7 +115,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">AI Analysis</h3>
-                <p className="text-on-surface-variant leading-relaxed">Our legal-trained LLM cross-references audio, checks legal dictionaries, and highlights procedural inconsistencies.</p>
+                <p className="text-on-surface-variant leading-relaxed">Our legal-trained AI checks against legal dictionaries, flags procedural inconsistencies, and scores every page by confidence.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
               </div>
               {/* Step 3 */}
@@ -150,8 +155,8 @@ export default function LandingPage() {
                 <div className="flex gap-4">
                   <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
                   <div>
-                    <h4 className="text-on-primary font-bold">Audio Syncing</h4>
-                    <p className="text-on-primary-container text-sm">Jump directly to the audio recording for any low-confidence transcription segment.</p>
+                    <h4 className="text-on-primary font-bold">Confidence Scoring</h4>
+                    <p className="text-on-primary-container text-sm">Every page gets a confidence score so you know exactly where to focus your review.</p>
                   </div>
                 </div>
               </div>

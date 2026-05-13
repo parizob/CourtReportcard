@@ -176,12 +176,12 @@ export default function AboutUs() {
             </p>
 
             <div className="mt-10 flex gap-4">
-              <Link
-                to="/ourplatform"
+              <button
+                onClick={() => openModal('signup')}
                 className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-md font-bold text-sm hover:translate-y-[-1px] transition-all editorial-shadow"
               >
                 Try the Platform
-              </Link>
+              </button>
               <Link
                 to="/ourplatform/editor"
                 className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-md font-bold text-sm hover:bg-surface-container transition-colors"

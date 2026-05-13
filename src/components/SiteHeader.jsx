@@ -159,6 +159,7 @@ export default function SiteHeader() {
             <NavLink to="/" end className={publicNavClass}>Home</NavLink>
             <NavLink to="/ourplatform" className={publicNavClass}>Our Platform</NavLink>
             <NavLink to="/aboutus" className={publicNavClass}>About Us</NavLink>
+            <NavLink to="/support" className={publicNavClass}>Support</NavLink>
           </div>
         </div>
 

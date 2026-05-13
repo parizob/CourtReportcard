@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
 const categories = [
@@ -32,6 +33,7 @@ const faqs = [
 ]
 
 export default function Support() {
+  const { isAuthenticated } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', category: 'general', subject: '', message: '' })
   const [submitted, setSubmitted] = useState(false)
   const [openFaq, setOpenFaq] = useState(null)
@@ -228,9 +230,9 @@ export default function Support() {
             </div>
 
             {/* Back link */}
-            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
+            <Link to={isAuthenticated ? '/dashboard' : '/'} className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
               <span className="material-symbols-outlined text-sm">arrow_back</span>
-              Back to Home
+              {isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
             </Link>
 
           </div>
