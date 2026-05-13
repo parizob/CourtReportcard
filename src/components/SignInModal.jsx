@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const { signIn, signUp } = useAuth()
@@ -15,6 +16,10 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [agreedToTos, setAgreedToTos] = useState(false)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSent, setResetSent] = useState(false)
+  const [resetSubmitting, setResetSubmitting] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -54,6 +59,20 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
     }
   }
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+    setResetSubmitting(true)
+    const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: `${window.location.origin}/dashboard`,
+    })
+    setResetSubmitting(false)
+    if (err) {
+      setError(err.message || 'Failed to send reset email.')
+    } else {
+      setResetSent(true)
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -73,9 +92,64 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
         <div className="px-8 pt-8 pb-10">
           <p className="font-headline font-black text-xl text-primary tracking-tight mb-1">Court Reportcard</p>
           <p className="text-xs text-on-surface-variant mb-7">
-            {tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
+            {forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
           </p>
 
+          {/* Forgot password view */}
+          {forgotMode ? (
+            resetSent ? (
+              <div className="text-center py-4">
+                <span className="material-symbols-outlined text-4xl text-primary block mb-3">mark_email_read</span>
+                <p className="font-bold text-on-surface mb-1">Check your inbox</p>
+                <p className="text-xs text-on-surface-variant mb-6 leading-relaxed">
+                  We sent a password reset link to <span className="font-semibold text-on-surface">{resetEmail}</span>. Follow the link in the email to set a new password.
+                </p>
+                <button
+                  onClick={() => { setForgotMode(false); setResetSent(false); setResetEmail('') }}
+                  className="text-xs text-primary font-semibold hover:underline"
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                {error && (
+                  <div className="p-3 bg-error-container/30 border border-error/20 rounded-lg text-xs text-error font-medium flex items-start gap-2">
+                    <span className="material-symbols-outlined text-sm mt-px shrink-0">error</span>
+                    {error}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetSubmitting}
+                  className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {resetSubmitting ? 'Sending...' : 'Send Reset Link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(false); setError('') }}
+                  className="w-full text-xs text-on-surface-variant hover:text-primary transition-colors py-1"
+                >
+                  ← Back to Sign In
+                </button>
+              </form>
+            )
+          ) : (
+          <>
           <div className="flex bg-surface-container rounded-lg p-1 mb-6">
             <button
               onClick={() => { setTab('signin'); setError('') }}
@@ -185,7 +259,11 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
 
             {tab === 'signin' && (
               <div className="text-right">
-                <button type="button" className="text-xs text-primary hover:underline">
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(true); setError(''); setResetEmail(email) }}
+                  className="text-xs text-primary hover:underline"
+                >
                   Forgot password?
                 </button>
               </div>
@@ -243,6 +321,8 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
               {tab === 'signin' ? 'Sign up free' : 'Sign in'}
             </button>
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>
