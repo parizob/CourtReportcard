@@ -75,33 +75,69 @@ function arrayBufferToBase64(buffer) {
  * tabs) as equivalent. Returns { start, end } in the ORIGINAL text coordinates,
  * or null if not found.
  */
+// Returns true if the character at position i in str is a word character
+function _isWordChar(str, i) {
+  if (i < 0 || i >= str.length) return false
+  return /\w/.test(str[i])
+}
+
+// Checks that a match at [start, end) in text has word boundaries on both sides
+// when the search phrase starts/ends with a word character.
+function _checkBoundaries(text, start, end, search) {
+  const searchStart = search[0]
+  const searchEnd = search[search.length - 1]
+  if (/\w/.test(searchStart) && _isWordChar(text, start - 1)) return false
+  if (/\w/.test(searchEnd) && _isWordChar(text, end)) return false
+  return true
+}
+
 export function flexFind(text, search) {
   if (!text || !search) return null
-  // First try exact match (fast path)
+
+  // 1. Exact match with boundary check
   let idx = text.indexOf(search)
-  if (idx !== -1) return { start: idx, end: idx + search.length }
-  // Case-insensitive exact match
-  idx = text.toLowerCase().indexOf(search.toLowerCase())
-  if (idx !== -1) return { start: idx, end: idx + search.length }
-  // Whitespace-flexible match: treat any whitespace in `search` as matching
-  // any whitespace in `text` (handles \n vs space mismatches)
+  while (idx !== -1) {
+    if (_checkBoundaries(text, idx, idx + search.length, search)) {
+      return { start: idx, end: idx + search.length }
+    }
+    idx = text.indexOf(search, idx + 1)
+  }
+
+  // 2. Case-insensitive exact match with boundary check
+  const lowerText = text.toLowerCase()
+  const lowerSearch = search.toLowerCase()
+  idx = lowerText.indexOf(lowerSearch)
+  while (idx !== -1) {
+    if (_checkBoundaries(text, idx, idx + lowerSearch.length, lowerSearch)) {
+      return { start: idx, end: idx + lowerSearch.length }
+    }
+    idx = lowerText.indexOf(lowerSearch, idx + 1)
+  }
+
+  // 3. Whitespace-flexible match (handles \n vs space, multi-line entries)
   try {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const pattern = escaped.replace(/\s+/g, '\\s+')
-    const regex = new RegExp(pattern, 'i')
+    const startsWord = /^\w/.test(search)
+    const endsWord = /\w$/.test(search)
+    const wrapped = `${startsWord ? '(?<![\\w])' : ''}${pattern}${endsWord ? '(?![\\w])' : ''}`
+    const regex = new RegExp(wrapped, 'i')
     const match = text.match(regex)
     if (match) return { start: match.index, end: match.index + match[0].length }
   } catch (_) { /* regex safety */ }
-  // Cross-page-break match: allow a standalone page number (e.g. "\n   5\n") to
-  // appear inside what looks like whitespace between words. This handles annotations
-  // whose text spans a page boundary in court-reporter .txt files.
+
+  // 4. Cross-page-break match: allows a standalone page number between words
   try {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const pattern = escaped.replace(/\s+/g, '(?:\\s+\\d+)?\\s+')
-    const regex = new RegExp(pattern, 'i')
+    const startsWord = /^\w/.test(search)
+    const endsWord = /\w$/.test(search)
+    const wrapped = `${startsWord ? '(?<![\\w])' : ''}${pattern}${endsWord ? '(?![\\w])' : ''}`
+    const regex = new RegExp(wrapped, 'i')
     const match = text.match(regex)
     if (match) return { start: match.index, end: match.index + match[0].length }
   } catch (_) { /* regex safety */ }
+
   return null
 }
 
@@ -377,12 +413,17 @@ ERROR TYPES — flag every occurrence:
 
 "extra_word" — A word appears twice, or an extraneous word is present that shouldn't be there.
 
+CRITICAL RULE — TRANSCRIPTS RECORD WHAT WAS SPOKEN:
+A court transcript is a verbatim record of spoken words. You are NOT here to correct the speaker's logic, word choices, or arguments. If an attorney says "for the jury" when convention calls for "for the record," that is what the attorney said — do NOT flag it. If a witness uses the word "thesis" when they mean "dissertation," that is what the witness said — do NOT flag it. Your only job is to catch errors where the COURT REPORTER wrote the wrong word due to phonetic/steno error — i.e., where the written word sounds like the intended word but is different. Never suggest changing the actual substance of what was spoken.
+
 SEVERITY:
-- "critical": Definite error. The text is clearly wrong. No reasonable interpretation makes it correct.
-- "warning": Very likely error. Context strongly implies the wrong word was used, but a narrow reading could defend it.
+- "critical": Clear transcription error — the written word is a phonetic substitution for the intended word (e.g., "passed" for "past", "council" for "counsel", "do" for "due"). The reporter wrote the wrong word.
+- "warning": Likely transcription error but some ambiguity exists. Use this for ALL "context" type annotations, since the speaker may have genuinely said the flagged word.
 
 RULES:
+- "context" type annotations MUST always use severity "warning", never "critical". The speaker may have intentionally used that word.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
+- The "original" field must be a COMPLETE word or phrase — never a substring of a longer word. "as" must not match "Please".
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
 - Each annotation must reference the entry_id of the entry containing the error.
