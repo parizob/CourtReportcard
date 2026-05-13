@@ -414,16 +414,21 @@ ERROR TYPES — flag every occurrence:
 "extra_word" — A word appears twice, or an extraneous word is present that shouldn't be there.
 
 CRITICAL RULE — TRANSCRIPTS RECORD WHAT WAS SPOKEN:
-A court transcript is a verbatim record of spoken words. You are NOT here to correct the speaker's logic, word choices, or arguments. If an attorney says "for the jury" when convention calls for "for the record," that is what the attorney said — do NOT flag it. If a witness uses the word "thesis" when they mean "dissertation," that is what the witness said — do NOT flag it. Your only job is to catch errors where the COURT REPORTER wrote the wrong word due to phonetic/steno error — i.e., where the written word sounds like the intended word but is different. Never suggest changing the actual substance of what was spoken.
+A court transcript is a verbatim record of spoken words. You must distinguish between two entirely different kinds of errors:
+
+TYPE A — REPORTER ERROR (phonetic/steno substitution): The reporter heard a word and wrote a different word that sounds similar. The speaker did NOT say what is written. Example: speaker said "counsel" but reporter wrote "council". Flag these as "spelling" or "context" with severity "critical". Suggestion: the correct word.
+
+TYPE B — SPEAKER ERROR (the speaker said the wrong word): The reporter accurately transcribed what was spoken, but the speaker themselves used the wrong word. Example: a witness says "thesis" when the correct academic term is "dissertation." The transcript is accurate — the speaker made the error. These must NEVER be corrected. Instead, add the legal notation [sic] immediately after the word to document that the error belongs to the original speaker. Suggestion format: "<original_word> [sic]" — do NOT substitute the correct word. Severity: always "warning".
 
 SEVERITY:
-- "critical": Clear transcription error — the written word is a phonetic substitution for the intended word (e.g., "passed" for "past", "council" for "counsel", "do" for "due"). The reporter wrote the wrong word.
-- "warning": Likely transcription error but some ambiguity exists. Use this for ALL "context" type annotations, since the speaker may have genuinely said the flagged word.
+- "critical": TYPE A error only — reporter wrote the wrong word due to phonetic/steno substitution. The suggestion is the correct replacement word.
+- "warning": TYPE B error — speaker said the wrong word; the transcript is accurate. The suggestion MUST be formatted as "<original_word> [sic]" with no other changes.
 
 RULES:
-- "context" type annotations MUST always use severity "warning", never "critical". The speaker may have intentionally used that word.
+- For TYPE B / "warning" errors: the suggestion field MUST be exactly the original word followed by a space and [sic]. Example: original "thesis" → suggestion "thesis [sic]". Do NOT put the correct word in the suggestion field.
+- "context" type annotations where the speaker may have genuinely said that word MUST use severity "warning" and the [sic] suggestion format.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
-- The "original" field must be a COMPLETE word or phrase — never a substring of a longer word. "as" must not match "Please".
+- The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
 - Each annotation must reference the entry_id of the entry containing the error.
@@ -439,8 +444,18 @@ OUTPUT — respond with ONLY a valid JSON object, no prose before or after:
       "severity": "critical",
       "original": "passed",
       "suggestion": "past",
-      "explanation": "Steno homophone error. 'Passed' is a verb (to pass); 'past' is the correct word here meaning 'after' or 'beyond'.",
+      "explanation": "TYPE A — Steno homophone error. Reporter wrote 'passed' (a verb) but the intended word is 'past' (meaning 'after' or 'beyond').",
       "confidence": 0.98
+    },
+    {
+      "id": 2,
+      "entry_id": 4,
+      "type": "context",
+      "severity": "warning",
+      "original": "thesis",
+      "suggestion": "thesis [sic]",
+      "explanation": "TYPE B — Speaker error. The witness said 'thesis' but likely meant 'dissertation.' The transcript is accurate; [sic] documents that the error belongs to the speaker.",
+      "confidence": 0.91
     }
   ]
 }
