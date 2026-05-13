@@ -1,37 +1,14 @@
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const MODEL = 'gemini-2.5-flash'
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`
-
-function assertApiKey() {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_KEY_HERE') {
-    throw new Error('Gemini API key not configured. Add VITE_GEMINI_API_KEY to your .env file.')
-  }
-}
-
 async function callGemini(prompt, filePart, timeoutMs = 300000) {
-  assertApiKey()
-
-  const parts = []
-  if (filePart) parts.push(filePart)
-  parts.push({ text: prompt })
-
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   let response
   try {
-    response = await fetch(API_URL, {
+    response = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 65536,
-          responseMimeType: 'application/json',
-        },
-      }),
+      body: JSON.stringify({ prompt, filePart }),
     })
   } catch (err) {
     clearTimeout(timer)
@@ -44,7 +21,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `Gemini API error: ${response.status}`)
+    throw new Error(err?.error || `Gemini API error: ${response.status}`)
   }
 
   const data = await response.json()
