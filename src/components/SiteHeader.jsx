@@ -67,7 +67,7 @@ export default function SiteHeader() {
         <div className="flex justify-between items-center w-full px-8 h-[65px]">
 
           <Link to="/dashboard" className="hover:opacity-80 transition-opacity">
-            <BrandLogo size={26} className="text-xl" />
+            <BrandLogo size={22} className="text-xl" />
           </Link>
 
           <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export default function SiteHeader() {
 
         <div className="flex items-center gap-8">
           <Link to="/" className="hover:opacity-80 transition-opacity">
-            <BrandLogo size={26} className="text-xl" />
+            <BrandLogo size={22} className="text-xl" />
           </Link>
           <div className="hidden md:flex gap-6 items-center">
             <NavLink to="/" end className={publicNavClass}>Home</NavLink>

@@ -13,7 +13,7 @@ export default function SideNav({ activePage = 'editor' }) {
     <aside className="hidden md:flex flex-col h-screen w-64 left-0 top-0 fixed bg-surface-container-low py-6 pl-4 transition-transform duration-300 ease-in-out font-body text-sm font-medium z-30">
       <div className="mb-10 px-4">
         <Link to="/" className="hover:opacity-80 transition-opacity">
-          <BrandLogo size={24} className="text-xl" />
+          <BrandLogo size={22} className="text-xl" />
         </Link>
         <div className="mt-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
