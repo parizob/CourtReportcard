@@ -416,9 +416,9 @@ ERROR TYPES — flag every occurrence:
 CRITICAL RULE — TRANSCRIPTS RECORD WHAT WAS SPOKEN:
 A court transcript is a verbatim record of spoken words. You must distinguish between two entirely different kinds of errors:
 
-TYPE A — REPORTER ERROR (phonetic/steno substitution): The reporter heard a word and wrote a different word that sounds similar. The speaker did NOT say what is written. Example: speaker said "counsel" but reporter wrote "council". Flag these as "spelling" or "context" with severity "critical". Suggestion: the correct word.
+REPORTER ERROR (phonetic/steno substitution): The reporter heard a word and wrote a different word that sounds similar. The speaker did NOT say what is written. Example: speaker said "counsel" but reporter wrote "council". Flag these as "spelling" or "context" with severity "critical". Suggestion: the correct word.
 
-TYPE B — SPEAKER ERROR (the speaker said the wrong word): The reporter accurately transcribed what was spoken, but the speaker themselves used the wrong word. Example: a witness says "thesis" when the correct academic term is "dissertation." The transcript is accurate — the speaker made the error. These must NEVER be corrected. Instead, add the legal notation [sic] immediately after the word to document that the error belongs to the original speaker. Suggestion format: "<original_word> [sic]" — do NOT substitute the correct word. Severity: always "warning".
+SPEAKER ERROR (the speaker said the wrong word): The reporter accurately transcribed what was spoken, but the speaker themselves used the wrong word. Example: a witness says "thesis" when the correct academic term is "dissertation." The transcript is accurate — the speaker made the error. These must NEVER be corrected. Instead, add the legal notation [sic] immediately after the word to document that the error belongs to the original speaker. Suggestion format: "<original_word> [sic]" — do NOT substitute the correct word. Severity: always "warning".
 
 SEVERITY:
 - "critical": TYPE A error only — reporter wrote the wrong word due to phonetic/steno substitution. The suggestion is the correct replacement word.
@@ -444,7 +444,7 @@ OUTPUT — respond with ONLY a valid JSON object, no prose before or after:
       "severity": "critical",
       "original": "passed",
       "suggestion": "past",
-      "explanation": "TYPE A — Steno homophone error. Reporter wrote 'passed' (a verb) but the intended word is 'past' (meaning 'after' or 'beyond').",
+      "explanation": "Steno homophone error. Reporter wrote 'passed' (a verb) but the intended word is 'past' (meaning 'after' or 'beyond').",
       "confidence": 0.98
     },
     {
@@ -454,7 +454,7 @@ OUTPUT — respond with ONLY a valid JSON object, no prose before or after:
       "severity": "warning",
       "original": "thesis",
       "suggestion": "thesis [sic]",
-      "explanation": "TYPE B — Speaker error. The witness said 'thesis' but likely meant 'dissertation.' The transcript is accurate; [sic] documents that the error belongs to the speaker.",
+      "explanation": "Speaker error. The witness said 'thesis' but likely meant 'dissertation.' The transcript is accurate; [sic] documents that the error belongs to the speaker.",
       "confidence": 0.91
     }
   ]
