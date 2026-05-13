@@ -1,9 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
-import OurPlatformLayout from './components/OurPlatformLayout'
 import OurPlatform from './pages/OurPlatform'
-import OurPlatformEditor from './pages/OurPlatformEditor'
-import OurPlatformExport from './pages/OurPlatformExport'
 import AboutUs from './pages/AboutUs'
 import Support from './pages/Support'
 import PageTransition from './components/PageTransition'
@@ -31,11 +28,7 @@ function AppShell() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/aboutus" element={<AboutUs />} />
           <Route path="/support" element={<Support />} />
-          <Route path="/ourplatform" element={<OurPlatformLayout />}>
-            <Route index element={<OurPlatform />} />
-            <Route path="editor" element={<OurPlatformEditor />} />
-            <Route path="export" element={<OurPlatformExport />} />
-          </Route>
+          <Route path="/ourplatform" element={<OurPlatform />} />
           <Route
             path="/dashboard"
             element={

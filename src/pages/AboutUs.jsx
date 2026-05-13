@@ -183,10 +183,10 @@ export default function AboutUs() {
                 Try the Platform
               </button>
               <Link
-                to="/ourplatform/editor"
+                to="/ourplatform"
                 className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-md font-bold text-sm hover:bg-surface-container transition-colors"
               >
-                See the Editor
+                See the Platform
               </Link>
             </div>
           </div>

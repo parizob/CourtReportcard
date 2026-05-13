@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
+import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
@@ -647,11 +648,27 @@ export default function DashboardEditor() {
               lastCleanEnd = h.cleanEnd
             }
 
-            // Group lines into visual pages
-            const LINES_PER_PAGE = 28
-            const pages = []
-            for (let i = 0; i < parsedLines.length; i += LINES_PER_PAGE) {
-              pages.push(parsedLines.slice(i, i + LINES_PER_PAGE).map((pl, j) => ({ ...pl, lineIdx: i + j })))
+            // Group lines into pages — prefer actual page-break markers from the file
+            // Court reporter software right-justifies page numbers with 30+ leading spaces
+            const pageBreakPattern = /^\s{30,}\d{1,4}\s*$/
+            const pageBreakIndices = parsedLines.reduce((acc, pl, i) => {
+              if (pageBreakPattern.test(pl.fullLine)) acc.push(i)
+              return acc
+            }, [])
+
+            let pages
+            if (pageBreakIndices.length > 1) {
+              pages = pageBreakIndices.map((start, p) => {
+                const end = p + 1 < pageBreakIndices.length ? pageBreakIndices[p + 1] : parsedLines.length
+                const pageNum = parsedLines[start].fullLine.trim()
+                return parsedLines.slice(start, end).map((pl, j) => ({ ...pl, lineIdx: start + j, pageNum }))
+              })
+            } else {
+              const LINES_PER_PAGE = 28
+              pages = []
+              for (let i = 0; i < parsedLines.length; i += LINES_PER_PAGE) {
+                pages.push(parsedLines.slice(i, i + LINES_PER_PAGE).map((pl, j) => ({ ...pl, lineIdx: i + j })))
+              }
             }
 
             const renderOriginalLine = (pl, lineKey) => {
@@ -703,6 +720,7 @@ export default function DashboardEditor() {
                 parts.push(
                   <span
                     key={`a-${h.id}-${h.localStart}`}
+                    id={`ann-highlight-${h.id}`}
                     className={cls}
                     title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : `${h.type}: ${h.explanation}`}
                     onClick={h.status === 'open' ? () => {
@@ -733,7 +751,7 @@ export default function DashboardEditor() {
                   <div key={pageIdx} className="max-w-4xl mx-auto bg-surface-container-lowest shadow-sm relative">
                     <div className="flex items-center justify-between px-8 pt-4 pb-1">
                       <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
-                      <span className="text-xs text-on-surface-variant/50 font-mono">{pageIdx + 1}</span>
+                      <span className="text-xs text-on-surface-variant/50 font-mono">{page[0]?.pageNum ?? pageIdx + 1}</span>
                     </div>
                     <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface">
                       {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
@@ -935,13 +953,27 @@ export default function DashboardEditor() {
 
             {openAnnotations.map((ann) => (
               <div key={ann.id} id={`ann-card-${ann.id}`} className={`relative p-4 rounded-lg ${severityCardBorder(ann.severity)}`}>
-                <button
-                  onClick={() => ignoreAnnotation(ann.id)}
-                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
-                  title="Ignore this suggestion"
-                >
-                  &times;
-                </button>
+                <div className="absolute top-2 right-2 flex items-center gap-1">
+                  <Tooltip text="Jump to in transcript" placement="left">
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById(`ann-highlight-${ann.id}`)
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-xs">my_location</span>
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Ignore suggestion" placement="left">
+                    <button
+                      onClick={() => ignoreAnnotation(ann.id)}
+                      className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
+                    >
+                      &times;
+                    </button>
+                  </Tooltip>
+                </div>
                 <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
                   <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
                   {typeLabel(ann.type)} &middot; {ann.severity}
