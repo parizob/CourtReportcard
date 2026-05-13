@@ -6,12 +6,15 @@ import path from 'path'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outPath = path.join(__dirname, '../public/og-image.png')
 
-// Badge: exact same path as LogoBadge.jsx, scaled to 220px tall
-// viewBox 100x116 → scale = 220/116 = 1.897 → width ≈ 190px
-// Badge sits at x=80, y=(630-220)/2=205
-const BADGE_SCALE = 220 / 116
-const BADGE_X = 80
-const BADGE_Y = Math.round((630 - 220) / 2)
+// Badge: exact same path as LogoBadge.jsx, scaled to 320px tall
+// viewBox 100x116 → scale = 320/116 ≈ 2.759 → width ≈ 276px
+// Badge centered vertically: y = (630-320)/2 = 155
+const BADGE_HEIGHT = 320
+const BADGE_SCALE = BADGE_HEIGHT / 116
+const BADGE_X = 70
+const BADGE_Y = Math.round((630 - BADGE_HEIGHT) / 2)
+const BADGE_CENTER_Y = BADGE_Y + BADGE_HEIGHT / 2
+const TEXT_X = BADGE_X + Math.round(100 * BADGE_SCALE) + 40
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <!-- Background -->
@@ -30,30 +33,30 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
     >C</text>
   </g>
 
-  <!-- Court Reportcard -->
+  <!-- Court Reportcard — vertically centered with badge -->
   <text
-    x="350" y="290"
+    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y - 10)}"
     font-family="Arial, sans-serif"
     font-weight="800"
-    font-size="74"
+    font-size="82"
     fill="#001939"
   >Court Reportcard</text>
 
   <!-- Subtitle -->
   <text
-    x="352" y="348"
+    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y + 52)}"
     font-family="Arial, sans-serif"
     font-weight="400"
-    font-size="28"
+    font-size="32"
     fill="#43474f"
   >AI-powered proofreading for court reporters.</text>
 
   <!-- Domain -->
   <text
-    x="1120" y="608"
+    x="1130" y="608"
     text-anchor="end"
     font-family="Arial, sans-serif"
-    font-size="20"
+    font-size="22"
     fill="#747780"
   >courtreportcard.com</text>
 </svg>`
