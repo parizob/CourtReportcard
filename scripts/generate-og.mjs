@@ -35,7 +35,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
 
   <!-- Court Reportcard — vertically centered with badge -->
   <text
-    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y - 10)}"
+    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y - 20)}"
     font-family="Arial, sans-serif"
     font-weight="800"
     font-size="82"
@@ -44,21 +44,13 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
 
   <!-- Subtitle -->
   <text
-    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y + 52)}"
+    x="${TEXT_X}" y="${Math.round(BADGE_CENTER_Y + 48)}"
     font-family="Arial, sans-serif"
     font-weight="400"
     font-size="32"
     fill="#43474f"
   >AI-powered proofreading for court reporters.</text>
 
-  <!-- Domain -->
-  <text
-    x="1130" y="608"
-    text-anchor="end"
-    font-family="Arial, sans-serif"
-    font-size="22"
-    fill="#747780"
-  >courtreportcard.com</text>
 </svg>`
 
 await sharp(Buffer.from(svg)).png().toFile(outPath)
