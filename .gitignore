@@ -6,3 +6,5 @@ dist
 .env.*
 *.pem
 *.key
+.vercel
+.env*.local

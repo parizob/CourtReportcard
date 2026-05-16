@@ -178,6 +178,74 @@ const _tokenize = (s) => {
   return tokens
 }
 
+const _LINE_NUM_RE = /^(\s*\d{1,4}\s{2,})(.*)/s
+
+/**
+ * Estimates the intended column width of a transcript by taking the 85th-percentile
+ * length of numbered content lines (most lines sit at or below the column limit).
+ */
+function _detectColumnWidth(text) {
+  const lengths = text.split('\n')
+    .filter(l => _LINE_NUM_RE.test(l) && l.trim().length > 10)
+    .map(l => l.length)
+  if (!lengths.length) return 66
+  lengths.sort((a, b) => a - b)
+  return lengths[Math.floor(lengths.length * 0.85)] || 66
+}
+
+/**
+ * After a correction widens a line beyond `colWidth`, moves the overflow words
+ * to the beginning of the next numbered line (before its existing first word).
+ * Iterates until no numbered line exceeds the column width.
+ */
+function _reflowLines(text, colWidth) {
+  const lines = text.split('\n')
+  let changed = false
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length <= colWidth) continue
+
+    const m = _LINE_NUM_RE.exec(lines[i])
+    if (!m) continue
+
+    const prefix = m[1]
+    const content = m[2]
+
+    // Find the split point: walk words right-to-left until line fits
+    const words = content.split(' ')
+    let splitIdx = words.length
+    for (let w = words.length - 1; w >= 1; w--) {
+      if ((prefix + words.slice(0, w).join(' ')).length <= colWidth) {
+        splitIdx = w
+        break
+      }
+    }
+    if (splitIdx === words.length) continue // line can't be shortened
+
+    const overflow = words.slice(splitIdx)
+    if (!overflow.length) continue
+
+    // Find next numbered line
+    let nextIdx = i + 1
+    while (nextIdx < lines.length && !_LINE_NUM_RE.test(lines[nextIdx])) nextIdx++
+
+    lines[i] = prefix + words.slice(0, splitIdx).join(' ')
+
+    if (nextIdx < lines.length) {
+      const nm = _LINE_NUM_RE.exec(lines[nextIdx])
+      if (nm) {
+        // Prepend overflow before the first word of the next numbered line
+        const nextContent = nm[2].trimStart()
+        lines[nextIdx] = nm[1] + overflow.join(' ') + (nextContent ? ' ' + nextContent : '')
+      }
+    }
+    changed = true
+    // Don't advance i — the next line may now also overflow; loop will catch it
+  }
+
+  return changed ? lines.join('\n') : text
+}
+
 /**
  * Applies a correction to `text` while preserving original whitespace structure.
  * Handles court-transcript formatting where line numbers appear between words
@@ -186,6 +254,9 @@ const _tokenize = (s) => {
  */
 export function applyCorrection(text, original, suggestion) {
   if (!text || !original || !suggestion) return text
+
+  // Measure column width from the unmodified text so we can reflow after edits.
+  const colWidth = _detectColumnWidth(text)
 
   const doReplace = (matchStart, matchEnd, skipLineNums) => {
     const matchedRegion = text.substring(matchStart, matchEnd)
@@ -212,12 +283,28 @@ export function applyCorrection(text, original, suggestion) {
       return text.substring(0, matchStart) + rebuilt + text.substring(matchEnd)
     }
 
+    // When word counts differ across a line boundary, a flat string replace would
+    // destroy the transcript line structure (line numbers and newlines vanish).
+    // Instead: put all replacement words on the first content word's position and
+    // blank the remaining matched content words, preserving separators/line numbers.
+    if (matchedRegion.includes('\n') && contentIndices.length > 0) {
+      tokens[contentIndices[0]] = { type: 'word', value: suggWords.join(' ') }
+      for (let i = 1; i < contentIndices.length; i++) {
+        tokens[contentIndices[i]] = { type: 'word', value: '' }
+      }
+      const rebuilt = tokens.map((t) => t.value).join('')
+      return text.substring(0, matchStart) + rebuilt + text.substring(matchEnd)
+    }
+
     return text.substring(0, matchStart) + suggestion + text.substring(matchEnd)
   }
 
-  // Fast path: direct match in text
+  // Fast path: direct match in text.
+  // Always skip line numbers — whitespace-flexible matches can span newlines and
+  // include transcript line numbers (e.g. "as\n 16        identified") which must
+  // not be counted as content words during word-for-word replacement.
   const m = flexFind(text, original)
-  if (m) return doReplace(m.start, m.end, false)
+  if (m) return _reflowLines(doReplace(m.start, m.end, true), colWidth)
 
   // Fallback: search in clean content (strips line numbers from .txt transcripts)
   const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
@@ -226,7 +313,7 @@ export function applyCorrection(text, original, suggestion) {
 
   const origStart = cleanToOrig[cm.start]
   const origEnd = cleanToOrig[Math.min(cm.end - 1, cleanToOrig.length - 1)] + 1
-  return doReplace(origStart, origEnd, true)
+  return _reflowLines(doReplace(origStart, origEnd, true), colWidth)
 }
 
 export function fixAnnotationPositions(entries, annotations) {
@@ -408,6 +495,7 @@ RULES:
 - "context" type annotations where the speaker may have genuinely said that word MUST use severity "warning" and the [sic] suggestion format.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
 - The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word.
+- PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
 - Each annotation must reference the entry_id of the entry containing the error.

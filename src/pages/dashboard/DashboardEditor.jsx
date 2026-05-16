@@ -57,14 +57,23 @@ export default function DashboardEditor() {
   )
   const hasChanges = currentSnapshot !== originalSnapshot
 
-  const openAnnotations = useMemo(() => {
+  const sortedAnnotations = useMemo(() => {
     const entryIndexMap = new Map(entries.map((e, i) => [e.id, i]))
-    return annotations
-      .filter((a) => a.status === 'open')
+    return (anns) => anns
       .map((a) => ({ a, ei: entryIndexMap.get(a.entry_id) ?? Infinity, s: a.start ?? 0 }))
       .sort((x, y) => x.ei !== y.ei ? x.ei - y.ei : x.s - y.s)
       .map(({ a }) => a)
-  }, [annotations, entries])
+  }, [entries])
+
+  const openAnnotations = useMemo(
+    () => sortedAnnotations(annotations.filter((a) => a.status === 'open')),
+    [annotations, sortedAnnotations]
+  )
+
+  const resolvedAnnotations = useMemo(
+    () => sortedAnnotations(annotations.filter((a) => a.status === 'accepted' || a.status === 'ignored')),
+    [annotations, sortedAnnotations]
+  )
 
   useEffect(() => {
     if (!caseId) return
@@ -191,10 +200,19 @@ export default function DashboardEditor() {
 
     const finalSuggestion = customSuggestion ?? ann.suggestion
 
+    // Track exactly where in the entry text the replacement was made so
+    // reopenAnnotation can revert it without searching (which finds wrong matches).
+    let appliedEntryId = null
+    let appliedAt = null
+    let appliedEnd = null
+
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
       const m = flexFind(e.text, ann.original)
       if (!m) return e
+      appliedEntryId = e.id
+      appliedAt = m.start
+      appliedEnd = m.start + finalSuggestion.length
       return { ...e, text: e.text.substring(0, m.start) + finalSuggestion + e.text.substring(m.end) }
     })
 
@@ -204,7 +222,9 @@ export default function DashboardEditor() {
     }
 
     const updatedAnnotations = curAnnotations.map((a) =>
-      a.id === annotationId ? { ...a, status: 'accepted', suggestion: finalSuggestion } : a
+      a.id === annotationId
+        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd }
+        : a
     )
     const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
 
@@ -226,6 +246,59 @@ export default function DashboardEditor() {
 
     const updated = curAnnotations.map((a) => (a.id === annotationId ? { ...a, status: 'ignored' } : a))
 
+    annotationsRef.current = updated
+    setAnnotations(updated)
+    setInlinePopover(null)
+    setSaved(false)
+
+    debouncedSync()
+  }, [debouncedSync])
+
+  const reopenAnnotation = useCallback((annotationId) => {
+    const curAnnotations = annotationsRef.current
+    const ann = curAnnotations.find((a) => a.id === annotationId)
+    if (!ann || ann.status === 'open') return
+
+    let curEntries = entriesRef.current
+
+    // If previously accepted, revert both entries and originalText.
+    if (ann.status === 'accepted') {
+      // Revert entries using the exact stored position to avoid flexFind matching the wrong word.
+      if (ann._appliedAt != null && ann._appliedEntryId != null) {
+        curEntries = curEntries.map((e) => {
+          if (e.id !== ann._appliedEntryId) return e
+          const before = e.text.substring(0, ann._appliedAt)
+          const after  = e.text.substring(ann._appliedEnd)
+          return { ...e, text: before + ann.original + after }
+        })
+        entriesRef.current = curEntries
+        setEntries(curEntries)
+      }
+
+      // Revert originalText — acceptAnnotation applied the correction here too.
+      const curOriginalText = originalTextRef.current
+      if (curOriginalText && ann.suggestion) {
+        const reverted = applyCorrection(curOriginalText, ann.suggestion, ann.original)
+        originalTextRef.current = reverted
+        setOriginalText(reverted)
+      }
+    }
+
+    const updated = curAnnotations.map((a) =>
+      a.id === annotationId
+        ? {
+            ...a,
+            status: 'open',
+            // Restore the original AI suggestion so the Accept button doesn't
+            // show the user's previous custom correction on reopen.
+            suggestion: a._originalSuggestion ?? a.suggestion,
+            _originalSuggestion: undefined,
+            _appliedEntryId: undefined,
+            _appliedAt: undefined,
+            _appliedEnd: undefined,
+          }
+        : a
+    )
     annotationsRef.current = updated
     setAnnotations(updated)
     setInlinePopover(null)
@@ -657,7 +730,7 @@ export default function DashboardEditor() {
             // Build clean content (line numbers stripped) for annotation searching
             const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
 
-            const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted')
+            const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
             // Find highlights by searching in cleanContent (which matches Gemini's extracted text)
             const highlights = []
@@ -726,7 +799,7 @@ export default function DashboardEditor() {
 
               if (lineHighlights.length === 0) {
                 return (
-                  <div key={lineKey} className="min-h-[1.5rem]">
+                  <div key={lineKey} className="min-h-[1.5rem] overflow-x-auto">
                     <span className="whitespace-pre">{fullLine}</span>
                   </div>
                 )
@@ -748,7 +821,9 @@ export default function DashboardEditor() {
 
                 let cls = 'inline whitespace-pre '
                 if (h.status === 'accepted') {
-                  cls += 'text-green-600 font-semibold'
+                  cls += 'text-green-600 font-semibold cursor-pointer'
+                } else if (h.status === 'ignored') {
+                  cls += 'border-b border-dashed border-on-surface-variant/30 text-on-surface/60 cursor-pointer'
                 } else if (h.severity === 'critical') {
                   cls += 'border-b-2 border-error text-error font-semibold cursor-pointer'
                 } else if (h.severity === 'warning') {
@@ -757,25 +832,27 @@ export default function DashboardEditor() {
                   cls += 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
                 }
 
+                const openPopover = (e) => {
+                  e.stopPropagation()
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const POPOVER_W = 320
+                  const POPOVER_H = 180
+                  const margin = 12
+                  const spaceBelow = window.innerHeight - rect.bottom
+                  const placeAbove = spaceBelow < POPOVER_H + margin && rect.top > POPOVER_H + margin
+                  const top = placeAbove ? rect.top - POPOVER_H - 8 : rect.bottom + 8
+                  let left = rect.left + rect.width / 2 - POPOVER_W / 2
+                  left = Math.max(margin, Math.min(left, window.innerWidth - POPOVER_W - margin))
+                  setInlinePopover({ id: h.id, top, left, placeAbove })
+                }
+
                 parts.push(
                   <span
                     key={`a-${h.id}-${h.localStart}`}
                     id={`ann-highlight-${h.id}`}
                     className={cls}
-                    title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : `${h.type}: ${h.explanation}`}
-                    onClick={h.status === 'open' ? (e) => {
-                      e.stopPropagation()
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      const POPOVER_W = 320
-                      const POPOVER_H = 220
-                      const margin = 12
-                      const spaceBelow = window.innerHeight - rect.bottom
-                      const placeAbove = spaceBelow < POPOVER_H + margin && rect.top > POPOVER_H + margin
-                      const top = placeAbove ? rect.top - POPOVER_H - 8 : rect.bottom + 8
-                      let left = rect.left + rect.width / 2 - POPOVER_W / 2
-                      left = Math.max(margin, Math.min(left, window.innerWidth - POPOVER_W - margin))
-                      setInlinePopover({ id: h.id, top, left, placeAbove })
-                    } : undefined}
+                    title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : h.status === 'ignored' ? `Ignored: "${h.original}"` : `${h.type}: ${h.explanation}`}
+                    onClick={openPopover}
                   >
                     {content.substring(h.localStart, h.localEnd)}
                   </span>
@@ -788,7 +865,7 @@ export default function DashboardEditor() {
               }
 
               return (
-                <div key={lineKey} className="min-h-[1.5rem]">
+                <div key={lineKey} className="min-h-[1.5rem] overflow-x-auto">
                   {parts}
                 </div>
               )
@@ -802,7 +879,7 @@ export default function DashboardEditor() {
                       <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
                       <span className="text-xs text-on-surface-variant/50 font-mono">{page[0]?.pageNum ?? pageIdx + 1}</span>
                     </div>
-                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface overflow-x-hidden">
+                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface">
                       {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
                     </div>
                     {pageIdx < pages.length - 1 && (
@@ -962,6 +1039,10 @@ export default function DashboardEditor() {
                 <span className="shrink-0 inline-block text-green-600 font-semibold text-[11px] font-mono px-1 mt-0.5">word</span>
                 <span className="text-xs text-on-surface-variant"><span className="font-semibold text-green-600">Accepted</span> — correction applied.</span>
               </div>
+              <div className="flex items-start gap-2.5">
+                <span className="shrink-0 inline-block border-b border-dashed border-on-surface-variant/30 text-on-surface/60 text-[11px] font-mono px-1 mt-0.5">word</span>
+                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-on-surface-variant">Ignored</span> — reviewed, kept as-is.</span>
+              </div>
             </div>
           </div>
 
@@ -1075,6 +1156,46 @@ export default function DashboardEditor() {
             ))}
           </div>
 
+          {/* Resolved annotations */}
+          {resolvedAnnotations.length > 0 && (
+            <div className="border-t border-outline-variant/10">
+              <p className="px-5 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Resolved ({resolvedAnnotations.length})
+              </p>
+              <div className="px-5 pb-4 space-y-2">
+                {resolvedAnnotations.map((ann) => (
+                  <button
+                    key={ann.id}
+                    id={`ann-card-${ann.id}`}
+                    onClick={() => {
+                      const el = document.getElementById(`ann-highlight-${ann.id}`)
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }}
+                    className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-container group ${
+                      ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
+                      {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      {ann.status === 'accepted' ? (
+                        <p className="text-xs truncate">
+                          <span className="text-on-surface-variant line-through">{ann.original}</span>
+                          <span className="text-on-surface-variant mx-1">→</span>
+                          <span className="text-green-700 font-semibold">{ann.suggestion}</span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">open_in_new</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Re-analyze */}
           <div className="px-5 py-4 border-t border-outline-variant/10">
             <button
@@ -1146,71 +1267,120 @@ export default function DashboardEditor() {
       {/* Inline annotation popover — anchored to clicked highlight */}
       {inlinePopover && (() => {
         const ann = annotations.find((a) => a.id === inlinePopover.id)
-        if (!ann || ann.status !== 'open') return null
+        if (!ann) return null
+
+        const isResolved = ann.status === 'accepted' || ann.status === 'ignored'
+
         return createPortal(
           <>
             <div className="fixed inset-0 z-[90]" onClick={() => setInlinePopover(null)} />
             <div
-              className={`fixed z-[91] w-[320px] bg-surface-container-lowest rounded-xl shadow-2xl border ${severityCardBorder(ann.severity)} p-4 animate-in fade-in zoom-in-95`}
+              className={`fixed z-[91] w-[320px] bg-surface-container-lowest rounded-xl shadow-2xl border p-4 animate-in fade-in zoom-in-95 ${
+                isResolved
+                  ? ann.status === 'accepted' ? 'border-green-200' : 'border-outline-variant/30'
+                  : severityCardBorder(ann.severity)
+              }`}
               style={{ top: inlinePopover.top, left: inlinePopover.left }}
               onClick={(e) => e.stopPropagation()}
             >
               <button
-                onClick={() => ignoreAnnotation(ann.id)}
-                title="Ignore"
+                onClick={() => setInlinePopover(null)}
+                title="Close"
                 className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-sm leading-none"
               >
                 &times;
               </button>
-              <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
-                <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
-                {typeLabel(ann.type)} &middot; {ann.severity}
-              </span>
-              <p className="text-sm font-medium mb-1">
-                Found <strong>&quot;{ann.original}&quot;</strong>
-              </p>
-              <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
-              {ann.confidence && (
-                <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
-              )}
-              <button
-                onClick={() => acceptAnnotation(ann.id)}
-                className={`w-full text-xs font-bold py-2 rounded transition-colors ${
-                  ann.severity === 'critical'
-                    ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
-                    : 'bg-surface-container text-on-surface hover:shadow-sm'
-                }`}
-              >
-                Accept: &quot;{ann.suggestion}&quot;
-              </button>
-              <div className="mt-2 relative">
-                <input
-                  type="text"
-                  autoFocus
-                  value={customTexts[ann.id] || ''}
-                  onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
-                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                    }
-                  }}
-                  placeholder="Or enter your own correction…"
-                  className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
-                />
-                {customTexts[ann.id]?.trim() && (
+
+              {isResolved ? (
+                // ── Read-only view for accepted / ignored ──
+                <>
+                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase mb-3 ${ann.status === 'accepted' ? 'text-green-600' : 'text-on-surface-variant/60'}`}>
+                    <span className="material-symbols-outlined text-xs">{ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}</span>
+                    {ann.status === 'accepted' ? 'Accepted' : 'Ignored'} &middot; {typeLabel(ann.type)}
+                  </div>
+                  <div className={`rounded-lg p-3 mb-3 ${ann.status === 'accepted' ? 'bg-green-50 border border-green-100' : 'bg-surface-container border border-outline-variant/15'}`}>
+                    {ann.status === 'accepted' ? (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-on-surface-variant line-through">{ann.original}</span>
+                        <span className="material-symbols-outlined text-sm text-green-600">arrow_forward</span>
+                        <span className="text-green-700 font-semibold">{ann.suggestion}</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-on-surface-variant/70">
+                        <span className="font-semibold text-on-surface">&quot;{ann.original}&quot;</span> — left as-is
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-on-surface-variant mb-4">{ann.explanation}</p>
                   <button
-                    onClick={() => {
-                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                    }}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
-                    title="Apply custom correction"
+                    onClick={() => reopenAnnotation(ann.id)}
+                    className="w-full text-xs font-bold py-2 rounded border border-outline-variant/40 text-on-surface hover:bg-surface-container transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-[11px]">check</span>
+                    <span className="material-symbols-outlined text-xs">undo</span>
+                    Reopen this suggestion
                   </button>
-                )}
-              </div>
+                </>
+              ) : (
+                // ── Action view for open annotations ──
+                <>
+                  <button
+                    onClick={() => ignoreAnnotation(ann.id)}
+                    title="Ignore"
+                    className="absolute top-8 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-sm leading-none"
+                  >
+                    &times;
+                  </button>
+                  <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
+                    <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
+                    {typeLabel(ann.type)} &middot; {ann.severity}
+                  </span>
+                  <p className="text-sm font-medium mb-1">
+                    Found <strong>&quot;{ann.original}&quot;</strong>
+                  </p>
+                  <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
+                  {ann.confidence && (
+                    <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
+                  )}
+                  <button
+                    onClick={() => acceptAnnotation(ann.id)}
+                    className={`w-full text-xs font-bold py-2 rounded transition-colors ${
+                      ann.severity === 'critical'
+                        ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
+                        : 'bg-surface-container text-on-surface hover:shadow-sm'
+                    }`}
+                  >
+                    Accept: &quot;{ann.suggestion}&quot;
+                  </button>
+                  <div className="mt-2 relative">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={customTexts[ann.id] || ''}
+                      onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                          acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                          setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                        }
+                      }}
+                      placeholder="Or enter your own correction…"
+                      className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
+                    />
+                    {customTexts[ann.id]?.trim() && (
+                      <button
+                        onClick={() => {
+                          acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                          setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                        }}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                        title="Apply custom correction"
+                      >
+                        <span className="material-symbols-outlined text-[11px]">check</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </>,
           document.body
