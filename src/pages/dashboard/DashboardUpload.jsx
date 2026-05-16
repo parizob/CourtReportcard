@@ -284,90 +284,111 @@ export default function DashboardUpload() {
   }
 
   return (
-    <main className="min-h-screen p-8 lg:p-12 bg-background">
-      <div className="max-w-5xl mx-auto">
+    <main className="h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background px-6 lg:px-10 py-6">
 
-        <header className="mb-10">
-          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm text-primary">cloud_upload</span>
-            Upload Files
-          </p>
-          <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">
-            Upload a New Case
-          </h1>
-          <p className="text-on-surface-variant mt-2 text-sm max-w-xl">
-            Name your case, then upload your transcript and audio files. Court Reportcard will analyze them together for the highest accuracy review.
-          </p>
-        </header>
+      {/* Error banner */}
+      {error && (
+        error === 'TRANSCRIPT_TOO_LARGE' ? (
+          <div className="mb-4 p-4 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-3 shrink-0">
+            <span className="material-symbols-outlined text-primary text-xl shrink-0 mt-0.5">volunteer_activism</span>
+            <div>
+              <p className="text-sm font-bold text-on-surface">File too large for a single pass.</p>
+              <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
+                Try breaking it into chunks of <span className="font-semibold text-on-surface">~100 pages each</span> and uploading separately.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2 shrink-0">
+            <span className="material-symbols-outlined text-base shrink-0">error</span>
+            {error}
+          </div>
+        )
+      )}
 
-        {/* Case name */}
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 mb-8">
-          <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-            Case Name
-          </label>
-          <input
-            type="text"
-            value={caseName}
-            onChange={(e) => setCaseName(e.target.value)}
-            placeholder="e.g. State vs. Henderson Motion Hearing"
-            className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-          />
-          <p className="text-[11px] text-on-surface-variant mt-2">Give your case a descriptive name so you can find it later.</p>
+      {/* Two-column layout — fills remaining height */}
+      <div className="flex-1 flex gap-6 min-h-0">
+
+        {/* Left column — case details + info */}
+        <div className="w-72 shrink-0 flex flex-col gap-5">
+          <div>
+            <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
+            <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to begin.</p>
+          </div>
+
+          {/* Case name */}
+          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4">
+            <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+              Case Name <span className="text-error">*</span>
+            </label>
+            <input
+              type="text"
+              value={caseName}
+              onChange={(e) => setCaseName(e.target.value)}
+              placeholder="e.g. State vs. Henderson"
+              className="w-full bg-surface-container px-3 py-2.5 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+            />
+          </div>
+
+          {/* Token balance */}
+          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary text-lg">toll</span>
+            </div>
+            <div>
+              <p className="text-xs text-on-surface-variant">Available balance</p>
+              <p className="text-sm font-bold text-on-surface">{tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+
+          {/* Info chips */}
+          <div className="space-y-2.5 mt-auto">
+            {[
+              { icon: 'lock', text: 'Encrypted at rest and in transit' },
+              { icon: 'schedule', text: 'Analysis typically takes 2–5 minutes' },
+              { icon: 'description', text: '.txt and .rtf transcripts accepted' },
+              { icon: 'toll', text: '1 token per page of transcript' },
+            ].map((item) => (
+              <div key={item.icon} className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-primary text-base shrink-0">{item.icon}</span>
+                <p className="text-xs text-on-surface-variant">{item.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {error && (
-          error === 'TRANSCRIPT_TOO_LARGE' ? (
-            <div className="mb-6 p-5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-4">
-              <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">volunteer_activism</span>
-              <div>
-                <p className="text-sm font-bold text-on-surface mb-1">Thanks for trusting us with your transcript.</p>
-                <p className="text-sm text-on-surface-variant leading-relaxed">
-                  We&rsquo;re currently in beta, so our processing resources are a bit limited. This file looks like it&rsquo;s on the larger side — try breaking it into chunks of <span className="font-semibold text-on-surface">~100 pages each</span> and uploading them separately. We&rsquo;ll get through every page, just in a couple of passes.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
-              <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
-              {error}
-            </div>
-          )
-        )}
+        {/* Right column — drop zone + action */}
+        <div className="flex-1 flex flex-col gap-4 min-h-0">
 
-        {/* Dual drop zones */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <div className={`bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center group transition-all ${transcriptFiles.length > 0 ? 'ring-2 ring-primary/30' : 'hover:ring-2 hover:ring-primary/20'}`}>
+          {/* Drop zone — fills available height */}
+          <div className={`flex-1 min-h-0 bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col transition-all ${transcriptFiles.length > 0 ? 'ring-2 ring-primary/30' : ''}`}>
             {transcriptFiles.length === 0 ? (
-              <>
-                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
-                  <span className="material-symbols-outlined text-primary text-2xl">description</span>
+              <label className="flex-1 flex flex-col items-center justify-center cursor-pointer rounded-2xl hover:bg-surface-container/30 transition-colors p-8 group">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/15 transition-colors">
+                  <span className="material-symbols-outlined text-primary text-3xl">upload_file</span>
                 </div>
-                <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
-                <p className="text-xs text-on-surface-variant mb-5">TXT or RTF format</p>
-                <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
-                  <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
-                  <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-                  <span className="text-xs text-on-surface-variant mt-1">.txt and .rtf files accepted</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".txt,.rtf"
-                    multiple
-                    onChange={(e) => setTranscriptFiles([...e.target.files])}
-                  />
-                </label>
-              </>
+                <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Drop transcript files here</h3>
+                <p className="text-sm text-on-surface-variant mb-1">or click to browse</p>
+                <p className="text-xs text-on-surface-variant/60">.txt and .rtf accepted</p>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".txt,.rtf"
+                  multiple
+                  onChange={(e) => setTranscriptFiles([...e.target.files])}
+                />
+              </label>
             ) : (
-              <>
-                <div className="w-full flex items-center justify-between mb-4">
+              <div className="flex-1 flex flex-col p-5 min-h-0">
+                <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-green-600 text-xl">check_circle</span>
+                    <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
                     </div>
-                    <div className="text-left">
-                      <h3 className="font-headline font-bold text-on-surface text-sm">
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">
                         {transcriptFiles.length} file{transcriptFiles.length !== 1 ? 's' : ''} selected
-                      </h3>
+                      </p>
                       <p className="text-[10px] text-on-surface-variant">
                         {(Array.from(transcriptFiles).reduce((s, f) => s + f.size, 0) / 1024).toFixed(0)} KB total
                       </p>
@@ -375,7 +396,7 @@ export default function DashboardUpload() {
                   </div>
                   <label className="flex items-center gap-1.5 text-xs font-bold text-primary cursor-pointer hover:underline">
                     <span className="material-symbols-outlined text-sm">swap_horiz</span>
-                    Change
+                    Change files
                     <input
                       type="file"
                       className="hidden"
@@ -385,13 +406,13 @@ export default function DashboardUpload() {
                     />
                   </label>
                 </div>
-                <div className="w-full space-y-2">
+                <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                   {Array.from(transcriptFiles).map((f, i) => (
                     <div key={i} className="flex items-center gap-3 bg-surface-container/50 rounded-lg px-4 py-3">
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <span className="material-symbols-outlined text-primary text-base">description</span>
                       </div>
-                      <div className="flex-1 min-w-0 text-left">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-on-surface truncate">{f.name}</p>
                         <p className="text-[10px] text-on-surface-variant">
                           {f.name.split('.').pop().toUpperCase()} &middot; {(f.size / 1024).toFixed(0)} KB
@@ -401,57 +422,33 @@ export default function DashboardUpload() {
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
           </div>
 
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 flex flex-col items-center text-center opacity-60 relative overflow-hidden">
-            <div className="absolute top-4 right-4">
-              <span className="bg-tertiary-fixed/20 text-on-tertiary-container text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                Coming Soon
-              </span>
+          {/* Action bar */}
+          <div className="shrink-0 flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-5 py-3.5">
+            <div className="text-sm text-on-surface-variant">
+              {uploading ? (
+                <span className="flex items-center gap-2 font-semibold text-primary">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {uploadPhase}
+                </span>
+              ) : transcriptFiles.length === 0 ? (
+                <span className="text-on-surface-variant/60">No files selected yet</span>
+              ) : (
+                <span className="font-semibold text-on-surface">
+                  {transcriptFiles.length} transcript{transcriptFiles.length !== 1 ? 's' : ''} ready
+                </span>
+              )}
             </div>
-            <div className="w-14 h-14 rounded-xl bg-tertiary-fixed/10 flex items-center justify-center mb-5">
-              <span className="material-symbols-outlined text-tertiary-fixed-dim/50 text-2xl">audio_file</span>
-            </div>
-            <h3 className="font-headline font-bold text-lg text-on-surface/60 mb-1">Audio Recording</h3>
-            <p className="text-xs text-on-surface-variant/60 mb-5">WAV, MP3, or DSS format</p>
-            <div className="w-full border-2 border-dashed border-outline-variant/15 rounded-xl p-8 flex flex-col items-center">
-              <span className="material-symbols-outlined text-4xl text-outline/30 mb-3">mic</span>
-              <span className="text-sm font-semibold text-on-surface/40">Audio upload coming soon</span>
-              <span className="text-xs text-on-surface-variant/40 mt-1">Cross-reference audio with transcripts for maximum accuracy</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Upload action */}
-        <div className="flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-6 py-4">
-          <div className="text-sm text-on-surface-variant">
-            {uploading ? (
-              <span className="flex items-center gap-2 font-semibold text-primary">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {uploadPhase}
-              </span>
-            ) : transcriptFiles.length === 0 ? (
-              'No files selected'
-            ) : (
-              <span className="font-semibold text-on-surface">
-                {transcriptFiles.length} transcript{transcriptFiles.length !== 1 ? 's' : ''} ready
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-on-surface-variant font-semibold flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">toll</span>
-              {tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''} available
-            </span>
             <button
               disabled={!canUpload}
               onClick={handleUploadClick}
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {uploading || counting ? (
                 <>
@@ -459,7 +456,7 @@ export default function DashboardUpload() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  {counting ? 'Counting pages...' : 'Uploading...'}
+                  {counting ? 'Counting pages…' : 'Uploading…'}
                 </>
               ) : (
                 <>
@@ -469,25 +466,8 @@ export default function DashboardUpload() {
               )}
             </button>
           </div>
-        </div>
 
-        {/* Tips */}
-        <div className="mt-8 grid md:grid-cols-3 gap-4">
-          {[
-            { icon: 'lightbulb', title: 'Best Results', desc: 'Upload both transcript and audio for cross-referenced accuracy analysis.' },
-            { icon: 'lock', title: 'Secure', desc: 'All files are encrypted at rest and in transit. SOC 2 compliant infrastructure.' },
-            { icon: 'schedule', title: 'Fast', desc: 'Most cases are analyzed within 2–5 minutes, regardless of transcript length.' },
-          ].map((tip) => (
-            <div key={tip.title} className="flex items-start gap-3 bg-surface-container/40 rounded-xl p-4">
-              <span className="material-symbols-outlined text-primary mt-0.5">{tip.icon}</span>
-              <div>
-                <p className="text-xs font-bold text-on-surface">{tip.title}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{tip.desc}</p>
-              </div>
-            </div>
-          ))}
         </div>
-
       </div>
 
       {confirmOpen && (
