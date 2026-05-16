@@ -1,5 +1,6 @@
 const ALLOWED_MODELS = ['gemini-2.5-pro']
 const DEFAULT_MODEL = 'gemini-2.5-pro'
+const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1MB — well above any real transcript, blocks abuse
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -11,6 +12,27 @@ export default async function handler(req, res) {
   }
 
   const { prompt, filePart, model: requestedModel } = req.body
+
+  // File size guard — base64 is ~33% larger than raw bytes, so adjust accordingly
+  if (filePart?.inlineData?.data) {
+    const base64 = filePart.inlineData.data
+    const rawBytes = Math.floor(base64.length * 0.75)
+    if (rawBytes > MAX_FILE_BYTES) {
+      return res.status(413).json({ error: 'TRANSCRIPT_TOO_LARGE' })
+    }
+
+    // UTF-8 / plain-text validation — decode and check for non-text binary content
+    try {
+      const decoded = Buffer.from(base64, 'base64').toString('utf8')
+      // Reject if more than 5% of characters are non-printable (indicates binary file)
+      const nonPrintable = (decoded.match(/[\x00-\x08\x0E-\x1F\x7F]/g) || []).length
+      if (nonPrintable / decoded.length > 0.05) {
+        return res.status(415).json({ error: 'Only plain text files are supported.' })
+      }
+    } catch {
+      return res.status(415).json({ error: 'Only plain text files are supported.' })
+    }
+  }
   const model = ALLOWED_MODELS.includes(requestedModel) ? requestedModel : DEFAULT_MODEL
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
 
