@@ -36,19 +36,32 @@ export default function Support() {
   const { isAuthenticated } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', category: 'general', subject: '', message: '' })
   const [submitted, setSubmitted] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState(null)
   const [openFaq, setOpenFaq] = useState(null)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // When a mail backend is connected, fire the API call here.
-    // mailto fallback for now so clicking actually opens the user's mail client.
-    const body = encodeURIComponent(
-      `Name: ${form.name}\nCategory: ${form.category}\n\n${form.message}`
-    )
-    window.location.href = `mailto:courtreportcard@gmail.com?subject=${encodeURIComponent(form.subject || 'Support Request')}&body=${body}`
-    setSubmitted(true)
+    setSending(true)
+    setSendError(null)
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Something went wrong. Please try again.')
+      }
+      setSubmitted(true)
+    } catch (err) {
+      setSendError(err.message)
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -85,10 +98,7 @@ export default function Support() {
                 <span className="material-symbols-outlined text-5xl text-green-500 block mb-4">mark_email_read</span>
                 <h2 className="font-headline font-bold text-2xl text-on-surface mb-2">Message sent!</h2>
                 <p className="text-on-surface-variant text-sm mb-6">
-                  Your email client should have opened. If not, email us directly at{' '}
-                  <a href="mailto:courtreportcard@gmail.com" className="text-primary underline">
-                    courtreportcard@gmail.com
-                  </a>
+                  We'll get back to you within one business day.
                 </p>
                 <button
                   onClick={() => { setSubmitted(false); setForm({ name: '', email: '', category: 'general', subject: '', message: '' }) }}
@@ -160,20 +170,21 @@ export default function Support() {
                   />
                 </div>
 
+                {sendError && (
+                  <div className="p-3 bg-error-container/30 border border-error/20 rounded-lg text-sm text-error flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base shrink-0">error</span>
+                    {sendError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                  disabled={sending}
+                  className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-sm">send</span>
-                  Send Message
+                  <span className="material-symbols-outlined text-sm">{sending ? 'hourglass_top' : 'send'}</span>
+                  {sending ? 'Sending…' : 'Send Message'}
                 </button>
-
-                <p className="text-[11px] text-on-surface-variant text-center">
-                  Or email us directly at{' '}
-                  <a href="mailto:courtreportcard@gmail.com" className="text-primary underline">
-                    courtreportcard@gmail.com
-                  </a>
-                </p>
 
               </form>
             )}
