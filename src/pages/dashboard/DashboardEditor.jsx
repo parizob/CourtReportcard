@@ -27,6 +27,7 @@ export default function DashboardEditor() {
   const [originalText, setOriginalText] = useState(null)
   const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
   const [customTexts, setCustomTexts] = useState({})
+  const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
@@ -34,6 +35,21 @@ export default function DashboardEditor() {
   useEffect(() => { entriesRef.current = entries }, [entries])
   useEffect(() => { annotationsRef.current = annotations }, [annotations])
   useEffect(() => { originalTextRef.current = originalText }, [originalText])
+
+  // Dismiss inline popover on escape, scroll, or window resize
+  useEffect(() => {
+    if (!inlinePopover) return
+    const close = () => setInlinePopover(null)
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [inlinePopover])
 
   const currentSnapshot = useMemo(
     () => JSON.stringify({ entries, annotations, originalText }),
@@ -200,6 +216,7 @@ export default function DashboardEditor() {
     setAnnotations(fixedAnnotations)
     if (curOriginalText) setOriginalText(updatedOriginalText)
     setSaved(false)
+    setInlinePopover(null)
 
     debouncedSync()
   }, [debouncedSync])
@@ -211,6 +228,7 @@ export default function DashboardEditor() {
 
     annotationsRef.current = updated
     setAnnotations(updated)
+    setInlinePopover(null)
     setSaved(false)
 
     debouncedSync()
@@ -745,9 +763,18 @@ export default function DashboardEditor() {
                     id={`ann-highlight-${h.id}`}
                     className={cls}
                     title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : `${h.type}: ${h.explanation}`}
-                    onClick={h.status === 'open' ? () => {
-                      const el = document.getElementById(`ann-card-${h.id}`)
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    onClick={h.status === 'open' ? (e) => {
+                      e.stopPropagation()
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const POPOVER_W = 320
+                      const POPOVER_H = 220
+                      const margin = 12
+                      const spaceBelow = window.innerHeight - rect.bottom
+                      const placeAbove = spaceBelow < POPOVER_H + margin && rect.top > POPOVER_H + margin
+                      const top = placeAbove ? rect.top - POPOVER_H - 8 : rect.bottom + 8
+                      let left = rect.left + rect.width / 2 - POPOVER_W / 2
+                      left = Math.max(margin, Math.min(left, window.innerWidth - POPOVER_W - margin))
+                      setInlinePopover({ id: h.id, top, left, placeAbove })
                     } : undefined}
                   >
                     {content.substring(h.localStart, h.localEnd)}
@@ -1115,6 +1142,80 @@ export default function DashboardEditor() {
           </div>
         </aside>
       </div>
+
+      {/* Inline annotation popover — anchored to clicked highlight */}
+      {inlinePopover && (() => {
+        const ann = annotations.find((a) => a.id === inlinePopover.id)
+        if (!ann || ann.status !== 'open') return null
+        return createPortal(
+          <>
+            <div className="fixed inset-0 z-[90]" onClick={() => setInlinePopover(null)} />
+            <div
+              className={`fixed z-[91] w-[320px] bg-surface-container-lowest rounded-xl shadow-2xl border ${severityCardBorder(ann.severity)} p-4 animate-in fade-in zoom-in-95`}
+              style={{ top: inlinePopover.top, left: inlinePopover.left }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => ignoreAnnotation(ann.id)}
+                title="Ignore"
+                className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-sm leading-none"
+              >
+                &times;
+              </button>
+              <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
+                <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
+                {typeLabel(ann.type)} &middot; {ann.severity}
+              </span>
+              <p className="text-sm font-medium mb-1">
+                Found <strong>&quot;{ann.original}&quot;</strong>
+              </p>
+              <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
+              {ann.confidence && (
+                <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
+              )}
+              <button
+                onClick={() => acceptAnnotation(ann.id)}
+                className={`w-full text-xs font-bold py-2 rounded transition-colors ${
+                  ann.severity === 'critical'
+                    ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
+                    : 'bg-surface-container text-on-surface hover:shadow-sm'
+                }`}
+              >
+                Accept: &quot;{ann.suggestion}&quot;
+              </button>
+              <div className="mt-2 relative">
+                <input
+                  type="text"
+                  autoFocus
+                  value={customTexts[ann.id] || ''}
+                  onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                    }
+                  }}
+                  placeholder="Or enter your own correction…"
+                  className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
+                />
+                {customTexts[ann.id]?.trim() && (
+                  <button
+                    onClick={() => {
+                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                    title="Apply custom correction"
+                  >
+                    <span className="material-symbols-outlined text-[11px]">check</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )
+      })()}
 
       {/* Reanalyze confirmation modal */}
       {showReanalyzeConfirm && createPortal(
