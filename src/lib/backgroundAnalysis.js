@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { extractTranscriptWithGemini } from './gemini'
+import { stripRtf } from './rtf'
 
 const activeJobs = new Map()
 
@@ -127,6 +128,7 @@ async function runRetry(caseRow, transcriptDbFiles) {
 
       const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
       const isTxt = dbFile.file_name.toLowerCase().endsWith('.txt')
+      const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
       let extractedJson
 
       if (isPdf) {
@@ -134,9 +136,10 @@ async function runRetry(caseRow, transcriptDbFiles) {
         extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
       } else {
         const rawContent = await blob.text()
-        extractedJson = await extractTranscriptWithGemini(rawContent)
-        if (isTxt) {
-          extractedJson.originalText = rawContent
+        const plainText = isRtf ? stripRtf(rawContent) : rawContent
+        extractedJson = await extractTranscriptWithGemini(plainText)
+        if (isTxt || isRtf) {
+          extractedJson.originalText = plainText
         }
       }
 

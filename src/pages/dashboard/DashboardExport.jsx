@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { encodeRtf } from '../../lib/rtf'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -147,6 +148,11 @@ export default function DashboardExport() {
         case 'txt': {
           const content = originalText || buildPlainText()
           triggerDownload(content, `${baseName}.txt`, 'text/plain')
+          break
+        }
+        case 'rtf': {
+          const content = originalText || buildPlainText()
+          triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
           break
         }
         case 'json': {
@@ -314,7 +320,7 @@ export default function DashboardExport() {
           <span className="material-symbols-outlined text-primary">download</span>
           Download Transcript
         </h2>
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
           {/* Plain Text */}
           <button
             onClick={() => handleExport('txt')}
@@ -330,6 +336,24 @@ export default function DashboardExport() {
             </div>
             <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               {exporting === 'txt' ? 'check_circle' : 'download'}
+            </span>
+          </button>
+
+          {/* Rich Text */}
+          <button
+            onClick={() => handleExport('rtf')}
+            disabled={!!exporting}
+            className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+          >
+            <div className="w-14 h-14 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <span className="material-symbols-outlined text-indigo-600 text-3xl">draft</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-headline font-bold text-on-surface text-base mb-0.5">Corrected Transcript (.rtf)</p>
+              <p className="text-xs text-on-surface-variant">Rich Text Format — opens cleanly in Word, Pages, or any steno software.</p>
+            </div>
+            <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              {exporting === 'rtf' ? 'check_circle' : 'download'}
             </span>
           </button>
 

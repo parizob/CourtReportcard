@@ -16,7 +16,7 @@ const categories = [
 const faqs = [
   {
     q: 'What file formats can I upload?',
-    a: 'Court Reportcard accepts .txt transcript files. Support for additional file formats is coming soon.',
+    a: 'Court Reportcard accepts .txt and .rtf transcript files. Support for additional file formats is coming soon.',
   },
   {
     q: 'How long does AI review take?',
@@ -28,7 +28,7 @@ const faqs = [
   },
   {
     q: 'Can I export to court-specific formats?',
-    a: 'Court Reportcard currently supports .txt and .json exports. PDF, Word, and additional formats are coming soon.',
+    a: 'Court Reportcard currently supports .txt, .rtf, and .json exports. PDF, Word, and additional formats are coming soon.',
   },
 ]
 

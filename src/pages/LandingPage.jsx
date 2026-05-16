@@ -105,7 +105,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-primary group-hover:text-on-primary">cloud_upload</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">Upload Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">Securely upload your transcript as a .txt file — plain text exported from any steno software. Additional file formats coming soon.</p>
+                <p className="text-on-surface-variant leading-relaxed">Securely upload your transcript as a .txt or .rtf file — exported from any steno software. Additional file formats coming soon.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">01</div>
               </div>
               {/* Step 2 */}
@@ -147,8 +147,8 @@ export default function LandingPage() {
                 <div className="flex gap-4">
                   <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
                   <div>
-                    <h4 className="text-on-primary font-bold">Procedural Flags</h4>
-                    <p className="text-on-primary-container text-sm">Automated detection of missing 'Sworn' markers or incomplete witness transitions.</p>
+                    <h4 className="text-on-primary font-bold">Context Tracking</h4>
+                    <p className="text-on-primary-container text-sm">Automatically catch contradictions across dates, document references, and witness statements spanning the entire transcript.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -169,7 +169,7 @@ export default function LandingPage() {
                 <div className="h-4 w-full bg-surface-container-low rounded"></div>
                 <div className="h-4 w-3/4 bg-surface-container-low rounded"></div>
                 <div className="p-4 bg-tertiary-fixed/20 border-l-4 border-tertiary-fixed rounded">
-                  <p className="text-xs italic text-on-surface-variant">"The system flagged a contradiction between the witness's earlier statement on page 14 and their current response."</p>
+                  <p className="text-xs italic text-on-surface-variant">"Date validation error: The witness stated the event occurred on November 31st, but November only has 30 days."</p>
                 </div>
                 <div className="h-4 w-full bg-surface-container-low rounded"></div>
               </div>

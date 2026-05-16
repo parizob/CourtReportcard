@@ -5,7 +5,7 @@ const callouts = [
   {
     n: 1,
     title: 'Line-by-Line Transcript View',
-    body: 'Your exact .txt file — line numbers intact, original formatting preserved. Every flagged word is underlined directly in the text, so you never lose your place.',
+    body: 'Your exact .txt or .rtf file — line numbers intact, original formatting preserved. Every flagged word is underlined directly in the text, so you never lose your place.',
   },
   {
     n: 2,

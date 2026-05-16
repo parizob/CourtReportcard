@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { extractTranscriptWithGemini } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
 import { countByType } from '../../lib/annotationStats'
+import { stripRtf } from '../../lib/rtf'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
 export default function DashboardUpload() {
@@ -59,7 +60,8 @@ export default function DashboardUpload() {
       let totalPages = 0
       for (const file of transcriptFiles) {
         const text = await file.text()
-        totalPages += countPages(text)
+        const isRtf = file.name.toLowerCase().endsWith('.rtf')
+        totalPages += countPages(isRtf ? stripRtf(text) : text)
       }
       setPendingPages(totalPages)
       setPhiCertified(false)
@@ -128,6 +130,7 @@ export default function DashboardUpload() {
       for (const file of transcriptFiles) {
         const isPdf = file.name.toLowerCase().endsWith('.pdf')
         const isTxt = file.name.toLowerCase().endsWith('.txt')
+        const isRtf = file.name.toLowerCase().endsWith('.rtf')
         let extractedJson
 
         if (isPdf) {
@@ -135,9 +138,11 @@ export default function DashboardUpload() {
           extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
         } else {
           const rawContent = await file.text()
-          extractedJson = await extractTranscriptWithGemini(rawContent)
-          if (isTxt) {
-            extractedJson.originalText = rawContent
+          // Strip RTF markup so Gemini and the editor see clean text.
+          const plainText = isRtf ? stripRtf(rawContent) : rawContent
+          extractedJson = await extractTranscriptWithGemini(plainText)
+          if (isTxt || isRtf) {
+            extractedJson.originalText = plainText
           }
         }
 
@@ -338,15 +343,15 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-2xl">description</span>
                 </div>
                 <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Transcript Files</h3>
-                <p className="text-xs text-on-surface-variant mb-5">TXT format</p>
+                <p className="text-xs text-on-surface-variant mb-5">TXT or RTF format</p>
                 <label className="w-full border-2 border-dashed border-outline-variant/30 rounded-xl p-8 cursor-pointer hover:border-primary/40 transition-colors flex flex-col items-center">
                   <span className="material-symbols-outlined text-4xl text-outline mb-3">upload_file</span>
                   <span className="text-sm font-semibold text-on-surface">Drop files here or click to browse</span>
-                  <span className="text-xs text-on-surface-variant mt-1">.txt files accepted</span>
+                  <span className="text-xs text-on-surface-variant mt-1">.txt and .rtf files accepted</span>
                   <input
                     type="file"
                     className="hidden"
-                    accept=".txt"
+                    accept=".txt,.rtf"
                     multiple
                     onChange={(e) => setTranscriptFiles([...e.target.files])}
                   />
@@ -374,7 +379,7 @@ export default function DashboardUpload() {
                     <input
                       type="file"
                       className="hidden"
-                      accept=".txt"
+                      accept=".txt,.rtf"
                       multiple
                       onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([...e.target.files]) }}
                     />
