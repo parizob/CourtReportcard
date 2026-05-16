@@ -21,6 +21,8 @@ export default function SiteHeader() {
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   useEffect(() => {
     if (isAuthenticated) return
     const timer = setTimeout(() => {
@@ -64,13 +66,13 @@ export default function SiteHeader() {
   if (isAuthenticated) {
     return (
       <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
-        <div className="flex justify-between items-center w-full px-8 h-[65px]">
+        <div className="flex justify-between items-center w-full px-4 sm:px-8 h-[65px]">
 
           <Link to="/dashboard" className="hover:opacity-80 transition-opacity">
             <BrandLogo size={22} className="text-xl" />
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button className="flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
             </button>
@@ -144,7 +146,7 @@ export default function SiteHeader() {
   /* ─── Unauthenticated header ─── */
   return (
     <nav className="sticky top-0 z-50 bg-[#f8f9fa]">
-      <div className="flex justify-between items-center w-full px-8 h-[65px]">
+      <div className="flex justify-between items-center w-full px-4 sm:px-8 h-[65px]">
 
         <div className="flex items-center gap-8">
           <Link to="/" className="hover:opacity-80 transition-opacity">
@@ -158,15 +160,15 @@ export default function SiteHeader() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => openModal('signup')}
-            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
+            className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
           >
             Sign Up
           </button>
 
-          <div className="relative" ref={notifRef}>
+          <div className="relative hidden sm:block" ref={notifRef}>
             <button
               onClick={() => setNotifOpen((v) => !v)}
               className="relative flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors"
@@ -214,12 +216,81 @@ export default function SiteHeader() {
 
           <button
             onClick={() => openModal('signin')}
-            className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
+            className="hidden sm:inline-flex material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
           >
             account_circle
           </button>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="md:hidden flex items-center justify-center p-2 rounded-full hover:bg-surface-container-high transition-colors"
+            aria-label="Open menu"
+          >
+            <span className="material-symbols-outlined text-on-surface">
+              {mobileMenuOpen ? 'close' : 'menu'}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-outline-variant/15 bg-[#f8f9fa]">
+          <div className="px-4 py-4 flex flex-col gap-1">
+            <NavLink
+              to="/" end
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              Home
+            </NavLink>
+            <NavLink
+              to="/ourplatform"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              Our Platform
+            </NavLink>
+            <NavLink
+              to="/aboutus"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              About Us
+            </NavLink>
+            <NavLink
+              to="/support"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              Support
+            </NavLink>
+            <div className="border-t border-outline-variant/15 my-2" />
+            <button
+              onClick={() => { setMobileMenuOpen(false); openModal('signup') }}
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold transition-all"
+            >
+              Sign Up
+            </button>
+            <button
+              onClick={() => { setMobileMenuOpen(false); openModal('signin') }}
+              className="border border-outline-variant/40 text-on-surface py-3 rounded-lg font-bold transition-all hover:bg-surface-container"
+            >
+              Sign In
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-surface-container-low h-[1px] w-full" />
     </nav>
   )

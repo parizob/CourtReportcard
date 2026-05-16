@@ -173,17 +173,17 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen p-8 lg:p-12 bg-background">
+    <main className="min-h-screen p-4 sm:p-8 lg:p-12 bg-background">
       <div className="max-w-6xl mx-auto">
 
-        <header className="mb-10">
+        <header className="mb-8 sm:mb-10">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">{today}</p>
-              <h1 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight">
+              <h1 className="font-headline text-3xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
                 Welcome, {displayName}
               </h1>
-              <p className="text-on-surface-variant mt-2">
+              <p className="text-sm sm:text-base text-on-surface-variant mt-2">
                 {cases.length === 0
                   ? 'Upload your first case to get started with AI-powered transcript review.'
                   : 'Here\'s an overview of your cases.'}
@@ -191,7 +191,7 @@ export default function Dashboard() {
             </div>
             <Link
               to="/dashboard/upload"
-              className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+              className="self-start flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
             >
               <span className="material-symbols-outlined text-base">cloud_upload</span>
               Upload New Case
@@ -216,17 +216,17 @@ export default function Dashboard() {
 
         {/* Case Queue */}
         <section>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <h2 className="font-headline text-xl font-bold text-on-surface">Case Queue</h2>
               <p className="text-xs text-on-surface-variant mt-0.5">Your uploaded transcripts and audio files.</p>
             </div>
             <div className="flex items-center gap-3">
               {cases.length > 0 && (
-                <div className="flex items-center bg-surface-container-lowest px-3 py-2 rounded-lg border border-outline-variant/20 editorial-shadow">
+                <div className="flex items-center bg-surface-container-lowest px-3 py-2 rounded-lg border border-outline-variant/20 editorial-shadow flex-1 sm:flex-initial">
                   <span className="material-symbols-outlined text-outline text-sm">search</span>
                   <input
-                    className="bg-transparent border-none outline-none focus:ring-0 text-sm w-48 ml-2 placeholder:text-on-surface-variant/50"
+                    className="bg-transparent border-none outline-none focus:ring-0 text-sm w-full sm:w-48 ml-2 placeholder:text-on-surface-variant/50 min-w-0"
                     placeholder="Search cases..."
                     type="text"
                     value={searchQuery}
@@ -240,7 +240,7 @@ export default function Dashboard() {
                 </div>
               )}
               {cases.length > 0 && (
-                <button onClick={fetchCases} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                <button onClick={fetchCases} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 shrink-0">
                   <span className="material-symbols-outlined text-sm">refresh</span>
                   Refresh
                 </button>
@@ -274,7 +274,8 @@ export default function Dashboard() {
               </Link>
             </div>
           ) : (
-            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-hidden">
+            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-x-auto">
+              <div className="min-w-[720px]">
               <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-outline-variant/10 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
                 <span>Case</span>
                 <span className="w-24 text-center">Status</span>
@@ -389,6 +390,7 @@ export default function Dashboard() {
                 </div>
                 )
               })}
+              </div>
             </div>
           )}
         </section>

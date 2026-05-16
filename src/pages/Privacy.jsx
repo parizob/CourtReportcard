@@ -58,11 +58,11 @@ const sections = [
 export default function Privacy() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
-      <main className="flex-1 max-w-3xl mx-auto w-full px-8 py-16 lg:py-24">
+      <main className="flex-1 max-w-3xl mx-auto w-full px-6 sm:px-8 py-10 sm:py-16 lg:py-24">
 
-        <div className="mb-10">
+        <div className="mb-8 sm:mb-10">
           <span className="text-xs font-bold uppercase tracking-widest text-primary mb-3 block">Legal</span>
-          <h1 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight mb-3">
+          <h1 className="font-headline text-3xl sm:text-4xl font-extrabold text-on-surface tracking-tight mb-3">
             Privacy Policy
           </h1>
           <p className="text-sm text-on-surface-variant">

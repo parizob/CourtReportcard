@@ -67,29 +67,30 @@ export default function Support() {
   return (
     <div className="bg-background text-on-surface font-body min-h-screen flex flex-col">
 
-      <main className="flex-1 px-8 py-14 max-w-[1440px] mx-auto w-full">
+      <main className="flex-1 px-6 sm:px-8 py-10 sm:py-14 max-w-[1440px] mx-auto w-full">
 
         {/* Page header */}
-        <div className="mb-12">
-          <div className="flex items-start justify-between mb-3">
+        <div className="mb-8 sm:mb-12">
+          <div className="flex items-start justify-between gap-3 mb-3">
             <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
               <span className="material-symbols-outlined text-sm text-tertiary-fixed-dim">support_agent</span>
               We're here to help
             </span>
-            <Link to={isAuthenticated ? '/dashboard' : '/'} className="inline-flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">
+            <Link to={isAuthenticated ? '/dashboard' : '/'} className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-primary transition-colors shrink-0">
               <span className="material-symbols-outlined text-sm">arrow_back</span>
-              {isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
+              <span className="hidden sm:inline">{isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}</span>
+              <span className="sm:hidden">Back</span>
             </Link>
           </div>
-          <h1 className="font-headline font-extrabold text-5xl text-on-surface tracking-tight mb-3">
+          <h1 className="font-headline font-extrabold text-3xl sm:text-5xl text-on-surface tracking-tight mb-3">
             Contact Support
           </h1>
-          <p className="text-lg text-on-surface-variant max-w-xl">
+          <p className="text-base sm:text-lg text-on-surface-variant max-w-xl">
             Send us a message and we'll get back to you within one business day. For urgent issues, include as much detail as possible.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-12">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
 
           {/* Left — contact form */}
           <div className="lg:col-span-2">

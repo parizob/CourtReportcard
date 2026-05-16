@@ -9,27 +9,27 @@ export default function LandingPage() {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-24 pb-32 overflow-hidden px-8 max-w-[1440px] mx-auto">
+        <section className="relative pt-12 sm:pt-24 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10">
-              <h1 className="font-headline font-extrabold text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
+              <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
                 Proofread in <span className="text-primary italic">Seconds</span>.
               </h1>
-              <p className="text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
+              <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
                 Court Reportcard applies clinical accuracy to court transcripts. Detect conflicts, fix formatting, and ensure every word meets the highest judicial standard.
               </p>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
                   onClick={() => openModal('signup')}
-                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-md font-bold text-lg editorial-shadow transition-all hover:translate-y-[-2px]"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px]"
                 >
                   Try Now
                 </button>
-                <Link to="/ourplatform" className="text-primary px-8 py-4 font-bold text-lg hover:underline decoration-tertiary-fixed decoration-2 underline-offset-4">
+                <Link to="/ourplatform" className="text-primary px-6 sm:px-8 py-3 sm:py-4 font-bold text-base sm:text-lg hover:underline decoration-tertiary-fixed decoration-2 underline-offset-4">
                   Platform Demo
                 </Link>
               </div>
-              <div className="mt-12 flex items-center gap-3">
+              <div className="mt-10 sm:mt-12 flex flex-wrap items-center gap-x-3 gap-y-2">
                 <span className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
                   Early Access — Now Open
@@ -40,7 +40,7 @@ export default function LandingPage() {
 
             {/* Visual Representation of Transcript */}
             <div className="lg:col-span-6 relative">
-              <div className="bg-surface-container-lowest editorial-shadow rounded-xl p-8 border border-outline-variant/15 relative overflow-hidden">
+              <div className="bg-surface-container-lowest editorial-shadow rounded-xl p-5 sm:p-8 border border-outline-variant/15 relative overflow-hidden">
                 {/* Editor Mockup */}
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-surface-container pb-4">
@@ -92,13 +92,13 @@ export default function LandingPage() {
         </section>
 
         {/* How It Works Section */}
-        <section className="bg-surface-container-low py-24 px-8">
+        <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
           <div className="max-w-[1440px] mx-auto">
-            <div className="mb-16 text-center">
-              <h2 className="font-headline font-bold text-4xl text-on-surface mb-4">Precision Workflow</h2>
+            <div className="mb-10 sm:mb-16 text-center">
+              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">Precision Workflow</h2>
               <div className="w-16 h-1 bg-primary mx-auto"></div>
             </div>
-            <div className="grid md:grid-cols-3 gap-12">
+            <div className="grid md:grid-cols-3 gap-6 sm:gap-12">
               {/* Step 1 */}
               <div className="group relative bg-surface-container-lowest p-8 rounded-xl transition-all hover:translate-y-[-4px]">
                 <div className="w-14 h-14 bg-primary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-primary transition-colors">
@@ -131,11 +131,11 @@ export default function LandingPage() {
         </section>
 
         {/* Advanced Diagnostics Section */}
-        <section className="py-24 px-8 max-w-[1440px] mx-auto">
+        <section className="py-16 sm:py-24 px-6 sm:px-8 max-w-[1440px] mx-auto">
           <div className="bg-primary rounded-2xl overflow-hidden flex flex-col lg:flex-row">
-            <div className="lg:w-1/2 p-12 lg:p-20 flex flex-col justify-center">
+            <div className="lg:w-1/2 p-8 sm:p-12 lg:p-20 flex flex-col justify-center">
               <span className="text-primary-fixed-dim uppercase font-bold tracking-[0.2em] text-xs mb-4">Advanced Diagnostics</span>
-              <h2 className="text-on-primary font-headline font-bold text-4xl mb-6">Beyond Spellcheck.</h2>
+              <h2 className="text-on-primary font-headline font-bold text-3xl sm:text-4xl mb-6">Beyond Spellcheck.</h2>
               <div className="space-y-6">
                 <div className="flex gap-4">
                   <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>

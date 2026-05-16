@@ -55,24 +55,24 @@ export default function OurPlatform() {
       <main>
 
         {/* ─── Hero ─── */}
-        <section className="px-8 pt-20 pb-16 lg:pt-28 lg:pb-20">
+        <section className="px-6 sm:px-8 pt-12 sm:pt-20 pb-12 sm:pb-16 lg:pt-28 lg:pb-20">
           <div className="max-w-4xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-5 inline-block">The Platform</span>
-            <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface tracking-tight leading-[1.05] mb-6">
-              The fastest way to review<br/>a court transcript. By far.
+            <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface tracking-tight leading-[1.1] mb-6">
+              The fastest way to review<br className="hidden sm:block"/>a court transcript. By far.
             </h1>
-            <p className="text-on-surface-variant text-lg max-w-2xl mx-auto leading-relaxed">
+            <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
               A 200-page deposition that takes an experienced scopist six hours takes Court Reportcard under three minutes — at a fraction of the cost, with nothing missed.
             </p>
           </div>
         </section>
 
         {/* ─── Stats ─── */}
-        <section className="px-8 pb-20">
-          <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-6">
+        <section className="px-6 sm:px-8 pb-14 sm:pb-20">
+          <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-4 sm:gap-6">
             {stats.map((s) => (
-              <div key={s.metric} className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-7 text-center">
-                <p className="font-headline text-4xl font-extrabold text-primary mb-1">{s.metric}</p>
+              <div key={s.metric} className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6 sm:p-7 text-center">
+                <p className="font-headline text-3xl sm:text-4xl font-extrabold text-primary mb-1">{s.metric}</p>
                 <p className="text-sm font-semibold text-on-surface mb-2">{s.label}</p>
                 <p className="text-xs text-on-surface-variant leading-relaxed">{s.sub}</p>
               </div>
@@ -81,7 +81,7 @@ export default function OurPlatform() {
         </section>
 
         {/* ─── Editor Mockup + Callouts ─── */}
-        <section className="px-8 pb-24">
+        <section className="px-6 sm:px-8 pb-16 sm:pb-24">
           <div className="max-w-6xl mx-auto">
             <div className="mb-12 max-w-xl">
               <span className="text-xs font-bold uppercase tracking-widest text-primary mb-3 block">Inside the Editor</span>
@@ -110,10 +110,10 @@ export default function OurPlatform() {
               </div>
 
               {/* Two-panel layout: transcript + sidebar */}
-              <div className="flex min-h-[340px]">
+              <div className="flex flex-col md:flex-row min-h-[340px]">
 
                 {/* Left: transcript */}
-                <div className="flex-1 px-8 py-6 font-mono text-[13px] text-on-surface leading-7 overflow-hidden border-r border-outline-variant/10">
+                <div className="flex-1 px-4 sm:px-8 py-6 font-mono text-[12px] sm:text-[13px] text-on-surface leading-7 overflow-x-auto md:overflow-hidden border-b md:border-b-0 md:border-r border-outline-variant/10">
                   <div className="space-y-0">
                     {[
                       { n: 20, text: 'Q.  Could you please state your name for the record' },
@@ -143,7 +143,7 @@ export default function OurPlatform() {
                 </div>
 
                 {/* Right: annotation sidebar */}
-                <div className="w-72 shrink-0 bg-surface-container/50 px-4 py-5 space-y-3 overflow-hidden">
+                <div className="w-full md:w-72 shrink-0 bg-surface-container/50 px-4 py-5 space-y-3 overflow-hidden">
                   <p className="text-[9px] uppercase tracking-widest font-bold text-on-surface-variant/60 mb-4">3 issues · 1 open</p>
 
                   {/* Active annotation card */}
@@ -184,7 +184,7 @@ export default function OurPlatform() {
             </div>
 
             {/* Numbered callout list below mockup */}
-            <div className="grid md:grid-cols-5 gap-6">
+            <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-6">
               {callouts.map((c) => (
                 <div key={c.n} className="group">
                   <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-extrabold mb-3 transition-transform group-hover:scale-110">
@@ -199,15 +199,15 @@ export default function OurPlatform() {
         </section>
 
         {/* ─── Why it matters ─── */}
-        <section className="px-8 pb-24 bg-surface-container/30">
-          <div className="max-w-4xl mx-auto py-20">
-            <div className="text-center mb-14">
+        <section className="px-6 sm:px-8 pb-16 sm:pb-24 bg-surface-container/30">
+          <div className="max-w-4xl mx-auto py-14 sm:py-20">
+            <div className="text-center mb-10 sm:mb-14">
               <span className="text-xs font-bold uppercase tracking-widest text-primary mb-3 block">The Business Case</span>
-              <h2 className="font-headline text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">
+              <h2 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">
                 Time is money. Errors are liability.
               </h2>
             </div>
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
               <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8">
                 <span className="material-symbols-outlined text-primary text-2xl mb-4 block">schedule</span>
                 <h3 className="font-headline font-bold text-lg text-on-surface mb-3">Before Court Reportcard</h3>
@@ -247,10 +247,10 @@ export default function OurPlatform() {
         </section>
 
         {/* ─── CTA ─── */}
-        <section className="px-8 py-28">
-          <div className="max-w-3xl mx-auto bg-primary rounded-3xl editorial-shadow p-10 md:p-14 text-center">
+        <section className="px-6 sm:px-8 py-16 sm:py-28">
+          <div className="max-w-3xl mx-auto bg-primary rounded-3xl editorial-shadow p-8 sm:p-10 md:p-14 text-center">
             <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary-fixed-dim mb-4 block">Start Today</span>
-            <h3 className="font-headline text-3xl md:text-4xl font-extrabold text-on-primary tracking-tight mb-4 leading-tight">
+            <h3 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-on-primary tracking-tight mb-4 leading-tight">
               Your next deposition review starts in 3 minutes.
             </h3>
             <p className="text-on-primary-container/90 text-base mb-8 max-w-lg mx-auto leading-relaxed">

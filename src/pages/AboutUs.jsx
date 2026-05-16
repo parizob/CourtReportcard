@@ -83,7 +83,7 @@ export default function AboutUs() {
     <div className="bg-background text-on-surface font-body min-h-screen">
 
       {/* Hero */}
-      <section className="relative overflow-hidden px-8 pt-10 pb-20 max-w-[1440px] mx-auto">
+      <section className="relative overflow-hidden px-6 sm:px-8 pt-8 sm:pt-10 pb-12 sm:pb-20 max-w-[1440px] mx-auto">
         {/* decorative blobs */}
         <div className="absolute -top-16 -right-32 w-[520px] h-[520px] bg-secondary-container rounded-full opacity-20 blur-3xl pointer-events-none" />
         <div className="absolute top-0 -left-24 w-[340px] h-[340px] bg-tertiary-fixed rounded-full opacity-10 blur-3xl pointer-events-none" />
@@ -93,12 +93,12 @@ export default function AboutUs() {
 
           {/* Left — text */}
           <div>
-            <h1 className="font-headline font-extrabold text-6xl lg:text-7xl text-on-surface leading-[1.08] tracking-tight mb-6">
+            <h1 className="font-headline font-extrabold text-4xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.08] tracking-tight mb-6">
               We exist because<br />
               <span className="text-primary italic">court reporters</span><br />
               deserve better tools.
             </h1>
-            <p className="text-xl text-on-surface-variant leading-relaxed max-w-2xl">
+            <p className="text-base sm:text-xl text-on-surface-variant leading-relaxed max-w-2xl">
               We stumbled into the world of court reporting and couldn't leave. The work is consequential, the deadlines are punishing, and the tooling was decades behind. So we built what we wished already existed.
             </p>
           </div>
@@ -158,11 +158,11 @@ export default function AboutUs() {
       </section>
 
       {/* Three Pillars */}
-      <section className="bg-surface-container-low py-20 px-8">
+      <section className="bg-surface-container-low py-14 sm:py-20 px-6 sm:px-8">
         <div className="max-w-[1440px] mx-auto">
           <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">The Platform</p>
-          <h2 className="font-headline font-extrabold text-4xl text-on-surface mb-12 max-w-xl">Three things we obsess over</h2>
-          <div className="grid md:grid-cols-3 gap-8">
+          <h2 className="font-headline font-extrabold text-3xl sm:text-4xl text-on-surface mb-8 sm:mb-12 max-w-xl">Three things we obsess over</h2>
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
             {pillars.map((p) => (
               <div key={p.title} className={`bg-surface-container-lowest rounded-2xl p-8 editorial-shadow border-t-4 ${p.accent}`}>
                 <span className={`inline-flex items-center justify-center w-11 h-11 rounded-xl mb-6 ${p.color}`}>
@@ -177,13 +177,13 @@ export default function AboutUs() {
       </section>
 
       {/* Why we do it — origin story */}
-      <section className="py-24 px-8 max-w-[1440px] mx-auto">
-        <div className="grid lg:grid-cols-2 gap-16 items-start">
+      <section className="py-14 sm:py-24 px-6 sm:px-8 max-w-[1440px] mx-auto">
+        <div className="grid lg:grid-cols-2 gap-10 sm:gap-16 items-start">
 
           {/* Left — copy */}
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">Our Story</p>
-            <h2 className="font-headline font-extrabold text-4xl text-on-surface mb-6 leading-tight">
+            <h2 className="font-headline font-extrabold text-3xl sm:text-4xl text-on-surface mb-6 leading-tight">
               Why we built this
             </h2>
             <p className="text-base text-on-surface-variant leading-relaxed mb-5">
@@ -239,11 +239,11 @@ export default function AboutUs() {
       </section>
 
       {/* Bottom CTA banner */}
-      <section className="bg-primary text-on-primary py-20 px-8">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+      <section className="bg-primary text-on-primary py-14 sm:py-20 px-6 sm:px-8">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6 sm:gap-8">
           <div>
-            <h2 className="font-headline font-extrabold text-3xl mb-2">Ready to see it in action?</h2>
-            <p className="text-on-primary/70 text-base">Upload your first transcript in under a minute. No credit card required.</p>
+            <h2 className="font-headline font-extrabold text-2xl sm:text-3xl mb-2">Ready to see it in action?</h2>
+            <p className="text-on-primary/70 text-sm sm:text-base">Upload your first transcript in under a minute. No credit card required.</p>
           </div>
           <button
             onClick={() => openModal('signup')}
