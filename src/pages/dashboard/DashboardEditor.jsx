@@ -567,40 +567,26 @@ export default function DashboardEditor() {
   // ─── No case selected ───
   if (!caseId) {
     return (
-      <main className="min-h-screen bg-background">
-        <div className="px-8 lg:px-12 pt-8 pb-6 max-w-6xl mx-auto">
-          <div className="flex items-end justify-between gap-6">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm text-primary">edit_note</span>
-                Transcript Review
-              </p>
-              <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Editor</h1>
-              <p className="font-body text-on-surface-variant mt-2 max-w-xl text-sm">
-                Review AI-flagged issues, accept corrections, and finalize your transcript before export.
-              </p>
-            </div>
+      <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-center justify-center px-6">
+        <div className="w-full max-w-sm flex flex-col items-center text-center gap-5">
+          <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-3xl">edit_document</span>
           </div>
-        </div>
-        <div className="flex items-start bg-surface border-t border-outline-variant/10">
-          <div className="flex-1 flex flex-col items-center justify-center py-32 px-8">
-            <div className="w-24 h-24 rounded-2xl bg-primary/5 flex items-center justify-center mb-8">
-              <span className="material-symbols-outlined text-primary text-5xl">edit_document</span>
-            </div>
-            <h2 className="font-headline text-2xl font-bold text-on-surface mb-3 text-center">No transcript selected</h2>
-            <p className="text-sm text-on-surface-variant max-w-md text-center leading-relaxed mb-8">
-              Select a case from your dashboard to open it in the editor, or upload a new case to get started.
+          <div>
+            <h2 className="font-headline text-xl font-bold text-on-surface mb-1">No transcript selected</h2>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              Select a case from your dashboard to open it in the editor, or upload a new one to get started.
             </p>
-            <div className="flex gap-3">
-              <Link to="/dashboard" className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow">
-                <span className="material-symbols-outlined text-base">dashboard</span>
-                Go to Dashboard
-              </Link>
-              <Link to="/dashboard/upload" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
-                <span className="material-symbols-outlined text-base">cloud_upload</span>
-                Upload a Case
-              </Link>
-            </div>
+          </div>
+          <div className="flex gap-3">
+            <Link to="/dashboard" className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all">
+              <span className="material-symbols-outlined text-base">dashboard</span>
+              Dashboard
+            </Link>
+            <Link to="/dashboard/upload" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-base">cloud_upload</span>
+              Upload a Case
+            </Link>
           </div>
         </div>
       </main>
@@ -609,7 +595,7 @@ export default function DashboardEditor() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
+      <main className="h-[calc(100vh-65px)] bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <svg className="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -623,14 +609,16 @@ export default function DashboardEditor() {
 
   if (error && !caseData) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center p-8">
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-md">
-          <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-5">
+      <main className="h-[calc(100vh-65px)] bg-background flex items-center justify-center px-6">
+        <div className="flex flex-col items-center text-center gap-5 max-w-sm">
+          <div className="w-14 h-14 rounded-full bg-error/10 flex items-center justify-center">
             <span className="material-symbols-outlined text-error text-3xl">error</span>
           </div>
-          <h2 className="font-headline text-xl font-bold text-on-surface mb-2">Failed to load case</h2>
-          <p className="text-sm text-on-surface-variant mb-6">{error}</p>
-          <Link to="/dashboard" className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm">
+          <div>
+            <h2 className="font-headline text-xl font-bold text-on-surface mb-1">Failed to load case</h2>
+            <p className="text-sm text-on-surface-variant">{error}</p>
+          </div>
+          <Link to="/dashboard" className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all">
             <span className="material-symbols-outlined text-base">arrow_back</span>
             Back to Dashboard
           </Link>

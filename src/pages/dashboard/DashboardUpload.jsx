@@ -284,190 +284,157 @@ export default function DashboardUpload() {
   }
 
   return (
-    <main className="h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background px-6 lg:px-10 py-6">
+    <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-start justify-center px-6 py-8">
+      <div className="w-full max-w-xl flex flex-col gap-5">
 
-      {/* Error banner */}
-      {error && (
-        error === 'TRANSCRIPT_TOO_LARGE' ? (
-          <div className="mb-4 p-4 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-3 shrink-0">
-            <span className="material-symbols-outlined text-primary text-xl shrink-0 mt-0.5">volunteer_activism</span>
-            <div>
-              <p className="text-sm font-bold text-on-surface">File too large for a single pass.</p>
-              <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
-                Try breaking it into chunks of <span className="font-semibold text-on-surface">~100 pages each</span> and uploading separately.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="mb-4 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2 shrink-0">
-            <span className="material-symbols-outlined text-base shrink-0">error</span>
-            {error}
-          </div>
-        )
-      )}
-
-      {/* Two-column layout — fills remaining height */}
-      <div className="flex-1 flex gap-6 min-h-0">
-
-        {/* Left column — case details + info */}
-        <div className="w-72 shrink-0 flex flex-col gap-5">
-          <div>
-            <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
-            <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to begin.</p>
-          </div>
-
-          {/* Case name */}
-          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4">
-            <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-              Case Name <span className="text-error">*</span>
-            </label>
-            <input
-              type="text"
-              value={caseName}
-              onChange={(e) => setCaseName(e.target.value)}
-              placeholder="e.g. State vs. Henderson"
-              className="w-full bg-surface-container px-3 py-2.5 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-            />
-          </div>
-
-          {/* Token balance */}
-          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary text-lg">toll</span>
-            </div>
-            <div>
-              <p className="text-xs text-on-surface-variant">Available balance</p>
-              <p className="text-sm font-bold text-on-surface">{tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-
-          {/* Info chips */}
-          <div className="space-y-2.5 mt-auto">
-            {[
-              { icon: 'lock', text: 'Encrypted at rest and in transit' },
-              { icon: 'schedule', text: 'Analysis typically takes 2–5 minutes' },
-              { icon: 'description', text: '.txt and .rtf transcripts accepted' },
-              { icon: 'toll', text: '1 token per page of transcript' },
-            ].map((item) => (
-              <div key={item.icon} className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-primary text-base shrink-0">{item.icon}</span>
-                <p className="text-xs text-on-surface-variant">{item.text}</p>
-              </div>
-            ))}
-          </div>
+        {/* Header */}
+        <div className="shrink-0">
+          <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
+          <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to begin AI analysis.</p>
         </div>
 
-        {/* Right column — drop zone + action */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0">
+        {/* Error banner */}
+        {error && (
+          error === 'TRANSCRIPT_TOO_LARGE' ? (
+            <div className="shrink-0 p-3.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-3">
+              <span className="material-symbols-outlined text-primary text-lg shrink-0 mt-0.5">volunteer_activism</span>
+              <div>
+                <p className="text-sm font-bold text-on-surface">File too large for a single pass.</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Try chunks of <span className="font-semibold text-on-surface">~100 pages each</span>.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2">
+              <span className="material-symbols-outlined text-base shrink-0">error</span>
+              {error}
+            </div>
+          )
+        )}
 
-          {/* Drop zone — fills available height */}
-          <div className={`flex-1 min-h-0 bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col transition-all ${transcriptFiles.length > 0 ? 'ring-2 ring-primary/30' : ''}`}>
+        {/* Case name — prominent */}
+        <div className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow p-5">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+            Case Name <span className="text-error">*</span>
+          </label>
+          <input
+            type="text"
+            value={caseName}
+            onChange={(e) => setCaseName(e.target.value)}
+            placeholder="e.g. State vs. Henderson — Motion Hearing"
+            className="w-full bg-surface-container px-4 py-4 rounded-lg text-base text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          />
+        </div>
+
+        {/* Drop zone + info row */}
+        <div className="shrink-0 flex gap-4">
+
+          {/* Drop zone — compact fixed height */}
+          <div className={`flex-1 h-44 min-w-0 overflow-hidden bg-surface-container-lowest rounded-xl editorial-shadow flex flex-col transition-all ${transcriptFiles.length > 0 ? 'ring-2 ring-primary/30' : ''}`}>
             {transcriptFiles.length === 0 ? (
-              <label className="flex-1 flex flex-col items-center justify-center cursor-pointer rounded-2xl hover:bg-surface-container/30 transition-colors p-8 group">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/15 transition-colors">
-                  <span className="material-symbols-outlined text-primary text-3xl">upload_file</span>
+              <label className="flex-1 flex flex-col items-center justify-center cursor-pointer rounded-xl hover:bg-surface-container/30 transition-colors group">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/15 transition-colors">
+                  <span className="material-symbols-outlined text-primary text-xl">upload_file</span>
                 </div>
-                <h3 className="font-headline font-bold text-lg text-on-surface mb-1">Drop transcript files here</h3>
-                <p className="text-sm text-on-surface-variant mb-1">or click to browse</p>
-                <p className="text-xs text-on-surface-variant/60">.txt and .rtf accepted</p>
+                <p className="text-sm font-semibold text-on-surface">Drop file here or click to browse</p>
+                <p className="text-xs text-on-surface-variant/60 mt-1">.txt or .rtf</p>
                 <input
                   type="file"
                   className="hidden"
                   accept=".txt,.rtf"
-                  multiple
-                  onChange={(e) => setTranscriptFiles([...e.target.files])}
+                  onChange={(e) => setTranscriptFiles(e.target.files.length ? [e.target.files[0]] : [])}
                 />
               </label>
             ) : (
-              <div className="flex-1 flex flex-col p-5 min-h-0">
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-on-surface">
-                        {transcriptFiles.length} file{transcriptFiles.length !== 1 ? 's' : ''} selected
-                      </p>
-                      <p className="text-[10px] text-on-surface-variant">
-                        {(Array.from(transcriptFiles).reduce((s, f) => s + f.size, 0) / 1024).toFixed(0)} KB total
-                      </p>
-                    </div>
+              <div className="flex-1 flex flex-col items-center justify-center p-5 gap-3 min-w-0 w-full overflow-hidden">
+                <div className="flex items-center gap-3 w-full min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
                   </div>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-primary cursor-pointer hover:underline">
-                    <span className="material-symbols-outlined text-sm">swap_horiz</span>
-                    Change files
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".txt,.rtf"
-                      multiple
-                      onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([...e.target.files]) }}
-                    />
-                  </label>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-on-surface truncate">{transcriptFiles[0].name}</p>
+                    <p className="text-[10px] text-on-surface-variant">
+                      {transcriptFiles[0].name.split('.').pop().toUpperCase()} &middot; {(transcriptFiles[0].size / 1024).toFixed(0)} KB
+                    </p>
+                  </div>
+                  <span className="material-symbols-outlined text-green-500 text-lg shrink-0">check</span>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-                  {Array.from(transcriptFiles).map((f, i) => (
-                    <div key={i} className="flex items-center gap-3 bg-surface-container/50 rounded-lg px-4 py-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-primary text-base">description</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-on-surface truncate">{f.name}</p>
-                        <p className="text-[10px] text-on-surface-variant">
-                          {f.name.split('.').pop().toUpperCase()} &middot; {(f.size / 1024).toFixed(0)} KB
-                        </p>
-                      </div>
-                      <span className="material-symbols-outlined text-green-500 text-lg shrink-0">check</span>
-                    </div>
-                  ))}
-                </div>
+                <label className="flex items-center gap-1 text-xs font-bold text-primary cursor-pointer hover:underline">
+                  <span className="material-symbols-outlined text-sm">swap_horiz</span>
+                  Change file
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".txt,.rtf"
+                    onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([e.target.files[0]]) }}
+                  />
+                </label>
               </div>
             )}
           </div>
 
-          {/* Action bar */}
-          <div className="shrink-0 flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-5 py-3.5">
-            <div className="text-sm text-on-surface-variant">
-              {uploading ? (
-                <span className="flex items-center gap-2 font-semibold text-primary">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  {uploadPhase}
-                </span>
-              ) : transcriptFiles.length === 0 ? (
-                <span className="text-on-surface-variant/60">No files selected yet</span>
-              ) : (
-                <span className="font-semibold text-on-surface">
-                  {transcriptFiles.length} transcript{transcriptFiles.length !== 1 ? 's' : ''} ready
-                </span>
-              )}
+          {/* Info + token panel */}
+          <div className="w-48 shrink-0 h-44 bg-surface-container-lowest rounded-xl editorial-shadow p-4 flex flex-col justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Your Balance</p>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="material-symbols-outlined text-primary text-lg">toll</span>
+                <span className="text-sm font-bold text-on-surface">{tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''}</span>
+              </div>
             </div>
-            <button
-              disabled={!canUpload}
-              onClick={handleUploadClick}
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {uploading || counting ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  {counting ? 'Counting pages…' : 'Uploading…'}
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-base">cloud_upload</span>
-                  Upload &amp; Analyze
-                </>
-              )}
-            </button>
+            <div className="space-y-2">
+              {[
+                { icon: 'lock', text: 'Encrypted & secure' },
+                { icon: 'schedule', text: '2–5 min analysis' },
+                { icon: 'toll', text: '1 token per page' },
+              ].map((item) => (
+                <div key={item.icon} className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary/70 text-sm shrink-0">{item.icon}</span>
+                  <p className="text-[11px] text-on-surface-variant">{item.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
-
         </div>
+
+        {/* Action bar */}
+        <div className="shrink-0 flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-5 py-3.5">
+          <div className="text-sm">
+            {uploading ? (
+              <span className="flex items-center gap-2 font-semibold text-primary">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                {uploadPhase}
+              </span>
+            ) : transcriptFiles.length === 0 ? (
+              <span className="text-on-surface-variant/50">No file selected</span>
+            ) : (
+              <span className="font-semibold text-on-surface">Ready to analyze</span>
+            )}
+          </div>
+          <button
+            disabled={!canUpload}
+            onClick={handleUploadClick}
+            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {uploading || counting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                {counting ? 'Counting pages…' : 'Uploading…'}
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-base">cloud_upload</span>
+                Upload &amp; Analyze
+              </>
+            )}
+          </button>
+        </div>
+
       </div>
 
       {confirmOpen && (

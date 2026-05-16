@@ -172,7 +172,7 @@ export default function DashboardExport() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
+      <main className="h-[calc(100vh-65px)] bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <svg className="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -186,45 +186,26 @@ export default function DashboardExport() {
 
   if (!caseId || (!caseData && !loading)) {
     return (
-      <main className="min-h-screen bg-background p-8 lg:p-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-10">
-            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm text-primary">cloud_download</span>
-                  Export Center
-                </p>
-                <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Export &amp; Archive</h1>
-                <p className="font-body text-on-surface-variant mt-2 max-w-xl text-sm">
-                  Select a case from the dashboard to export your reviewed transcript.
-                </p>
-              </div>
-              <Link to="/dashboard" className="shrink-0 flex items-center gap-2 text-sm font-bold text-primary">
-                <span className="material-symbols-outlined text-sm">arrow_back</span>
-                <span className="hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4">Back to Dashboard</span>
-              </Link>
-            </div>
+      <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-center justify-center px-6">
+        <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-primary/5 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-3xl">file_download_off</span>
           </div>
-
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-16 flex flex-col items-center text-center">
-            <div className="w-24 h-24 rounded-2xl bg-primary/5 flex items-center justify-center mb-8">
-              <span className="material-symbols-outlined text-primary text-5xl">file_download_off</span>
-            </div>
-            <h2 className="font-headline text-2xl font-bold text-on-surface mb-3">No case selected</h2>
-            <p className="text-sm text-on-surface-variant max-w-lg leading-relaxed mb-8">
-              Head back to the dashboard and click the export icon on any case to download your reviewed transcript.
+          <div>
+            <h2 className="font-headline text-xl font-bold text-on-surface mb-1">No case selected</h2>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              Go to the dashboard and click the export icon on any case.
             </p>
-            <div className="flex gap-3">
-              <Link to="/dashboard" className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow">
-                <span className="material-symbols-outlined text-base">arrow_back</span>
-                Go to Dashboard
-              </Link>
-              <Link to="/dashboard/upload" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
-                <span className="material-symbols-outlined text-base">cloud_upload</span>
-                Upload a Case
-              </Link>
-            </div>
+          </div>
+          <div className="flex gap-3">
+            <Link to="/dashboard" className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all">
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Dashboard
+            </Link>
+            <Link to="/dashboard/upload" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-base">cloud_upload</span>
+              Upload a Case
+            </Link>
           </div>
         </div>
       </main>
@@ -232,199 +213,110 @@ export default function DashboardExport() {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8 lg:p-12">
-      <div className="max-w-6xl mx-auto">
+    <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-start justify-center px-6 py-7">
+      <div className="w-full max-w-2xl flex flex-col gap-4">
 
         {/* Header */}
-        <div className="mb-10">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm text-primary">cloud_download</span>
-                Export Center
-              </p>
-              <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">{caseData.name}</h1>
-              <p className="font-body text-on-surface-variant mt-2 max-w-xl text-sm">
-                Download your reviewed transcript in the format you need.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-4 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
-                <span className="material-symbols-outlined text-base">edit_note</span>
-                Back to Editor
-              </Link>
-              <Link to="/dashboard" className="flex items-center gap-2 text-sm font-bold text-primary">
-                <span className="material-symbols-outlined text-sm">arrow_back</span>
-                <span className="hover:underline decoration-tertiary-fixed-dim decoration-2 underline-offset-4">Dashboard</span>
-              </Link>
-            </div>
+        <div className="shrink-0 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight truncate">{caseData.name}</h1>
+            <p className="text-xs text-on-surface-variant mt-0.5">Download your reviewed transcript</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-1.5 border border-outline-variant/40 text-on-surface px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-sm">edit_note</span>
+              Editor
+            </Link>
+            <Link to="/dashboard" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+              <span className="material-symbols-outlined text-sm">arrow_back</span>
+              Dashboard
+            </Link>
           </div>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
-            <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
+          <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2">
+            <span className="material-symbols-outlined text-base shrink-0">error</span>
             {error}
           </div>
         )}
 
-        {/* Review Summary */}
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 mb-8">
-          <h2 className="font-headline font-bold text-on-surface text-lg mb-6 flex items-center gap-2">
-            <span className="material-symbols-outlined text-tertiary-fixed-dim">analytics</span>
-            Review Summary
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-            <div className="text-center">
-              <p className="text-3xl font-extrabold text-on-surface">{entryCount}</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">Entries</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-extrabold text-on-surface">{totalCount}</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">Issues Found</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-extrabold text-green-600">{acceptedCount}</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">Accepted</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-extrabold text-on-surface-variant">{ignoredCount}</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">Ignored</p>
-            </div>
-            <div className="text-center">
-              <p className={`text-3xl font-extrabold ${openCount > 0 ? 'text-error' : 'text-green-600'}`}>{openCount}</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">Remaining</p>
-            </div>
+        {/* Review summary */}
+        <div className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow p-4">
+          <div className="grid grid-cols-5 gap-3 mb-3">
+            {[
+              { value: entryCount, label: 'Entries', color: 'text-on-surface' },
+              { value: totalCount, label: 'Issues', color: 'text-on-surface' },
+              { value: acceptedCount, label: 'Accepted', color: 'text-green-600' },
+              { value: ignoredCount, label: 'Ignored', color: 'text-on-surface-variant' },
+              { value: openCount, label: 'Remaining', color: openCount > 0 ? 'text-error' : 'text-green-600' },
+            ].map((s) => (
+              <div key={s.label} className="text-center">
+                <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
+                <p className="text-[9px] uppercase tracking-widest text-on-surface-variant mt-0.5">{s.label}</p>
+              </div>
+            ))}
           </div>
-          <div className="mt-6">
-            <div className="flex items-center justify-between text-xs text-on-surface-variant mb-2">
-              <span>Resolution Progress</span>
-              <span className="font-bold">{resolvedPct}%</span>
-            </div>
-            <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all duration-500" style={{ width: `${resolvedPct}%` }} />
             </div>
+            <span className="text-xs font-bold text-on-surface-variant shrink-0">{resolvedPct}% resolved</span>
           </div>
           {openCount > 0 && (
-            <div className="mt-4 p-3 bg-tertiary-fixed/10 rounded-lg flex items-center gap-3">
-              <span className="material-symbols-outlined text-on-tertiary-container text-lg">info</span>
+            <div className="mt-3 p-2.5 bg-tertiary-fixed/10 rounded-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-on-tertiary-container text-base shrink-0">info</span>
               <p className="text-xs text-on-tertiary-container">
-                You have {openCount} unresolved issue{openCount !== 1 ? 's' : ''}. <Link to={`/dashboard/editor?case=${caseId}`} className="font-bold underline">Return to editor</Link> to review them before exporting.
+                {openCount} unresolved issue{openCount !== 1 ? 's' : ''} — <Link to={`/dashboard/editor?case=${caseId}`} className="font-bold underline">return to editor</Link> before exporting.
               </p>
             </div>
           )}
         </div>
 
-        {/* Export Formats */}
-        <h2 className="font-headline font-bold text-on-surface text-lg mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">download</span>
-          Download Transcript
-        </h2>
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          {/* Plain Text */}
-          <button
-            onClick={() => handleExport('txt')}
-            disabled={!!exporting}
-            className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-          >
-            <div className="w-14 h-14 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-blue-600 text-3xl">article</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-headline font-bold text-on-surface text-base mb-0.5">Corrected Transcript (.txt)</p>
-              <p className="text-xs text-on-surface-variant">{originalText ? 'Preserves your original formatting — only accepted corrections are changed.' : 'Court-standard format with line numbers and page breaks. Ready for filing.'}</p>
-            </div>
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              {exporting === 'txt' ? 'check_circle' : 'download'}
-            </span>
-          </button>
+        {/* Export formats */}
+        <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Download Transcript</p>
 
-          {/* Rich Text */}
-          <button
-            onClick={() => handleExport('rtf')}
-            disabled={!!exporting}
-            className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-          >
-            <div className="w-14 h-14 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-indigo-600 text-3xl">draft</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-headline font-bold text-on-surface text-base mb-0.5">Corrected Transcript (.rtf)</p>
-              <p className="text-xs text-on-surface-variant">Rich Text Format — opens cleanly in Word, Pages, or any steno software.</p>
-            </div>
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              {exporting === 'rtf' ? 'check_circle' : 'download'}
-            </span>
-          </button>
-
-          {/* Annotated JSON */}
-          <button
-            onClick={() => handleExport('json')}
-            disabled={!!exporting}
-            className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-          >
-            <div className="w-14 h-14 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-amber-600 text-3xl">data_object</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-headline font-bold text-on-surface text-base mb-0.5">Annotated JSON (.json)</p>
-              <p className="text-xs text-on-surface-variant">Full transcript with all AI annotations, corrections, and audit trail.</p>
-            </div>
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              {exporting === 'json' ? 'check_circle' : 'download'}
-            </span>
-          </button>
-        </div>
-
-        {/* Coming Soon Formats */}
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Coming Soon</p>
-        <div className="grid md:grid-cols-2 gap-4 mb-10">
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 opacity-50 relative overflow-hidden">
-            <div className="absolute top-3 right-3">
-              <span className="bg-tertiary-fixed/20 text-on-tertiary-container text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">Soon</span>
-            </div>
-            <div className="w-14 h-14 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-red-600 text-3xl">picture_as_pdf</span>
-            </div>
-            <div>
-              <p className="font-headline font-bold text-on-surface/60 text-base mb-0.5">Adobe PDF (.pdf)</p>
-              <p className="text-xs text-on-surface-variant/60">Court-submission ready with formatting preserved.</p>
-            </div>
-          </div>
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 flex items-center gap-5 opacity-50 relative overflow-hidden">
-            <div className="absolute top-3 right-3">
-              <span className="bg-tertiary-fixed/20 text-on-tertiary-container text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">Soon</span>
-            </div>
-            <div className="w-14 h-14 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-blue-600 text-3xl">description</span>
-            </div>
-            <div>
-              <p className="font-headline font-bold text-on-surface/60 text-base mb-0.5">Microsoft Word (.docx)</p>
-              <p className="text-xs text-on-surface-variant/60">Editable document with revision tracking.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Features */}
-        <section>
-          <div className="grid md:grid-cols-3 gap-4">
-            {[
-              { icon: 'verified', title: 'Court-Certified', body: 'Every export meets District and Federal Court formatting standards automatically.' },
-              { icon: 'history_edu', title: 'Audit Trail', body: 'Every edit, suggestion, and acceptance is logged with an immutable chain of custody.' },
-              { icon: 'lock', title: 'Encrypted', body: 'Files delivered via encrypted download links that expire after 24 hours.' },
-            ].map((c) => (
-              <div key={c.title} className="bg-surface-container-low p-5 rounded-2xl flex gap-4">
-                <div className="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-on-secondary-container">{c.icon}</span>
-                </div>
-                <div>
-                  <h4 className="font-headline font-bold text-sm text-on-surface mb-1">{c.title}</h4>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">{c.body}</p>
-                </div>
+        <div className="shrink-0 flex flex-col gap-2">
+          {[
+            { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', label: 'Corrected Transcript', ext: '.txt', desc: originalText ? 'Original formatting preserved — only accepted corrections applied.' : 'Court-standard format with line numbers and page breaks.' },
+            { format: 'rtf', icon: 'draft',   color: 'bg-indigo-50 text-indigo-600', label: 'Corrected Transcript', ext: '.rtf', desc: 'Rich Text Format — opens in Word, Pages, or any steno software.' },
+            { format: 'json', icon: 'data_object', color: 'bg-amber-50 text-amber-600', label: 'Annotated Export', ext: '.json', desc: 'Full transcript with all AI annotations, corrections, and audit trail.' },
+          ].map(({ format, icon, color, label, ext, desc }) => (
+            <button
+              key={format}
+              onClick={() => handleExport(format)}
+              disabled={!!exporting}
+              className="bg-surface-container-lowest rounded-xl editorial-shadow px-4 py-3.5 flex items-center gap-4 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+            >
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                <span className="material-symbols-outlined text-xl">{icon}</span>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="flex-1 min-w-0">
+                <p className="font-headline font-bold text-on-surface text-sm">{label} <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                <p className="text-[11px] text-on-surface-variant truncate">{desc}</p>
+              </div>
+              <span className="material-symbols-outlined text-primary text-xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                {exporting === format ? 'check_circle' : 'download'}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Coming soon — compact */}
+        <div className="shrink-0 flex items-center gap-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Coming soon</p>
+          {[
+            { icon: 'picture_as_pdf', label: 'PDF', color: 'text-red-400' },
+            { icon: 'description', label: 'DOCX', color: 'text-blue-400' },
+          ].map((f) => (
+            <div key={f.label} className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-1.5 opacity-50">
+              <span className={`material-symbols-outlined text-sm ${f.color}`}>{f.icon}</span>
+              <span className="text-xs font-semibold text-on-surface-variant">{f.label}</span>
+            </div>
+          ))}
+        </div>
+
       </div>
     </main>
   )
