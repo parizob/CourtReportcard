@@ -446,28 +446,33 @@ YOUR PROOFREADING MANDATE:
 
 ERROR TYPES — flag every occurrence:
 
-"spelling" — Misspelled word. The word does not exist or is clearly malformed.
+"spelling" — Misspelled word. The word does not exist or is clearly malformed, OR is a single-character steno drop/substitution that produces a near-miss of the correct word.
   Examples: "residance" (residence), "goverment" (government), "atourney" (attorney)
+  Single-character steno drops to catch: "Fith" (Fifth), "writ" for "written", "acept" (accept), "judgement" (judgment — in U.S. courts the correct legal spelling is always "judgment" without the 'e'; "judgement" is British and incorrect in U.S. legal transcripts)
 
 "context" — Correct spelling, WRONG word. This is the most common and most dangerous error class.
   Steno homophones to watch obsessively:
   • counsel / council          • plaintiff / plaintive       • waive / wave / waiver / waver
-  • depose / dispose           • do / due / dew              • are / our                    
-  • passed / past              • affect / effect             • your / you're               
-  • their / there / they're    • its / it's                  • hear / here                 
-  • to / too / two             • principle / principal       • cite / site / sight         
-  • brake / break              • bare / bear                 • peace / piece               
-  • lose / loose               • where / were / we're        • for / fore / four           
-  • than / then                • whether / weather           • right / write / rite        
-  • capitol / capital          • compliment / complement     • assent / ascent             
-  • aloud / allowed            • coarse / course             • forth / fourth              
-  • liable / libel             • statue / statute            • tenet / tenant              
-  • writ / rit / rid           • voir dire (spelling)        • corpus / corpse             
+  • depose / dispose           • do / due / dew              • are / our
+  • passed / past              • affect / effect             • your / you're
+  • their / there / they're    • its / it's                  • hear / here
+  • to / too / two             • principle / principal       • cite / site / sight
+  • brake / break              • bare / bear                 • peace / piece
+  • lose / loose               • where / were / we're        • for / fore / four
+  • than / then                • whether / weather           • right / write / rite
+  • capitol / capital          • compliment / complement     • assent / ascent
+  • aloud / allowed            • coarse / course             • forth / fourth
+  • liable / libel             • statue / stature / statute  • tenet / tenant
+  • writ / rit / rid           • voir dire (spelling)        • corpus / corpse
+  • sit / set (e.g., "sit aside" → "set aside"; "sit forth" → "set forth")
+  • eminent / imminent (neither belongs in a motion name — flag if used; likely steno error for "emergency" or "amended")
+  • compliant / complaint (near-miss in legal filings: "amend the compliant" is always wrong)
 
 "grammar" — Subject-verb agreement, tense shift, double negative, fragment, pronoun error, dangling modifier.
 
-"legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting.
+"legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting, or an impossible motion name.
   Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
+  Motion name check: Standard legal motion names include Motion to Dismiss, Motion to Set Aside, Motion for Summary Judgment, Emergency Motion, Amended Motion, Motion to Strike, Motion in Limine, Motion for Default Judgment. If you see a motion described with a word that has no recognized legal meaning in that position (e.g., "Eminent Motion", "Imminent Motion"), flag it as a likely steno substitution for "Emergency Motion" or "Amended Motion".
 
 "punctuation" — Missing or wrong punctuation that changes meaning or readability.
   Examples: missing question mark on a question, missing comma creating ambiguity, wrong apostrophe.
@@ -497,7 +502,8 @@ RULES:
 - The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word.
 - PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
-- Skip entries with speaker labels: "CAPTION", "APPEARANCES", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
+- Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
+- For entries labeled "APPEARANCES": do NOT annotate anything within the appearances block itself. Instead, read it to extract all proper nouns — attorney names, party names, firm names. Then, if any of those names appear spelled inconsistently anywhere in the testimony entries, flag the testimony entry. Annotate on the testimony entry only, never on the appearances entry itself.
 - Each annotation must reference the entry_id of the entry containing the error.
 - Do NOT return an empty annotations array if there are errors. If you find zero errors, that is acceptable only if the transcript is genuinely clean.
 

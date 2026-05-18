@@ -17,15 +17,19 @@ const categories = [
 const faqs = [
   {
     q: 'What file formats can I upload?',
-    a: 'Court Reportcard accepts .txt and .rtf transcript files. Support for additional file formats is coming soon.',
+    a: 'Court Reportcard accepts .txt and .rtf transcript files — the two formats most commonly exported by court reporter CAT software. Support for additional file formats is coming soon.',
+  },
+  {
+    q: 'What does the AI actually check?',
+    a: 'The AI reviews every line of testimony for steno errors, homophone substitutions (e.g., "counsel" vs. "council"), missing words, incorrect legal terminology, punctuation issues, and capitalization errors. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
   },
   {
     q: 'How long does AI review take?',
-    a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length and audio quality.',
+    a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length. The AI runs entirely in the cloud — no software installation required.',
   },
   {
     q: 'Is my transcript data secure?',
-    a: 'Yes. All files are end-to-end encrypted in transit and at rest. Only you can access your case files.',
+    a: 'Yes. All files are encrypted at rest and in transit. Case files are automatically and permanently purged after 90 days. Only you can access your case files.',
   },
   {
     q: 'Can I export to court-specific formats?',
@@ -217,13 +221,6 @@ export default function Support() {
                 <div>
                   <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-0.5">Response Time</p>
                   <p className="text-sm text-on-surface">Within 1 business day</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">location_on</span>
-                <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-0.5">Hours</p>
-                  <p className="text-sm text-on-surface">Mon – Fri, 9 AM – 6 PM ET</p>
                 </div>
               </div>
             </div>
