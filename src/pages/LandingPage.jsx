@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
@@ -6,6 +7,11 @@ export default function LandingPage() {
   const { openModal } = useAuth()
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
+      <Helmet>
+        <title>Court Reportcard | AI Proofreading for Court Reporters</title>
+        <meta name="description" content="AI-powered transcript proofreading for court reporters and scopists. Automatically catches steno errors, homophone substitutions, and punctuation mistakes. Upload .txt or .rtf — results in minutes." />
+        <link rel="canonical" href="https://www.courtreportcard.com/" />
+      </Helmet>
 
       <main>
         {/* Hero Section */}

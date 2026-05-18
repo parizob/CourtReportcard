@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async'
 import SiteFooter from '../components/SiteFooter'
 
 const sections = [
@@ -59,6 +60,12 @@ const sections = [
 export default function TermsOfService() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
+      <Helmet>
+        <title>Terms of Service | Court Reportcard</title>
+        <meta name="description" content="Review Court Reportcard's terms of service, including usage rights, data handling, and the PHI certification agreement required before uploading legal transcripts." />
+        <link rel="canonical" href="https://www.courtreportcard.com/terms" />
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 sm:px-8 py-10 sm:py-16 lg:py-24">
 
         <div className="mb-8 sm:mb-10">

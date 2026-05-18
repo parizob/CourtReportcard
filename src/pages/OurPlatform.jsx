@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
@@ -52,6 +53,11 @@ export default function OurPlatform() {
 
   return (
     <div className="bg-background text-on-background">
+      <Helmet>
+        <title>How It Works | Court Reportcard AI Transcript Editor</title>
+        <meta name="description" content="See how Court Reportcard works — upload your transcript, review AI-flagged errors inline, accept or correct each annotation, and export a clean final file. Built for court reporters." />
+        <link rel="canonical" href="https://www.courtreportcard.com/ourplatform" />
+      </Helmet>
       <main>
 
         {/* ─── Hero ─── */}

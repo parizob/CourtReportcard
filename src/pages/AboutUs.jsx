@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
@@ -81,6 +82,11 @@ export default function AboutUs() {
 
   return (
     <div className="bg-background text-on-surface font-body min-h-screen">
+      <Helmet>
+        <title>About Us | Court Reportcard</title>
+        <meta name="description" content="Court Reportcard was built for court reporters who demand accuracy. Learn about our mission to bring AI-assisted proofreading to the legal transcription industry." />
+        <link rel="canonical" href="https://www.courtreportcard.com/aboutus" />
+      </Helmet>
 
       {/* Hero */}
       <section className="relative overflow-hidden px-6 sm:px-8 pt-8 sm:pt-10 pb-12 sm:pb-20 max-w-[1440px] mx-auto">

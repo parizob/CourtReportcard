@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Keep authenticated app routes out of the index
+Disallow: /dashboard
+
+# Sitemap
+Sitemap: https://www.courtreportcard.com/sitemap.xml

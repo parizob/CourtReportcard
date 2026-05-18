@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
@@ -66,6 +67,11 @@ export default function Support() {
 
   return (
     <div className="bg-background text-on-surface font-body min-h-screen flex flex-col">
+      <Helmet>
+        <title>Support & FAQ | Court Reportcard</title>
+        <meta name="description" content="Find answers to common questions about Court Reportcard — file formats, token pricing, data security, and how the AI transcript editor works. Contact us for additional help." />
+        <link rel="canonical" href="https://www.courtreportcard.com/support" />
+      </Helmet>
 
       <main className="flex-1 px-6 sm:px-8 py-10 sm:py-14 max-w-[1440px] mx-auto w-full">
 

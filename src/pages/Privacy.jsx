@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import SiteFooter from '../components/SiteFooter'
 
 const sections = [
@@ -58,6 +59,12 @@ const sections = [
 export default function Privacy() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
+      <Helmet>
+        <title>Privacy Policy | Court Reportcard</title>
+        <meta name="description" content="Court Reportcard's privacy policy: how we collect, store, and protect your transcript data, including our 90-day automatic file purge policy and encryption practices." />
+        <link rel="canonical" href="https://www.courtreportcard.com/privacy" />
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 sm:px-8 py-10 sm:py-16 lg:py-24">
 
         <div className="mb-8 sm:mb-10">
