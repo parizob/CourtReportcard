@@ -65,7 +65,7 @@ export default function OurPlatform() {
           <div className="max-w-4xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-5 inline-block">The Platform</span>
             <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface tracking-tight leading-[1.1] mb-6">
-              The fastest way to review<br className="hidden sm:block"/>a court transcript. By far.
+              The fastest way to proofread<br className="hidden sm:block"/>a court transcript. By far.
             </h1>
             <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
               A 200-page deposition that takes an experienced scopist six hours takes Court Reportcard under three minutes — at a fraction of the cost, with nothing missed.
@@ -92,10 +92,10 @@ export default function OurPlatform() {
             <div className="mb-12 max-w-xl">
               <span className="text-xs font-bold uppercase tracking-widest text-primary mb-3 block">Inside the Editor</span>
               <h2 className="font-headline text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight mb-3">
-                Built for the way you actually work.
+                A court reporter proofreading tool built for the way you actually work.
               </h2>
               <p className="text-on-surface-variant text-base leading-relaxed">
-                No learning curve. No new workflow. Your transcript — surfaced, scored, and ready to sign off on.
+                No learning curve. No new workflow. Your transcript — surfaced, annotated, scored, and ready to sign off on.
               </p>
             </div>
 
@@ -210,7 +210,7 @@ export default function OurPlatform() {
             <div className="text-center mb-10 sm:mb-14">
               <span className="text-xs font-bold uppercase tracking-widest text-primary mb-3 block">The Business Case</span>
               <h2 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">
-                Time is money. Errors are liability.
+                Manual transcript review costs time. Missed steno errors cost more.
               </h2>
             </div>
             <div className="grid md:grid-cols-2 gap-6 sm:gap-8">

@@ -19,10 +19,10 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
-                Proofread in <span className="text-primary italic">Seconds</span>.
+                AI Proofreading for <span className="text-primary italic">Court Reporters</span>
               </h1>
               <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Court Reportcard applies clinical accuracy to court transcripts. Detect conflicts, fix formatting, and ensure every word meets the highest judicial standard.
+                Court Reportcard automatically detects steno errors, homophone substitutions, missing words, and punctuation mistakes in legal transcripts — in seconds.
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
@@ -40,7 +40,7 @@ export default function LandingPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
                   Early Access — Now Open
                 </span>
-                <span className="text-xs text-on-surface-variant">· No credit card required</span>
+                <span className="text-xs text-on-surface-variant">No credit card required</span>
               </div>
             </div>
 
@@ -101,7 +101,7 @@ export default function LandingPage() {
         <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
           <div className="max-w-[1440px] mx-auto">
             <div className="mb-10 sm:mb-16 text-center">
-              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">Precision Workflow</h2>
+              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">How AI Transcript Proofreading Works</h2>
               <div className="w-16 h-1 bg-primary mx-auto"></div>
             </div>
             <div className="grid md:grid-cols-3 gap-6 sm:gap-12">
@@ -180,6 +180,18 @@ export default function LandingPage() {
                 <div className="h-4 w-full bg-surface-container-low rounded"></div>
               </div>
             </div>
+          </div>
+        </section>
+        {/* Built for section */}
+        <section className="py-14 sm:py-20 px-6 sm:px-8 bg-surface-container-low">
+          <div className="max-w-3xl mx-auto text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 inline-block">Built for legal professionals</span>
+            <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface mb-5 tracking-tight whitespace-nowrap">
+              Designed for stenographers, scopists, and voice writers.
+            </h2>
+            <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
+              Upload a .txt or .rtf transcript from any CAT software and receive a full AI annotation report — covering steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes — in under five minutes. Trusted by court reporters reviewing depositions, hearings, and trials.
+            </p>
           </div>
         </section>
       </main>
