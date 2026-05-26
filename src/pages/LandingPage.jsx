@@ -31,13 +31,13 @@ export default function LandingPage() {
                 >
                   Try Now
                 </button>
-                <Link to="/ourplatform" className="text-primary px-6 sm:px-8 py-3 sm:py-4 font-bold text-base sm:text-lg hover:underline decoration-tertiary-fixed decoration-2 underline-offset-4">
+                <Link to="/ourplatform" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10">
                   Platform Demo
                 </Link>
               </div>
               <div className="mt-10 sm:mt-12 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                   Early Access — Now Open
                 </span>
                 <span className="text-xs text-on-surface-variant">No credit card required</span>
@@ -61,13 +61,34 @@ export default function LandingPage() {
                   <div className="space-y-8 font-body text-on-surface text-sm leading-relaxed">
                     <div>
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
-                      <p>Could you please state your name for the record and tell the court where you were on the night of the <span className="bg-tertiary-fixed/30 border-b-2 border-tertiary-fixed cursor-help">incident</span>?</p>
+                      <p>Could you please state your name for the record and tell the court where you were on the night of the <span className="relative inline-block group cursor-pointer">
+                        <span className="text-green-600 font-semibold">incident</span>
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
+                          <span className="block text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">Accepted Fix</span>
+                          <span className="block text-[11px] text-on-surface">
+                            <span className="line-through text-on-surface-variant">incidant</span>
+                            {' → '}
+                            <span className="font-semibold text-green-600">incident</span>
+                          </span>
+                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 97%</span>
+                        </span>
+                      </span>?</p>
                     </div>
                     <div className="pl-8 border-l-2 border-surface-container-low">
                       <div className="inline-block px-3 py-1 bg-surface-container-highest text-on-surface-variant rounded-full text-xs font-bold mb-2">A. THE WITNESS</div>
-                      <p>My name is Julian Vane. I was at the <span className="relative inline-block">
+                      <p>My name is Julian Vane. I was at the <span className="relative inline-block group cursor-pointer">
                         <span className="text-error border border-error rounded-sm px-1 italic">residance</span>
                         <span className="absolute -top-5 left-0 bg-error text-white text-[10px] px-1 rounded">SP?</span>
+                        {/* Hover tooltip */}
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
+                          <span className="block text-[10px] font-bold text-error uppercase tracking-wider mb-1">Spelling Error</span>
+                          <span className="block text-[11px] text-on-surface">
+                            <span className="line-through text-on-surface-variant">residance</span>
+                            {' → '}
+                            <span className="font-semibold text-green-600">residence</span>
+                          </span>
+                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 99%</span>
+                        </span>
                       </span> on Oak Street. I arrived at approximately 10:15 PM according to my watch.</p>
                     </div>
                     <div>
