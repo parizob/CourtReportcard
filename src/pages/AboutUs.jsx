@@ -8,7 +8,7 @@ const stats = [
   { value: '98%', label: 'Avg. accuracy on first pass' },
   { value: '100×', label: 'Faster than manual review' },
   { value: '80%', label: 'Reduction in correction costs' },
-  { value: '1', label: 'Secure place for every file' },
+  { value: '0', label: 'Data leaks or lost files — ever' },
 ]
 
 const pillars = [
@@ -102,51 +102,85 @@ export default function AboutUs() {
             <h1 className="font-headline font-extrabold text-4xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.08] tracking-tight mb-6">
               We exist because<br />
               <span className="text-primary italic">court reporters</span><br />
-              deserve better tools.
+              deserve better
             </h1>
             <p className="text-base sm:text-xl text-on-surface-variant leading-relaxed max-w-2xl">
-              We stumbled into the world of court reporting and couldn't leave. The work is consequential, the deadlines are punishing, and the tooling was decades behind. So we built what we wished already existed.
+              A close family friend — a veteran stenographer — showed us her world: four-hour depositions, six hours of solo review, and a certification deadline that never moved. The work was consequential. The tools were not. We couldn't walk away from that.
             </p>
           </div>
 
-          {/* Right — gavel with spinning squares */}
+          {/* Right — Two Paths visual */}
           <div className="flex items-center justify-center">
-            <div className="relative w-80 h-80 flex items-center justify-center">
+            <div className="w-full max-w-sm">
 
-              {/* 6 squares, each 45° apart (2.5s delay per step in a 20s cycle) */}
-              {[
-                { delay: '0s',   colors: '#ffba38, #a9c7ff, #001939, #4c5e84, #ffba38', opacity: 1    },
-                { delay: '-2s',  colors: '#a9c7ff, #001939, #4c5e84, #ffba38, #a9c7ff', opacity: 0.93 },
-                { delay: '-4s',  colors: '#001939, #4c5e84, #ffba38, #a9c7ff, #001939', opacity: 0.87 },
-                { delay: '-6s',  colors: '#4c5e84, #ffba38, #a9c7ff, #001939, #4c5e84', opacity: 0.81 },
-                { delay: '-8s',  colors: '#ffba38, #001939, #a9c7ff, #4c5e84, #ffba38', opacity: 0.76 },
-                { delay: '-10s', colors: '#001939, #a9c7ff, #4c5e84, #ffba38, #001939', opacity: 0.71 },
-                { delay: '-12s', colors: '#a9c7ff, #4c5e84, #ffba38, #001939, #a9c7ff', opacity: 0.66 },
-                { delay: '-14s', colors: '#4c5e84, #001939, #a9c7ff, #ffba38, #4c5e84', opacity: 0.61 },
-                { delay: '-16s', colors: '#ffba38, #4c5e84, #001939, #a9c7ff, #ffba38', opacity: 0.57 },
-                { delay: '-18s', colors: '#001939, #ffba38, #a9c7ff, #4c5e84, #001939', opacity: 0.53 },
-              ].map((sq, i) => (
-                <div
-                  key={i}
-                  className="absolute inset-0 rounded-[0.75rem] spin-very-slow"
-                  style={{
-                    background: `conic-gradient(from 0deg, ${sq.colors})`,
-                    animationDelay: sq.delay,
-                    opacity: sq.opacity,
-                  }}
-                />
-              ))}
+              {/* Origin node */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-5 py-2.5 flex items-center gap-2 editorial-shadow">
+                  <span className="material-symbols-outlined text-on-surface-variant text-base" style={{ fontVariationSettings: "'FILL' 1" }}>description</span>
+                  <span className="text-xs font-bold text-on-surface">Raw Transcript</span>
+                </div>
+                <div className="w-0.5 h-5 bg-outline-variant/60 mt-1" />
+                {/* Fork */}
+                <div className="w-48 h-0.5 bg-outline-variant/50" />
+              </div>
 
-              {/* Dark navy backing square to make gavel pop */}
-              <div className="absolute w-36 h-36 rounded-2xl bg-primary z-[5] shadow-[0_0_32px_rgba(0,25,57,0.6)]" />
+              {/* Two columns */}
+              <div className="grid grid-cols-2 gap-3">
 
-              {/* Gavel icon */}
-              <span
-                className="relative z-10 material-symbols-outlined text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.5)]"
-                style={{ fontSize: '110px', fontVariationSettings: "'FILL' 1, 'wght' 200, 'GRAD' 0, 'opsz' 48" }}
-              >
-                gavel
-              </span>
+                {/* Old way */}
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">The Old Way</span>
+                  <div className="w-0.5 h-3 bg-outline-variant/50" />
+                  {[
+                    { icon: 'person_search', label: 'Find a scopist', sub: '1–2 days wait' },
+                    { icon: 'payments',      label: 'Pay per job',    sub: '$150–$400' },
+                    { icon: 'schedule',      label: 'Miss deadlines', sub: 'Turnaround: days' },
+                  ].map((step) => (
+                    <div key={step.label} className="w-full">
+                      <div className="bg-surface-container/60 border border-outline-variant/15 rounded-xl px-3 py-2.5 flex items-center gap-2 opacity-60">
+                        <span className="material-symbols-outlined text-on-surface-variant text-sm shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
+                        <div>
+                          <p className="text-[10px] font-semibold text-on-surface leading-tight">{step.label}</p>
+                          <p className="text-[9px] text-on-surface-variant">{step.sub}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center"><div className="w-0.5 h-3 bg-outline-variant/50" /></div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Court Reportcard way */}
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-primary">Court Reportcard</span>
+                  <div className="w-0.5 h-3 bg-primary/60" />
+                  {[
+                    { icon: 'upload_file',  label: 'Upload transcript', sub: '30 seconds' },
+                    { icon: 'auto_fix_high', label: 'Errors detected',   sub: '< 3 minutes' },
+                    { icon: 'task_alt',     label: 'Accept & export',    sub: 'Cents per page' },
+                  ].map((step) => (
+                    <div key={step.label} className="w-full">
+                      <div className="bg-primary/8 border border-primary/20 rounded-xl px-3 py-2.5 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-sm shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
+                        <div>
+                          <p className="text-[10px] font-semibold text-on-surface leading-tight">{step.label}</p>
+                          <p className="text-[9px] text-primary/70">{step.sub}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center"><div className="w-0.5 h-3 bg-primary/50" /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Converge node */}
+              <div className="flex flex-col items-center mt-1">
+                <div className="w-48 h-0.5 bg-outline-variant/50" />
+                <div className="w-0.5 h-4 bg-outline-variant/60" />
+                <div className="bg-primary rounded-xl px-5 py-2.5 flex items-center gap-2 editorial-shadow">
+                  <span className="material-symbols-outlined text-on-primary text-base" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+                  <span className="text-xs font-bold text-on-primary">Court-Ready Document</span>
+                </div>
+              </div>
 
             </div>
           </div>
