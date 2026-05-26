@@ -11,7 +11,7 @@ const callouts = [
   {
     n: 2,
     title: 'Annotation Sidebar',
-    body: 'Every AI-flagged issue surfaces in a panel beside the transcript. Severity, type, suggested fix, and confidence — all at a glance. Jump to any flag in one click.',
+    body: 'Every flagged issue surfaces in a panel beside the transcript. Severity, type, suggested fix, and confidence — all at a glance. Jump to any flag in one click.',
   },
   {
     n: 3,
@@ -54,8 +54,8 @@ export default function OurPlatform() {
   return (
     <div className="bg-background text-on-background">
       <Helmet>
-        <title>How It Works | Court Reportcard AI Transcript Editor</title>
-        <meta name="description" content="See how Court Reportcard works — upload your transcript, review AI-flagged errors inline, accept or correct each annotation, and export a clean final file. Built for court reporters." />
+        <title>How It Works | Court Reportcard Transcript Proofreading Platform</title>
+        <meta name="description" content="See how Court Reportcard works — upload your transcript, review flagged errors inline, accept or correct each annotation, and export a clean final file. Built for court reporters." />
         <link rel="canonical" href="https://www.courtreportcard.com/ourplatform" />
       </Helmet>
       <main>

@@ -17,7 +17,7 @@ const pillars = [
     title: 'What We Do',
     color: 'bg-secondary-container text-on-secondary-container',
     accent: 'border-secondary',
-    body: 'Court Reportcard is an AI-powered proofreading platform built exclusively for stenographers and digital court reporters. We scan every transcript against audio, flag mismatches, catch low-confidence words, and surface legal-dictionary errors — all before a single page leaves your desk.',
+    body: 'Court Reportcard is a precision proofreading platform built exclusively for stenographers and digital court reporters. We scan every transcript line by line, flag mismatches, catch low-confidence words, and surface legal-dictionary errors — all before a single page leaves your desk.',
   },
   {
     icon: 'savings',
@@ -84,7 +84,7 @@ export default function AboutUs() {
     <div className="bg-background text-on-surface font-body min-h-screen">
       <Helmet>
         <title>About Us | Court Reportcard</title>
-        <meta name="description" content="Court Reportcard was built for court reporters who demand accuracy. Learn about our mission to bring AI-assisted proofreading to the legal transcription industry." />
+        <meta name="description" content="Court Reportcard was built for court reporters who demand accuracy. Learn about our mission to bring precision proofreading technology to the legal transcription industry." />
         <link rel="canonical" href="https://www.courtreportcard.com/aboutus" />
       </Helmet>
 

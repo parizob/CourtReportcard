@@ -8,8 +8,8 @@ export default function LandingPage() {
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
       <Helmet>
-        <title>Court Reportcard | AI Proofreading for Court Reporters</title>
-        <meta name="description" content="AI-powered transcript proofreading for court reporters and scopists. Automatically catches steno errors, homophone substitutions, and punctuation mistakes. Upload .txt or .rtf — results in minutes." />
+        <title>Court Reportcard | Precision Proofreading for Court Reporters</title>
+        <meta name="description" content="Precision transcript proofreading for court reporters and scopists. Catches steno errors, homophone substitutions, and punctuation mistakes before filing. Upload .txt or .rtf — results in minutes." />
         <link rel="canonical" href="https://www.courtreportcard.com/" />
       </Helmet>
 
@@ -19,10 +19,10 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
-                AI Proofreading for <span className="text-primary italic">Court Reporters</span>
+                Precision Proofreading for <span className="text-primary italic">Court Reporters</span>
               </h1>
               <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Court Reportcard automatically detects steno errors, homophone substitutions, missing words, and punctuation mistakes in legal transcripts — in seconds.
+                Your second set of eyes on every transcript. Court Reportcard catches steno errors, homophone substitutions, missing words, and punctuation mistakes — before a single page leaves your desk.
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
@@ -101,7 +101,7 @@ export default function LandingPage() {
         <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
           <div className="max-w-[1440px] mx-auto">
             <div className="mb-10 sm:mb-16 text-center">
-              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">How AI Transcript Proofreading Works</h2>
+              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">How Court Reportcard Works</h2>
               <div className="w-16 h-1 bg-primary mx-auto"></div>
             </div>
             <div className="grid md:grid-cols-3 gap-6 sm:gap-12">
@@ -119,8 +119,8 @@ export default function LandingPage() {
                 <div className="w-14 h-14 bg-tertiary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-tertiary-fixed-dim transition-colors">
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
-                <h3 className="font-headline font-bold text-xl mb-3">AI Analysis</h3>
-                <p className="text-on-surface-variant leading-relaxed">Our legal-trained AI checks against legal dictionaries, flags procedural inconsistencies, and scores every page by confidence.</p>
+                <h3 className="font-headline font-bold text-xl mb-3">Error Detection</h3>
+                <p className="text-on-surface-variant leading-relaxed">Our error detection engine checks against legal dictionaries, flags procedural inconsistencies, and scores every page by confidence.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
               </div>
               {/* Step 3 */}
@@ -190,7 +190,7 @@ export default function LandingPage() {
               Designed for stenographers, scopists, and voice writers.
             </h2>
             <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
-              Upload a .txt or .rtf transcript from any CAT software and receive a full AI annotation report — covering steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes — in under five minutes. Trusted by court reporters reviewing depositions, hearings, and trials.
+              Upload a .txt or .rtf transcript from any CAT software and receive a full annotation report — covering steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes — in under five minutes. Trusted by court reporters reviewing depositions, hearings, and trials.
             </p>
           </div>
         </section>

@@ -20,8 +20,8 @@ const faqs = [
     a: 'Court Reportcard accepts .txt and .rtf transcript files — the two formats most commonly exported by court reporter CAT software. Support for additional file formats is coming soon.',
   },
   {
-    q: 'What does the AI actually check?',
-    a: 'The AI reviews every line of testimony for steno errors, homophone substitutions (e.g., "counsel" vs. "council"), missing words, incorrect legal terminology, punctuation issues, and capitalization errors. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
+    q: 'What does Court Reportcard check?',
+    a: 'Court Reportcard reviews every line of testimony for steno errors, homophone substitutions (e.g., "counsel" vs. "council"), missing words, incorrect legal terminology, punctuation issues, and capitalization errors. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
   },
   {
     q: 'How long does AI review take?',
