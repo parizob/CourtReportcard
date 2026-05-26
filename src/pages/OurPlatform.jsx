@@ -61,7 +61,7 @@ export default function OurPlatform() {
       <main>
 
         {/* ─── Hero ─── */}
-        <section className="px-6 sm:px-8 pt-12 sm:pt-20 pb-12 sm:pb-16 lg:pt-28 lg:pb-20">
+        <section className="px-6 sm:px-8 pt-6 sm:pt-10 pb-12 sm:pb-16 lg:pt-14 lg:pb-20">
           <div className="max-w-4xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-5 inline-block">The Platform</span>
             <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface tracking-tight leading-[1.1] mb-6">

@@ -24,8 +24,8 @@ const faqs = [
     a: 'Court Reportcard reviews every line of testimony for steno errors, homophone substitutions (e.g., "counsel" vs. "council"), missing words, incorrect legal terminology, punctuation issues, and capitalization errors. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
   },
   {
-    q: 'How long does AI review take?',
-    a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length. The AI runs entirely in the cloud — no software installation required.',
+    q: 'How long does a review take?',
+    a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length. We run entirely in the cloud — no software installation required.',
   },
   {
     q: 'Is my transcript data secure?',
