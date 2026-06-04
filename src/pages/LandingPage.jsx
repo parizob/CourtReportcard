@@ -61,7 +61,7 @@ export default function LandingPage() {
                   <div className="space-y-8 font-body text-on-surface text-sm leading-relaxed">
                     <div>
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
-                      <p>Could you please state your name for the record and tell the court where you were on the night of the <span className="relative inline-block group cursor-pointer">
+                      <p>Could you please state your name for the record and tell the Court where you were on the night of the <span className="relative inline-block group cursor-pointer">
                         <span className="text-green-600 font-semibold">incident</span>
                         <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
                           <span className="block text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">Accepted Fix</span>
