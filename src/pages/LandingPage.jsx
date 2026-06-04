@@ -100,7 +100,7 @@ export default function LandingPage() {
                   <div className="mt-6 pt-4 border-t border-outline-variant/15 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                      <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">AI Review Complete</span>
+                      <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">Transcript Analyzed</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex flex-col items-end">
