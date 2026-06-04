@@ -42,7 +42,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <!-- Description left-aligned under the lockup, flush with the badge -->
   <text x="${LOGO_X}" y="${DESC_Y}" text-anchor="start"
     font-family="Arial, sans-serif" font-weight="400" font-size="34" fill="#43474f"
-  >AI-powered proofreading for court reporters.</text>
+  >Precision proofreading for court reporters.</text>
 </svg>`
 
 await sharp(Buffer.from(svg)).png().toFile(outPath)
