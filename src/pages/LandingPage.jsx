@@ -89,7 +89,7 @@ export default function LandingPage() {
                           </span>
                           <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 99%</span>
                         </span>
-                      </span> on Oak Street. I arrived at approximately 10:15 PM according to my watch.</p>
+                      </span> on Oak Street. I arrived at approximately 10:15 p.m., according to my watch.</p>
                     </div>
                     <div>
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
