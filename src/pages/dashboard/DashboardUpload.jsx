@@ -30,7 +30,7 @@ export default function DashboardUpload() {
   const factTimerRef = useRef(null)
 
   useEffect(() => {
-    if (uploadPhase === 'AI is analyzing your transcript...') {
+    if (uploadPhase === 'Analyzing your transcript...') {
       setElapsed(0)
       timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
 
@@ -121,7 +121,7 @@ export default function DashboardUpload() {
       }
 
       await supabase.from('cases').update({ status: 'processing' }).eq('id', caseRow.id)
-      setUploadPhase('AI is analyzing your transcript...')
+      setUploadPhase('Analyzing your transcript...')
 
       let totalEntries = 0
       let totalIssues = 0
@@ -201,7 +201,7 @@ export default function DashboardUpload() {
     }
   }
 
-  if (uploading && uploadPhase === 'AI is analyzing your transcript...') {
+  if (uploading && uploadPhase === 'Analyzing your transcript...') {
     const currentFact = courtReporterFacts[factIndex]
     return (
       <main className="min-h-screen flex items-center justify-center bg-background p-8">
@@ -290,7 +290,7 @@ export default function DashboardUpload() {
         {/* Header */}
         <div className="shrink-0">
           <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
-          <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to begin AI analysis.</p>
+          <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to get started.</p>
         </div>
 
         {/* Error banner */}

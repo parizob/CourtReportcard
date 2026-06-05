@@ -12,7 +12,7 @@ const navItems = [
 
 const gettingStartedSteps = [
   { step: '1', icon: 'cloud_upload', title: 'Upload', desc: 'Drag and drop your transcript (.txt or .rtf). Give your case a name so you can find it later.' },
-  { step: '2', icon: 'edit_note', title: 'Review', desc: 'Our AI highlights errors, low-confidence words, and suggests corrections in real time. Accept or ignore each suggestion with a single click.' },
+  { step: '2', icon: 'edit_note', title: 'Review', desc: 'Every flagged error is highlighted with a suggestion. Accept or ignore each one with a single click.' },
   { step: '3', icon: 'cloud_download', title: 'Export', desc: 'Download your reviewed transcript as .txt, .rtf, or .json. More export formats coming soon.' },
 ]
 

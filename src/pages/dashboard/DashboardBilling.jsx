@@ -13,7 +13,7 @@ const tiers = [
     price: '$25',
     period: '/mo',
     tokens: 500,
-    features: ['500 tokens/mo (500 pages)', 'AI proofreading', 'Basic export (TXT)', 'Email support'],
+    features: ['500 tokens/mo (500 pages)', 'Proofreading', 'Basic export (TXT)', 'Email support'],
     cta: 'Coming Soon',
   },
   {
@@ -22,7 +22,7 @@ const tiers = [
     price: '$49',
     period: '/mo',
     tokens: 2000,
-    features: ['2,000 tokens/mo (2,000 pages)', 'Priority AI analysis', 'TXT & JSON exports', 'Priority support'],
+    features: ['2,000 tokens/mo (2,000 pages)', 'Priority analysis', 'TXT & JSON exports', 'Priority support'],
     cta: 'Coming Soon',
   },
   {
