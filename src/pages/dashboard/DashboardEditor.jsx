@@ -1311,13 +1311,6 @@ export default function DashboardEditor() {
               ) : (
                 // ── Action view for open annotations ──
                 <>
-                  <button
-                    onClick={() => ignoreAnnotation(ann.id)}
-                    title="Ignore"
-                    className="absolute top-8 right-2 w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-sm leading-none"
-                  >
-                    &times;
-                  </button>
                   <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
                     <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
                     {typeLabel(ann.type)} &middot; {ann.severity}
@@ -1367,6 +1360,12 @@ export default function DashboardEditor() {
                       </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => ignoreAnnotation(ann.id)}
+                    className="w-full mt-2 text-[10px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors py-1"
+                  >
+                    Ignore this suggestion
+                  </button>
                 </>
               )}
             </div>
