@@ -1125,7 +1125,7 @@ export default function DashboardEditor() {
                       }
                     }}
                     placeholder="Or enter your own correction…"
-                    className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
+                    className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
                   />
                   {customTexts[ann.id]?.trim() && (
                     <button
@@ -1345,7 +1345,7 @@ export default function DashboardEditor() {
                         }
                       }}
                       placeholder="Or enter your own correction…"
-                      className="w-full text-xs bg-surface-container px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/35 pr-9"
+                      className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
                     />
                     {customTexts[ann.id]?.trim() && (
                       <button
