@@ -59,12 +59,13 @@ export default function DashboardExport() {
     }
   }
 
-  const openCount = metrics?.open ?? annotations.filter((a) => a.status === 'open').length
-  const acceptedCount = metrics?.accepted ?? annotations.filter((a) => a.status === 'accepted').length
-  const ignoredCount = metrics?.ignored ?? annotations.filter((a) => a.status === 'ignored').length
-  const totalCount = metrics?.total_issues ?? annotations.length
+  const openCount = annotations.filter((a) => a.status === 'open').length
+  const customChangedCount = annotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
+  const acceptedCount = annotations.filter((a) => a.status === 'accepted').length - customChangedCount
+  const ignoredCount = annotations.filter((a) => a.status === 'ignored').length
+  const totalCount = annotations.length || metrics?.total_issues || 0
   const entryCount = metrics?.total_entries ?? entries.length
-  const resolvedPct = totalCount > 0 ? Math.round(((acceptedCount + ignoredCount) / totalCount) * 100) : 100
+  const resolvedPct = totalCount > 0 ? Math.round(((acceptedCount + ignoredCount + customChangedCount) / totalCount) * 100) : 100
 
   const wrapLine = (text, maxWidth) => {
     if (!text || text.length <= maxWidth) return [text || '']
@@ -246,9 +247,9 @@ export default function DashboardExport() {
         <div className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow p-4">
           <div className="grid grid-cols-5 gap-3 mb-3">
             {[
-              { value: entryCount, label: 'Entries', color: 'text-on-surface' },
-              { value: totalCount, label: 'Issues', color: 'text-on-surface' },
+              { value: totalCount, label: 'Flagged', color: 'text-on-surface' },
               { value: acceptedCount, label: 'Accepted', color: 'text-green-600' },
+              { value: customChangedCount, label: 'Changed', color: 'text-green-600' },
               { value: ignoredCount, label: 'Ignored', color: 'text-on-surface-variant' },
               { value: openCount, label: 'Remaining', color: openCount > 0 ? 'text-error' : 'text-green-600' },
             ].map((s) => (
@@ -260,7 +261,7 @@ export default function DashboardExport() {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all duration-500" style={{ width: `${resolvedPct}%` }} />
+              <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${resolvedPct}%` }} />
             </div>
             <span className="text-xs font-bold text-on-surface-variant shrink-0">{resolvedPct}% resolved</span>
           </div>

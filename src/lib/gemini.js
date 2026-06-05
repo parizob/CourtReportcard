@@ -255,9 +255,6 @@ function _reflowLines(text, colWidth) {
 export function applyCorrection(text, original, suggestion) {
   if (!text || !original || !suggestion) return text
 
-  // Measure column width from the unmodified text so we can reflow after edits.
-  const colWidth = _detectColumnWidth(text)
-
   const doReplace = (matchStart, matchEnd, skipLineNums) => {
     const matchedRegion = text.substring(matchStart, matchEnd)
     const tokens = _tokenize(matchedRegion)
@@ -304,7 +301,7 @@ export function applyCorrection(text, original, suggestion) {
   // include transcript line numbers (e.g. "as\n 16        identified") which must
   // not be counted as content words during word-for-word replacement.
   const m = flexFind(text, original)
-  if (m) return _reflowLines(doReplace(m.start, m.end, true), colWidth)
+  if (m) return doReplace(m.start, m.end, true)
 
   // Fallback: search in clean content (strips line numbers from .txt transcripts)
   const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
@@ -313,7 +310,7 @@ export function applyCorrection(text, original, suggestion) {
 
   const origStart = cleanToOrig[cm.start]
   const origEnd = cleanToOrig[Math.min(cm.end - 1, cleanToOrig.length - 1)] + 1
-  return _reflowLines(doReplace(origStart, origEnd, true), colWidth)
+  return doReplace(origStart, origEnd, true)
 }
 
 export function fixAnnotationPositions(entries, annotations) {

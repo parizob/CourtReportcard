@@ -109,7 +109,14 @@ export default function Dashboard() {
   const getMetrics = (c) => (c.case_metrics && c.case_metrics.length > 0 ? c.case_metrics[0] : c.case_metrics && !Array.isArray(c.case_metrics) ? c.case_metrics : null)
 
   const totalIssuesAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.total_issues || 0) }, 0)
-  const totalResolvedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + ((m?.accepted || 0) + (m?.ignored || 0)) }, 0)
+  const totalResolvedAll = cases.reduce((sum, c) => {
+    if (c.status === 'reviewed' || c.status === 'exported') {
+      const m = getMetrics(c)
+      return sum + (m?.total_issues || 0)
+    }
+    const m = getMetrics(c)
+    return sum + ((m?.accepted || 0) + (m?.ignored || 0))
+  }, 0)
   const avgResolution = totalIssuesAll > 0 ? Math.round((totalResolvedAll / totalIssuesAll) * 100) : null
 
   const stats = [
@@ -287,7 +294,9 @@ export default function Dashboard() {
                 const m = getMetrics(c)
                 const resolved = m ? (m.accepted || 0) + (m.ignored || 0) : 0
                 const total = m?.total_issues || 0
-                const pct = total > 0 ? Math.round((resolved / total) * 100) : null
+                const pct = (c.status === 'reviewed' || c.status === 'exported')
+                  ? 100
+                  : total > 0 ? Math.round((resolved / total) * 100) : null
                 return (
                 <div
                   key={c.id}
