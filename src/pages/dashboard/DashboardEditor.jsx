@@ -642,7 +642,7 @@ export default function DashboardEditor() {
               {caseData?.name || 'Editor'}
             </h1>
             <p className="font-body text-on-surface-variant mt-2 max-w-xl text-sm">
-              Review AI-flagged issues, accept or ignore suggestions, and edit text directly. Save when you're done.
+              Review flagged issues, accept or ignore suggestions, and edit text directly. Save when you're done.
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -1034,12 +1034,12 @@ export default function DashboardEditor() {
             </div>
           </div>
 
-          {/* AI Insights header */}
+          {/* Insights header */}
           <div className="p-5 border-b border-outline-variant/10 bg-surface-container-low">
             <div className="flex items-center justify-between">
               <h2 className="font-headline font-bold text-on-surface flex items-center gap-2 text-base">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim">auto_awesome</span>
-                AI Insights
+                Insights
               </h2>
               <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
                 {openAnnotations.length} OPEN
@@ -1065,7 +1065,7 @@ export default function DashboardEditor() {
               <div className="text-center py-6">
                 <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">verified</span>
                 <p className="font-bold text-on-surface mb-1">No Issues Found</p>
-                <p className="text-xs text-on-surface-variant">AI analysis found no errors in this transcript.</p>
+                <p className="text-xs text-on-surface-variant">No errors found in this transcript.</p>
               </div>
             )}
 
@@ -1194,7 +1194,7 @@ export default function DashboardEditor() {
               {analyzing ? (
                 <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Analyzing...</>
               ) : (
-                <><span className="material-symbols-outlined text-base">auto_awesome</span> Re-analyze with AI</>
+                <><span className="material-symbols-outlined text-base">auto_awesome</span> Re-analyze transcript</>
               )}
             </button>
           </div>

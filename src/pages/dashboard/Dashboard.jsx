@@ -185,7 +185,7 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm sm:text-base text-on-surface-variant mt-2">
                 {cases.length === 0
-                  ? 'Upload your first case to get started with AI-powered transcript review.'
+                  ? 'Upload your first case to get started with transcript proofreading.'
                   : 'Here\'s an overview of your cases.'}
               </p>
             </div>
@@ -263,7 +263,7 @@ export default function Dashboard() {
               </div>
               <h3 className="font-headline text-xl font-bold text-on-surface mb-2">No cases yet</h3>
               <p className="text-sm text-on-surface-variant max-w-md mb-8 leading-relaxed">
-                Your case queue is empty. Upload a transcript to begin your first AI-powered review.
+                Your case queue is empty. Upload a transcript to begin your first proofreading review.
               </p>
               <Link
                 to="/dashboard/upload"

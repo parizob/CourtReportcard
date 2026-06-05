@@ -281,7 +281,7 @@ export default function DashboardExport() {
           {[
             { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', label: 'Corrected Transcript', ext: '.txt', desc: originalText ? 'Original formatting preserved — only accepted corrections applied.' : 'Court-standard format with line numbers and page breaks.' },
             { format: 'rtf', icon: 'draft',   color: 'bg-indigo-50 text-indigo-600', label: 'Corrected Transcript', ext: '.rtf', desc: 'Rich Text Format — opens in Word, Pages, or any steno software.' },
-            { format: 'json', icon: 'data_object', color: 'bg-amber-50 text-amber-600', label: 'Annotated Export', ext: '.json', desc: 'Full transcript with all AI annotations, corrections, and audit trail.' },
+            { format: 'json', icon: 'data_object', color: 'bg-amber-50 text-amber-600', label: 'Annotated Export', ext: '.json', desc: 'Full transcript with all annotations, corrections, and audit trail.' },
           ].map(({ format, icon, color, label, ext, desc }) => (
             <button
               key={format}
