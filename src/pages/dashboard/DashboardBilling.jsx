@@ -87,7 +87,29 @@ export default function DashboardBilling() {
           </div>
         </section>
 
-        {/* ─── Subscription Plans ─── */}
+        {/* ─── Beta Notice ─── */}
+        <section className="mb-10">
+          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-10 flex flex-col items-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+              <span className="material-symbols-outlined text-primary text-3xl">construction</span>
+            </div>
+            <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
+              Beta
+            </span>
+            <h2 className="font-headline text-xl font-bold text-on-surface mb-2">Billing is on its way</h2>
+            <p className="text-sm text-on-surface-variant max-w-sm leading-relaxed">
+              Court Reportcard is currently in beta. Subscription plans, token purchases, and payment management
+              will be available when we launch publicly.
+            </p>
+            <p className="text-xs text-on-surface-variant/60 mt-4">
+              Your token balance above reflects any tokens granted during the beta period.
+            </p>
+          </div>
+        </section>
+
+        {/*
+        ─── HIDDEN UNTIL LAUNCH ─── Subscription Plans, Token Packs, Payment Method, Billing History ───
+
         <section className="mb-10">
           <div className="flex items-center gap-3 mb-6">
             <h2 className="font-headline text-xl font-bold text-on-surface">Subscription Plans</h2>
@@ -140,7 +162,6 @@ export default function DashboardBilling() {
           </div>
         </section>
 
-        {/* ─── Token Packs ─── */}
         <section className="mb-10">
           <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
@@ -190,7 +211,6 @@ export default function DashboardBilling() {
           </div>
         </section>
 
-        {/* ─── Payment Method ─── */}
         <section className="mb-10">
           <h2 className="font-headline text-xl font-bold text-on-surface mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">credit_card</span>
@@ -214,7 +234,6 @@ export default function DashboardBilling() {
           </div>
         </section>
 
-        {/* ─── Billing History ─── */}
         <section>
           <h2 className="font-headline text-xl font-bold text-on-surface mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">receipt_long</span>
@@ -232,6 +251,7 @@ export default function DashboardBilling() {
             </div>
           </div>
         </section>
+        */}
 
       </div>
     </main>
