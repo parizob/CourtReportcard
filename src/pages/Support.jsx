@@ -28,12 +28,28 @@ const faqs = [
     a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length. We run entirely in the cloud — no software installation required.',
   },
   {
-    q: 'Is my transcript data secure?',
-    a: 'Yes. All files are encrypted at rest and in transit. Case files are automatically and permanently purged after 90 days. Only you can access your case files.',
-  },
-  {
     q: 'Can I export to court-specific formats?',
     a: 'Court Reportcard currently supports .txt, .rtf, and .json exports. PDF, Word, and additional formats are coming soon.',
+  },
+  {
+    q: 'Is this the right tool for classified or HIPAA-protected transcripts?',
+    a: 'Not yet. Court Reportcard is currently in beta and is not HIPAA compliant at this stage. Please do not upload transcripts containing protected health information, classified material, or any content subject to strict regulatory requirements. We take this seriously and will communicate clearly when compliance certification is in place.',
+  },
+  {
+    q: 'How do I know my transcript won\'t be shared or used to train a model?',
+    a: 'Your transcript data is yours. We use Google\'s enterprise API, which is contractually prohibited from using your input to train any models — what you send in is never used to improve or build anything on their end. Your files are stored through Supabase, which holds SOC 2 and SOX compliance certifications — the same infrastructure trusted by thousands of businesses handling sensitive data. We also use row-level security, meaning your cases are technically inaccessible to any other user on the platform. No one sees your work but you.',
+  },
+  {
+    q: 'I\'ve run out of tokens. How do I get more?',
+    a: (
+      <>
+        During beta, there&rsquo;s no purchase option yet — and that&rsquo;s intentional. Submit a support ticket above and we&rsquo;ll add tokens to your account right away, no questions asked. Or, you can reach us directly at{' '}
+        <a href="mailto:courtreportcard@gmail.com" className="italic text-primary underline transition-colors">
+          courtreportcard@gmail.com
+        </a>
+        . We want you to be able to keep working while we build out the full billing system.
+      </>
+    ),
   },
 ]
 
@@ -83,7 +99,6 @@ export default function Support() {
         <div className="mb-8 sm:mb-12">
           <div className="flex items-start justify-between gap-3 mb-3">
             <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-              <span className="material-symbols-outlined text-sm text-tertiary-fixed-dim">support_agent</span>
               We're here to help
             </span>
             <Link to={isAuthenticated ? '/dashboard' : '/'} className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-primary transition-colors shrink-0">
@@ -100,10 +115,10 @@ export default function Support() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
+        <div>
 
-          {/* Left — contact form */}
-          <div className="lg:col-span-2">
+          {/* Contact form — full width */}
+          <div>
             {submitted ? (
               <div className="bg-surface-container-lowest rounded-2xl p-12 editorial-shadow border border-outline-variant/10 text-center">
                 <span className="material-symbols-outlined text-5xl text-green-500 block mb-4">mark_email_read</span>
@@ -197,60 +212,68 @@ export default function Support() {
                   {sending ? 'Sending…' : 'Send Message'}
                 </button>
 
+                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-on-surface-variant/50">
+                  <span className="material-symbols-outlined text-sm">mail</span>
+                  Or email us directly at{' '}
+                  <a href="mailto:courtreportcard@gmail.com" className="text-primary/70 hover:text-primary hover:underline transition-colors">
+                    courtreportcard@gmail.com
+                  </a>
+                  <span className="mx-1">·</span>
+                  <span className="material-symbols-outlined text-sm">schedule</span>
+                  We respond within 1 business day
+                </div>
+
               </form>
             )}
           </div>
+        </div>
 
-          {/* Right — contact info + FAQ */}
-          <div className="space-y-6">
-
-            {/* Contact cards */}
-            <div className="bg-surface-container-lowest rounded-2xl p-6 editorial-shadow border border-outline-variant/10 space-y-5">
-              <h3 className="font-headline font-bold text-base text-on-surface">Get in touch</h3>
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">mail</span>
-                <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-0.5">Email</p>
-                  <a href="mailto:courtreportcard@gmail.com" className="text-sm text-primary hover:underline">
-                    courtreportcard@gmail.com
-                  </a>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">schedule</span>
-                <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-0.5">Response Time</p>
-                  <p className="text-sm text-on-surface">Within 1 business day</p>
-                </div>
-              </div>
-            </div>
-
-            {/* FAQ accordion */}
-            <div className="bg-surface-container-lowest rounded-2xl p-6 editorial-shadow border border-outline-variant/10">
-              <h3 className="font-headline font-bold text-base text-on-surface mb-4">Common Questions</h3>
-              <div className="space-y-2">
+        {/* FAQ — full width below */}
+        <div className="mt-10 sm:mt-14">
+          <div className="mb-6">
+            <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              Frequently Asked Questions
+            </span>
+            <h2 className="font-headline font-extrabold text-2xl sm:text-3xl text-on-surface tracking-tight mt-1">
+              Common Questions
+            </h2>
+          </div>
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/10 editorial-shadow overflow-hidden">
+            <div className="grid lg:grid-cols-[280px_1fr]">
+              {/* Question list */}
+              <div className="border-b lg:border-b-0 lg:border-r border-outline-variant/10 flex lg:flex-col overflow-x-auto lg:overflow-x-visible">
                 {faqs.map((faq, i) => (
-                  <div key={i} className="border border-outline-variant/20 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-semibold text-on-surface hover:bg-surface-container transition-colors"
-                    >
-                      <span>{faq.q}</span>
-                      <span className="material-symbols-outlined text-base text-on-surface-variant shrink-0 ml-2 transition-transform duration-200" style={{ transform: openFaq === i ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        expand_more
-                      </span>
-                    </button>
-                    {openFaq === i && (
-                      <div className="px-4 pb-4 pt-1 text-sm text-on-surface-variant leading-relaxed border-t border-outline-variant/10">
-                        {faq.a}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={i}
+                    onClick={() => setOpenFaq(i)}
+                    className={`text-left px-5 py-4 text-sm font-medium transition-colors shrink-0 lg:shrink border-r lg:border-r-0 lg:border-b border-outline-variant/10 last:border-0 ${
+                      openFaq === i
+                        ? 'bg-primary/5 text-primary font-semibold'
+                        : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                    }`}
+                  >
+                    {faq.q}
+                  </button>
                 ))}
               </div>
+              {/* Answer panel */}
+              <div className="px-8 py-10 min-h-[280px] flex items-center justify-center">
+                {openFaq !== null ? (
+                  <div key={openFaq} className="faq-reveal w-full">
+                    <p className="text-xs font-bold uppercase tracking-widest text-primary/70 mb-3">
+                      {faqs[openFaq].q}
+                    </p>
+                    <div className="text-base text-on-surface leading-relaxed">{faqs[openFaq].a}</div>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <span className="material-symbols-outlined text-4xl text-on-surface-variant/20 block mb-3">forum</span>
+                    <p className="text-base font-semibold text-on-surface/40">Have a question?</p>
+                    <p className="text-sm text-on-surface-variant/30 mt-1">Select one from the list to read the answer.</p>
+                  </div>
+                )}
+              </div>
             </div>
-
-
           </div>
         </div>
       </main>

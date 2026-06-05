@@ -108,29 +108,38 @@ export default function Dashboard() {
 
   const getMetrics = (c) => (c.case_metrics && c.case_metrics.length > 0 ? c.case_metrics[0] : c.case_metrics && !Array.isArray(c.case_metrics) ? c.case_metrics : null)
 
-  const totalIssuesAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.total_issues || 0) }, 0)
-  const totalResolvedAll = cases.reduce((sum, c) => {
-    if (c.status === 'reviewed' || c.status === 'exported') {
-      const m = getMetrics(c)
-      return sum + (m?.total_issues || 0)
-    }
+  // Derive display status from actual metrics so the UI always reflects annotation reality
+  const getDisplayStatus = (c) => {
     const m = getMetrics(c)
-    return sum + ((m?.accepted || 0) + (m?.ignored || 0))
-  }, 0)
-  const avgResolution = totalIssuesAll > 0 ? Math.round((totalResolvedAll / totalIssuesAll) * 100) : null
+    if (!m || m.total_issues == null) return c.status
+    const total = m.total_issues || 0
+    const resolved = (m.accepted || 0) + (m.ignored || 0)
+    if (total === 0) return c.status
+    if (resolved >= total) return 'reviewed'
+    if (resolved > 0) return 'in_progress'
+    return c.status // 'analyzed' or 'uploaded' etc.
+  }
+
+  const totalIssuesAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.total_issues || 0) }, 0)
+  const totalAcceptedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.accepted || 0) }, 0)
+  const totalChangedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.custom_changed || 0) }, 0)
+
+  const activeCasesAll = cases.filter((c) => { const s = getDisplayStatus(c); return s === 'uploaded' || s === 'processing' || s === 'analyzed' || s === 'in_progress' })
+  const completedCasesAll = cases.filter((c) => { const s = getDisplayStatus(c); return s === 'reviewed' || s === 'exported' })
 
   const stats = [
-    { value: String(activeCases.length), label: 'Active Cases', icon: 'folder_open' },
-    { value: String(completedCases.length), label: 'Completed Reviews', icon: 'check_circle' },
-    { value: avgResolution !== null ? `${avgResolution}%` : '—', label: 'Resolution Rate', icon: 'speed' },
-    { value: String(totalIssuesAll), label: 'Total Issues Found', icon: 'auto_awesome' },
+    { value: String(activeCasesAll.length), label: 'Active Cases', icon: 'folder_open' },
+    { value: String(completedCasesAll.length), label: 'Completed Reviews', icon: 'check_circle' },
+    { value: String(totalAcceptedAll + totalChangedAll), label: 'Accepted & Changed', icon: 'spellcheck' },
+    { value: String(totalIssuesAll), label: 'Total Suggestions', icon: 'auto_awesome' },
   ]
 
-  const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
+  const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', in_progress: 'Editing', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
   const statusColor = (s) => ({
     uploaded: 'bg-blue-100 text-blue-700',
     processing: 'bg-amber-100 text-amber-700',
     analyzed: 'bg-amber-50 text-amber-600',
+    in_progress: 'bg-sky-100 text-sky-600',
     reviewed: 'bg-green-100 text-green-700',
     exported: 'bg-purple-100 text-purple-700',
   }[s] || 'bg-gray-100 text-gray-700')
@@ -292,9 +301,10 @@ export default function Dashboard() {
               </div>
               {cases.map((c) => {
                 const m = getMetrics(c)
+                const displayStatus = getDisplayStatus(c)
                 const resolved = m ? (m.accepted || 0) + (m.ignored || 0) : 0
                 const total = m?.total_issues || 0
-                const pct = (c.status === 'reviewed' || c.status === 'exported')
+                const pct = displayStatus === 'reviewed' || displayStatus === 'exported'
                   ? 100
                   : total > 0 ? Math.round((resolved / total) * 100) : null
                 return (
@@ -314,14 +324,14 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="w-24 flex justify-center">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1.5 ${statusColor(c.status)}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full inline-flex items-center justify-center gap-1.5 whitespace-nowrap min-w-[90px] ${statusColor(displayStatus)}`}>
                       {c.status === 'processing' && (
                         <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                       )}
-                      {statusLabel(c.status)}
+                      {statusLabel(displayStatus)}
                     </span>
                   </div>
                   <div className="w-32 flex justify-center">
@@ -332,8 +342,7 @@ export default function Dashboard() {
                             <div
                               className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
                               style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                            />                          </div>
                           <span className={`text-[10px] font-bold ${pct === 100 ? 'text-green-600' : 'text-on-surface-variant'}`}>{pct}%</span>
                         </div>
                       </Tooltip>
