@@ -35,12 +35,24 @@ export default function LandingPage() {
                   Platform Demo
                 </Link>
               </div>
-              <div className="mt-10 sm:mt-12 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                  Early Access — Now Open
-                </span>
-                <span className="text-xs text-on-surface-variant">No credit card required</span>
+              <div className="mt-10 sm:mt-12 flex flex-wrap items-center gap-x-5 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-amber-700">Early Access — Now Open</span>
+                </div>
+                <span className="text-outline-variant/30 text-xs select-none">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">credit_card_off</span>
+                  <span className="text-xs text-on-surface-variant/60">No credit card</span>
+                </div>
+                <span className="text-outline-variant/30 text-xs select-none">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">timer</span>
+                  <span className="text-xs text-on-surface-variant/60">Results in minutes</span>
+                </div>
               </div>
             </div>
 
@@ -89,7 +101,7 @@ export default function LandingPage() {
                           </span>
                           <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 99%</span>
                         </span>
-                      </span> on Oak Street. I arrived at approximately 10:15 PM according to my watch.</p>
+                      </span> on Oak Street. I arrived at approximately 10:15 p.m., according to my watch.</p>
                     </div>
                     <div>
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
