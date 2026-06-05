@@ -118,6 +118,28 @@ export default function DashboardEditor() {
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
         }))
+
+        // Sync metrics from annotation file on load so dashboard always reflects reality
+        const accepted = fixedAnnotations.filter((a) => a.status === 'accepted').length
+        const ignored = fixedAnnotations.filter((a) => a.status === 'ignored').length
+        const open = fixedAnnotations.filter((a) => a.status === 'open').length
+        const custom_changed = fixedAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
+        const total = fixedAnnotations.length
+        supabase.from('case_metrics').upsert({
+          case_id: caseId,
+          total_entries: dedupedEntries.length,
+          total_issues: total,
+          accepted,
+          ignored,
+          open,
+          custom_changed,
+          last_reviewed_at: new Date().toISOString(),
+        }, { onConflict: 'case_id' }).then(({ error }) => {
+          if (error) console.error('case_metrics sync failed (editor load):', error.message)
+          else if (total > 0 && open === 0) {
+            supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
+          }
+        })
       }
     } catch (err) {
       console.error('Failed to load case:', err)
@@ -151,10 +173,10 @@ export default function DashboardEditor() {
       const accepted = latestAnnotations.filter((a) => a.status === 'accepted').length
       const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
       const open = latestAnnotations.filter((a) => a.status === 'open').length
-      const total = latestAnnotations.length
       const custom_changed = latestAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
+      const total = latestAnnotations.length
 
-      await supabase.from('case_metrics').upsert({
+      const { error: upsertError } = await supabase.from('case_metrics').upsert({
         case_id: caseId,
         total_entries: latestEntries.length,
         total_issues: total,
@@ -165,6 +187,7 @@ export default function DashboardEditor() {
         annotations_by_type: countByType(latestAnnotations),
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
+      if (upsertError) console.error('case_metrics save failed:', upsertError.message)
 
       if (total > 0 && open === 0) {
         await supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)

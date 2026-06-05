@@ -47,9 +47,31 @@ export default function DashboardExport() {
         if (dlErr) throw dlErr
         const parsed = JSON.parse(await blob.text())
         setTitle(parsed.title || '')
+        const loadedAnnotations = parsed.annotations || []
         setEntries(parsed.entries || [])
-        setAnnotations(parsed.annotations || [])
+        setAnnotations(loadedAnnotations)
         setOriginalText(parsed.originalText || null)
+
+        // Sync case_metrics from annotation file so dashboard stays accurate
+        const accepted = loadedAnnotations.filter((a) => a.status === 'accepted').length
+        const ignored = loadedAnnotations.filter((a) => a.status === 'ignored').length
+        const open = loadedAnnotations.filter((a) => a.status === 'open').length
+        const custom_changed = loadedAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
+        const total = loadedAnnotations.length
+        supabase.from('case_metrics').upsert({
+          case_id: caseId,
+          total_issues: total,
+          accepted,
+          ignored,
+          open,
+          custom_changed,
+          last_reviewed_at: new Date().toISOString(),
+        }, { onConflict: 'case_id' }).then(({ error }) => {
+          if (error) console.error('case_metrics sync failed (export load):', error.message)
+          else if (total > 0 && open === 0) {
+            supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
+          }
+        })
       }
     } catch (err) {
       console.error('Failed to load case:', err)
