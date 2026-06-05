@@ -93,10 +93,6 @@ const courtReporterFacts = [
   },
   {
     category: 'Beyond the Steno Machine',
-    fact: 'Digital reporters actively monitor audio feeds and take detailed, time-stamped annotations for the transcriptionist.',
-  },
-  {
-    category: 'Beyond the Steno Machine',
     fact: 'The AAERT offers specialized certifications like the Certified Electronic Reporter (CER) for digital court reporters.',
   },
   {
@@ -141,10 +137,6 @@ const courtReporterFacts = [
   },
   {
     category: 'Fun Trivia',
-    fact: 'When an attorney asks "Can you read that back?", the court reporter can instantly scroll up and read exactly what was just said.',
-  },
-  {
-    category: 'Fun Trivia',
     fact: 'Court Reporting and Captioning Week is celebrated annually every February to raise awareness of the profession.',
   },
   {
@@ -153,15 +145,7 @@ const courtReporterFacts = [
   },
   {
     category: 'Fun Trivia',
-    fact: 'The National Court Reporters Association (NCRA) hosts annual conventions featuring high-stakes speed typing contests.',
-  },
-  {
-    category: 'Fun Trivia',
     fact: 'In some jurisdictions, court reporters legally own the copyright to the transcripts they produce.',
-  },
-  {
-    category: 'Fun Trivia',
-    fact: 'In transcripts, attorneys are typically labeled in all caps (e.g., MR. SMITH), while the judge is designated as THE COURT.',
   },
   {
     category: 'Fun Trivia',
@@ -186,10 +170,6 @@ const courtReporterFacts = [
   {
     category: 'Fun Trivia',
     fact: 'The mere presence of a court reporter often makes people behave better and argue less in a deposition room.',
-  },
-  {
-    category: 'Fun Trivia',
-    fact: 'The average age of a court reporter is over 50, meaning a huge wave of retirements is creating massive opportunities for new students.',
   },
   {
     category: 'Fun Trivia',
