@@ -12,7 +12,7 @@ export default function SiteFooter() {
             </Link>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <p className="text-on-surface-variant text-[10px] font-body uppercase tracking-widest">
-                © 2026 Court Reportcard. All Rights Reserved. Confidential Legal Tool.
+                © 2026 Court Reportcard. All Rights Reserved.
               </p>
               <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Beta</span>
             </div>
