@@ -28,6 +28,7 @@ export default function DashboardEditor() {
   const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
+  const [legendOpen, setLegendOpen] = useState(false)
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
@@ -151,6 +152,7 @@ export default function DashboardEditor() {
       const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
       const open = latestAnnotations.filter((a) => a.status === 'open').length
       const total = latestAnnotations.length
+      const custom_changed = latestAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
 
       await supabase.from('case_metrics').upsert({
         case_id: caseId,
@@ -159,6 +161,7 @@ export default function DashboardEditor() {
         accepted,
         ignored,
         open,
+        custom_changed,
         annotations_by_type: countByType(latestAnnotations),
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
@@ -360,6 +363,7 @@ export default function DashboardEditor() {
         accepted: annotations.filter((a) => a.status === 'accepted').length,
         ignored: annotations.filter((a) => a.status === 'ignored').length,
         open: annotations.filter((a) => a.status === 'open').length,
+        custom_changed: annotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length,
         annotations_by_type: countByType(annotations),
         last_reviewed_at: new Date().toISOString(),
       }, { onConflict: 'case_id' })
@@ -645,26 +649,100 @@ export default function DashboardEditor() {
               Review flagged issues, accept or ignore suggestions, and edit text directly. Save when you're done.
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {hasChanges && (
-              <button onClick={handleRevert} className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-error transition-colors">
-                <span className="material-symbols-outlined text-base">undo</span>
-                Revert
-              </button>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-              className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed editorial-shadow"
-            >
-              {saving ? (
-                <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Saving...</>
-              ) : saved ? (
-                <><span className="material-symbols-outlined text-base">check</span> Saved</>
-              ) : (
-                <><span className="material-symbols-outlined text-base">save</span> Save Changes</>
+          <div className="flex flex-col items-end gap-4 shrink-0">
+            <div className="flex items-center gap-3">
+              {hasChanges && (
+                <button onClick={handleRevert} className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-error transition-colors">
+                  <span className="material-symbols-outlined text-base">undo</span>
+                  Revert
+                </button>
               )}
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={!hasChanges || saving}
+                className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed editorial-shadow"
+              >
+                {saving ? (
+                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Saving...</>
+                ) : saved ? (
+                  <><span className="material-symbols-outlined text-base">check</span> Saved</>
+                ) : (
+                  <><span className="material-symbols-outlined text-base">save</span> Save Changes</>
+                )}
+              </button>
+            </div>
+
+            {/* Types of Suggestions popover */}
+            <div className="relative">
+              <button
+                onClick={() => setLegendOpen((o) => !o)}
+                className="flex items-center gap-1 text-sm text-on-surface-variant/70 hover:text-on-surface-variant transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">help_outline</span>
+                Types of Suggestions
+                <span className="material-symbols-outlined text-sm">{legendOpen ? 'expand_less' : 'expand_more'}</span>
+              </button>
+
+              {legendOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setLegendOpen(false)} />
+                  <div className="absolute right-0 top-full mt-3 z-50 w-80 bg-surface-container-lowest border border-outline-variant/25 rounded-xl editorial-shadow">
+                    <div className="absolute -top-2 right-4 w-4 h-4 bg-surface-container-lowest border-l border-t border-outline-variant/25 rotate-45" />
+                    <div className="p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">How to read this transcript</p>
+
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">Suggestions</p>
+                      <table className="w-full text-xs border-collapse mb-4">
+                        <tbody className="divide-y divide-outline-variant/10">
+                          <tr>
+                            <td className="py-2 pr-3 w-14">
+                              <span className="inline-block border-b-2 border-error text-error font-semibold text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-error">Critical error</span> — definite mistake found.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 pr-3">
+                              <span className="inline-block border-b-2 border-amber-500 text-amber-700 text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-amber-600">Warning</span> — likely error, verify context.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 pr-3">
+                              <span className="inline-block border-b border-dotted border-on-surface-variant/40 text-[11px] font-mono text-on-surface px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-primary">Suggestion</span> — possible style improvement.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-1.5">Results</p>
+                      <table className="w-full text-xs border-collapse">
+                        <tbody className="divide-y divide-outline-variant/10">
+                          <tr>
+                            <td className="py-2 pr-3 w-14">
+                              <span className="inline-block text-green-600 font-semibold text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-green-600">Accepted</span> — suggestion applied as-is.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 pr-3">
+                              <span className="inline-block text-green-600 font-semibold text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-green-600">User changed</span> — your own correction applied.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 pr-3">
+                              <span className="inline-block border-b border-dashed border-on-surface-variant/30 text-on-surface/60 text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-on-surface-variant">Ignored</span> — reviewed, kept as-is.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -682,14 +760,10 @@ export default function DashboardEditor() {
               {audioFile.file_name}
             </span>
           )}
-          <span className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest rounded-full text-xs font-bold text-on-surface-variant editorial-shadow border border-outline-variant/20">
-            <span className="material-symbols-outlined text-primary text-sm">article</span>
-            {entries.length} entries
-          </span>
           {openAnnotations.length > 0 && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-error-container/40 rounded-full text-xs font-bold text-error editorial-shadow border border-error/20">
-              <span className="material-symbols-outlined text-sm">warning</span>
-              {openAnnotations.length} issue{openAnnotations.length !== 1 ? 's' : ''} found
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-full text-xs font-bold text-amber-700 editorial-shadow border border-amber-200">
+              <span className="material-symbols-outlined text-sm">rate_review</span>
+              {openAnnotations.length} suggestion{openAnnotations.length !== 1 ? 's' : ''} to review
             </span>
           )}
           {hasChanges && (
@@ -1007,33 +1081,6 @@ export default function DashboardEditor() {
         {/* Sidebar */}
         <aside className="w-80 shrink-0 bg-surface border-l border-outline-variant/15">
 
-          {/* Legend */}
-          <div className="px-5 pt-5 pb-4 border-b border-outline-variant/10">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">How to read this transcript</p>
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block border-b-2 border-error text-error font-semibold text-[11px] font-mono px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-error">Critical error</span> — definite mistake found.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block border-b-2 border-amber-500 text-amber-700 text-[11px] font-mono px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-amber-600">Warning</span> — likely error, verify context.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block border-b border-dotted border-on-surface-variant/40 text-[11px] font-mono text-on-surface px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-primary">Suggestion</span> — possible style improvement.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block text-green-600 font-semibold text-[11px] font-mono px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-green-600">Accepted</span> — correction applied.</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="shrink-0 inline-block border-b border-dashed border-on-surface-variant/30 text-on-surface/60 text-[11px] font-mono px-1 mt-0.5">word</span>
-                <span className="text-xs text-on-surface-variant"><span className="font-semibold text-on-surface-variant">Ignored</span> — reviewed, kept as-is.</span>
-              </div>
-            </div>
-          </div>
-
           {/* Insights header */}
           <div className="p-5 border-b border-outline-variant/10 bg-surface-container-low">
             <div className="flex items-center justify-between">
@@ -1042,7 +1089,7 @@ export default function DashboardEditor() {
                 Insights
               </h2>
               <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-                {openAnnotations.length} OPEN
+                {openAnnotations.length} TO REVIEW
               </span>
             </div>
             <p className="text-xs text-on-surface-variant mt-1">Accept or ignore each suggestion below.</p>
@@ -1217,10 +1264,6 @@ export default function DashboardEditor() {
                 <span className="text-on-surface-variant">Transcript</span>
                 <span className="font-semibold text-on-surface truncate max-w-[140px]">{transcriptFile?.file_name || '—'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-on-surface-variant">Audio</span>
-                <span className="font-semibold text-on-surface truncate max-w-[140px]">{audioFile?.file_name || '—'}</span>
-              </div>
             </div>
           </div>
 
@@ -1284,7 +1327,9 @@ export default function DashboardEditor() {
                 <>
                   <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase mb-3 ${ann.status === 'accepted' ? 'text-green-600' : 'text-on-surface-variant/60'}`}>
                     <span className="material-symbols-outlined text-xs">{ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}</span>
-                    {ann.status === 'accepted' ? 'Accepted' : 'Ignored'} &middot; {typeLabel(ann.type)}
+                    {ann.status === 'accepted'
+                      ? (ann._originalSuggestion !== undefined && ann.suggestion !== ann._originalSuggestion ? 'User Changed' : 'Accepted')
+                      : 'Ignored'} &middot; {typeLabel(ann.type)}
                   </div>
                   <div className={`rounded-lg p-3 mb-3 ${ann.status === 'accepted' ? 'bg-green-50 border border-green-100' : 'bg-surface-container border border-outline-variant/15'}`}>
                     {ann.status === 'accepted' ? (
