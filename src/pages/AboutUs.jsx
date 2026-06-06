@@ -37,24 +37,24 @@ const pillars = [
 
 const timeline = [
   {
-    year: '2023',
-    heading: 'First exposure',
-    detail: 'A close family friend — a veteran stenographer — showed us her daily workflow: a 4-hour deposition, six hours of solo review, and still a looming certification deadline. We couldn\'t unsee it.',
+    year: '2022',
+    heading: 'Where it started',
+    detail: 'My wife — a veteran stenographer — would wrap a long deposition and need a second set of eyes before it went out. Her proofer was booked, on vacation, or just unavailable. The deadline never moved. I watched that happen enough times that I couldn\'t ignore it anymore.',
   },
   {
-    year: '2026',
-    heading: 'Research & interviews',
-    detail: 'We spent twelve months talking to reporters across the country. Every conversation confirmed the same pain: the work is important, the pressure is relentless, and the tools haven\'t caught up.',
+    year: '2024',
+    heading: 'Into the community',
+    detail: 'I started going to NCRA conferences with her every year. I loved it — the people, the craft, the pride reporters take in their work. And I kept hearing the same thing from everyone: the job is harder than it looks, the pressure is real, and nobody had built anything that truly understood that.',
   },
   {
     year: '2025',
     heading: 'First prototype',
-    detail: 'We built an early audio-to-transcript diff engine and handed it to five reporters for beta testing. Average review time dropped from hours to under 30 minutes.',
+    detail: 'I built something and handed it to my wife first. She was honest — brutally, helpfully honest. We refined it, passed it to a few other reporters, and watched review time drop in a way that actually mattered to their day. That\'s when we knew we had something worth building.',
   },
   {
     year: '2026',
-    heading: 'Court Reportcard launches',
-    detail: 'After refining accuracy, legal-dictionary matching, and the export pipeline, we opened the platform to reporters nationwide. The mission stays the same: make court reporting easier without making it worse.',
+    heading: 'Beta launch',
+    detail: 'We opened Court Reportcard to reporters nationwide. No big announcement, no hype — just a quiet launch to a community we\'d spent years getting to know. The goal is still the same one that started all of this: be the reliable second set of eyes when no one else is available.',
   },
 ]
 
@@ -105,7 +105,7 @@ export default function AboutUs() {
               deserve better
             </h1>
             <p className="text-base sm:text-xl text-on-surface-variant leading-relaxed max-w-2xl">
-              A close family friend — a veteran stenographer — showed us her world: four-hour depositions, six hours of solo review, and a certification deadline that never moved. The work was consequential. The tools were not. We couldn't walk away from that.
+              My wife is a veteran stenographer. Watching her spend as many hours reviewing a transcript as she did recording it — under deadline, alone — made one thing clear: the work was consequential and the tools hadn't kept up. We couldn't walk away from that.
             </p>
           </div>
 
