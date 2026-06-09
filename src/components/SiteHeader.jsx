@@ -80,6 +80,7 @@ export default function SiteHeader() {
             <div className="relative" ref={accountRef}>
               <button
                 onClick={() => setAccountOpen((v) => !v)}
+                data-track-id="header_account_menu"
                 className="flex items-center gap-2 hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
               >
                 <span className="w-7 h-7 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container text-xs font-bold">
@@ -128,6 +129,7 @@ export default function SiteHeader() {
                   </Link>
                   <button
                     onClick={handleSignOut}
+                    data-track-id="header_sign_out"
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/20 transition-colors border-t border-outline-variant/10 mt-1"
                   >
                     <span className="material-symbols-outlined text-base">logout</span>
@@ -163,6 +165,7 @@ export default function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => openModal('signup')}
+            data-track-id="header_sign_up"
             className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2 rounded-md font-bold transition-all hover:scale-[1.02] active:scale-95"
           >
             Sign Up
@@ -201,6 +204,7 @@ export default function SiteHeader() {
                     <p className="text-xs text-on-surface-variant leading-relaxed">Create an account today and receive 50 tokens to start reviewing transcripts through our full proofreading platform. <br /> <i>1 token = 1 page.</i></p>
                     <button
                       onClick={() => { dismissNotification(); openModal('signup') }}
+                      data-track-id="header_notification_claim_tokens"
                       className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
                     >
                       Claim 50 Free Tokens →
@@ -216,6 +220,8 @@ export default function SiteHeader() {
 
           <button
             onClick={() => openModal('signin')}
+            data-track-id="header_sign_in"
+            aria-label="Sign in"
             className="hidden sm:inline-flex material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors"
           >
             account_circle
@@ -277,12 +283,14 @@ export default function SiteHeader() {
             <div className="border-t border-outline-variant/15 my-2" />
             <button
               onClick={() => { setMobileMenuOpen(false); openModal('signup') }}
+              data-track-id="header_mobile_sign_up"
               className="bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold transition-all"
             >
               Sign Up
             </button>
             <button
               onClick={() => { setMobileMenuOpen(false); openModal('signin') }}
+              data-track-id="header_mobile_sign_in"
               className="border border-outline-variant/40 text-on-surface py-3 rounded-lg font-bold transition-all hover:bg-surface-container"
             >
               Sign In

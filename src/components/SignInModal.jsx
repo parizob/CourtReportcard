@@ -136,6 +136,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
                 <button
                   type="submit"
                   disabled={resetSubmitting}
+                  data-track-id="signin_modal_send_reset_link"
                   className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {resetSubmitting ? 'Sending...' : 'Send Reset Link'}
@@ -154,6 +155,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
           <div className="flex bg-surface-container rounded-lg p-1 mb-6">
             <button
               onClick={() => { setTab('signin'); setError('') }}
+              data-track-id="signin_modal_tab_signin"
               className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${
                 tab === 'signin'
                   ? 'bg-surface-container-lowest text-primary shadow-sm'
@@ -164,6 +166,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
             </button>
             <button
               onClick={() => { setTab('signup'); setError('') }}
+              data-track-id="signin_modal_tab_signup"
               className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${
                 tab === 'signup'
                   ? 'bg-surface-container-lowest text-primary shadow-sm'
@@ -263,6 +266,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
                 <button
                   type="button"
                   onClick={() => { setForgotMode(true); setError(''); setResetEmail(email) }}
+                  data-track-id="signin_modal_forgot_password"
                   className="text-xs text-primary hover:underline"
                 >
                   Forgot password?
@@ -297,6 +301,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
             <button
               type="submit"
               disabled={submitting}
+              data-track-id={tab === 'signin' ? 'signin_modal_submit_signin' : 'signin_modal_submit_signup'}
               className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {submitting ? (

@@ -27,11 +27,12 @@ export default function LandingPage() {
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
                   onClick={() => openModal('signup')}
+                  data-track-id="landing_hero_try_now"
                   className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px]"
                 >
                   Try Now
                 </button>
-                <Link to="/ourplatform" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10">
+                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10">
                   Platform Demo
                 </Link>
               </div>

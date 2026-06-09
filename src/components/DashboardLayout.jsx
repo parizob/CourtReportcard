@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isTelemetryAdmin } from '../lib/telemetry'
 
 const navItems = [
   { icon: 'dashboard', label: 'Dashboard', to: '/dashboard', end: true },
@@ -18,8 +19,9 @@ const gettingStartedSteps = [
 
 export default function DashboardLayout() {
   const { pathname } = useLocation()
-  const { signOut, tokenBalance } = useAuth()
+  const { signOut, tokenBalance, user } = useAuth()
   const navigate = useNavigate()
+  const showTelemetry = isTelemetryAdmin(user?.email)
   const [showGettingStarted, setShowGettingStarted] = useState(false)
 
   const handleSignOut = async () => {
@@ -35,6 +37,7 @@ export default function DashboardLayout() {
           {/* Token balance */}
           <NavLink
             to="/dashboard/billing"
+            data-track-id="dash_nav_token_balance"
             className={({ isActive }) =>
               `mb-6 mx-2 flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
                 isActive
@@ -61,6 +64,7 @@ export default function DashboardLayout() {
                 key={item.label}
                 to={item.to}
                 end={item.end}
+                data-track-id={`dash_nav_${item.label.toLowerCase()}`}
                 className={({ isActive }) =>
                   isActive
                     ? 'flex items-center gap-3 px-4 py-3 bg-surface-container-lowest text-primary rounded-l-lg shadow-sm font-semibold'
@@ -71,23 +75,39 @@ export default function DashboardLayout() {
                 <span>{item.label}</span>
               </NavLink>
             ))}
+            {showTelemetry && (
+              <NavLink
+                to="/dashboard/telemetry"
+                data-track-id="dash_nav_telemetry"
+                className={({ isActive }) =>
+                  isActive
+                    ? 'flex items-center gap-3 px-4 py-3 bg-surface-container-lowest text-primary rounded-l-lg shadow-sm font-semibold'
+                    : 'flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-l-lg'
+                }
+              >
+                <span className="material-symbols-outlined">monitoring</span>
+                <span>Telemetry</span>
+              </NavLink>
+            )}
           </nav>
 
           {/* Bottom actions */}
           <div className="mt-auto pr-4 space-y-2">
             <button
               onClick={() => setShowGettingStarted(true)}
+              data-track-id="dash_getting_started"
               className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors w-full"
             >
               <span className="material-symbols-outlined">school</span>
               <span>Getting Started</span>
             </button>
-            <Link to="/support" className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors">
+            <Link to="/support" data-track-id="dash_help_center" className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-primary transition-colors">
               <span className="material-symbols-outlined">help</span>
               <span>Help Center</span>
             </Link>
             <button
               onClick={handleSignOut}
+              data-track-id="dash_sign_out"
               className="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-body text-sm font-medium hover:text-error transition-colors w-full"
             >
               <span className="material-symbols-outlined">logout</span>
@@ -142,6 +162,7 @@ export default function DashboardLayout() {
               <Link
                 to="/dashboard/upload"
                 onClick={() => setShowGettingStarted(false)}
+                data-track-id="dash_getting_started_start_uploading"
                 className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all"
               >
                 <span className="material-symbols-outlined text-base">cloud_upload</span>
