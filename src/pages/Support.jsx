@@ -37,7 +37,7 @@ const faqs = [
   },
   {
     q: 'How do I know my transcript won\'t be shared or used to train a model?',
-    a: 'Your transcript data is yours. We use Google\'s enterprise API, which is contractually prohibited from using your input to train any models — what you send in is never used to improve or build anything on their end. Your files are stored through Supabase, which holds SOC 2 and SOX compliance certifications — the same infrastructure trusted by thousands of businesses handling sensitive data. We also use row-level security, meaning your cases are technically inaccessible to any other user on the platform. No one sees your work but you.',
+    a: 'Your transcript data is yours. We use an enterprise-grade AI API that is contractually prohibited from using your input to train any models — what you send in is never used to improve or build anything on their end. Your files are stored on certified cloud infrastructure that meets SOC 2 and SOX compliance standards — the same tier trusted by thousands of businesses handling sensitive data. We also enforce user-level data isolation, meaning your cases are technically inaccessible to any other user on the platform. No one sees your work but you.',
   },
   {
     q: 'I\'ve run out of tokens. How do I get more?',
