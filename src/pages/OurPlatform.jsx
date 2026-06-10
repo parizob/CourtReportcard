@@ -108,7 +108,7 @@ export default function OurPlatform() {
                   <span className="w-3 h-3 rounded-full bg-amber-300/70"></span>
                   <span className="w-3 h-3 rounded-full bg-green-400/60"></span>
                 </div>
-                <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Smith v. Hargrove — Deposition of Julian Vane — Page 14 of 47</span>
+                <span className="hidden sm:inline text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Smith v. Hargrove — Deposition of Julian Vane — Page 14 of 47</span>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant/50">Confidence</span>
                   <span className="text-sm font-headline font-extrabold text-primary">98.4%</span>

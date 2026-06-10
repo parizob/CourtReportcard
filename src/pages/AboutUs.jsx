@@ -236,16 +236,16 @@ export default function AboutUs() {
               Court Reportcard was built with deep respect for the craft. We don't try to replace the reporter — we remove the tedium so they can focus on what only a skilled human can do: guarantee accuracy under oath.
             </p>
 
-            <div className="mt-10 flex gap-4">
+            <div className="mt-10 flex flex-wrap gap-4">
               <button
                 onClick={() => openModal('signup')}
-                className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-md font-bold text-sm hover:translate-y-[-1px] transition-all editorial-shadow"
+                className="flex-1 sm:flex-none text-center bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-md font-bold text-sm hover:translate-y-[-1px] transition-all editorial-shadow"
               >
                 Try the Platform
               </button>
               <Link
                 to="/ourplatform"
-                className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-md font-bold text-sm hover:bg-surface-container transition-colors"
+                className="flex-1 sm:flex-none text-center border border-outline-variant/40 text-on-surface px-6 py-3 rounded-md font-bold text-sm hover:bg-surface-container transition-colors"
               >
                 See the Platform
               </Link>

@@ -212,15 +212,19 @@ export default function Support() {
                   {sending ? 'Sending…' : 'Send Message'}
                 </button>
 
-                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-on-surface-variant/50">
-                  <span className="material-symbols-outlined text-sm">mail</span>
-                  Or email us directly at{' '}
-                  <a href="mailto:courtreportcard@gmail.com" className="text-primary/70 hover:text-primary hover:underline transition-colors">
-                    courtreportcard@gmail.com
-                  </a>
-                  <span className="mx-1">·</span>
-                  <span className="material-symbols-outlined text-sm">schedule</span>
-                  We respond within 1 business day
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-1.5 pt-1 text-xs text-on-surface-variant/50">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm">mail</span>
+                    Or email us directly at{' '}
+                    <a href="mailto:courtreportcard@gmail.com" className="text-primary/70 hover:text-primary hover:underline transition-colors">
+                      courtreportcard@gmail.com
+                    </a>
+                  </span>
+                  <span className="hidden sm:inline mx-1">·</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm">schedule</span>
+                    We respond within 1 business day
+                  </span>
                 </div>
 
               </form>
