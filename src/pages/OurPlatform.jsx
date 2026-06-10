@@ -32,7 +32,7 @@ const callouts = [
 
 const stats = [
   {
-    metric: '< 3 min',
+    metric: '< 5 min',
     label: 'to analyze a 200-page deposition',
     sub: 'A human scopist averages 6–8 hours for the same file.',
   },
@@ -250,17 +250,17 @@ export default function OurPlatform() {
 
         {/* ─── CTA ─── */}
         <section className="px-6 sm:px-8 py-16 sm:py-28">
-          <div className="max-w-3xl mx-auto bg-primary rounded-3xl editorial-shadow p-8 sm:p-10 md:p-14 text-center">
-            <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary-fixed-dim mb-4 block">Start Today</span>
-            <h3 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-on-primary tracking-tight mb-4 leading-tight">
+          <div className="max-w-3xl mx-auto bg-tertiary-fixed-dim rounded-3xl editorial-shadow p-8 sm:p-10 md:p-14 text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4 inline-flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">Start Today</span>
+            <h3 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary tracking-tight mb-4 leading-tight">
               Your next deposition review starts in 3 minutes.
             </h3>
-            <p className="text-on-primary-container/90 text-base mb-8 max-w-lg mx-auto leading-relaxed">
+            <p className="text-primary/80 text-base mb-8 max-w-lg mx-auto leading-relaxed">
               50 free tokens — one per page — the moment you sign up. No credit card. No onboarding call. Just upload and go.
             </p>
             <button
               onClick={() => openModal('signup')}
-              className="inline-flex items-center gap-2 bg-tertiary-fixed-dim text-on-tertiary-fixed px-8 py-3.5 rounded-lg font-bold text-sm uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all"
+              className="inline-flex items-center gap-2 bg-primary text-on-primary px-8 py-3.5 rounded-lg font-bold text-sm uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all"
             >
               Get Early Access
               <span className="material-symbols-outlined text-base">arrow_forward</span>
