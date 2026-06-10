@@ -119,8 +119,8 @@ export default function OurPlatform() {
               <div className="flex flex-col md:flex-row min-h-[340px]">
 
                 {/* Left: transcript */}
-                <div className="flex-1 px-4 sm:px-8 py-6 font-mono text-[12px] sm:text-[13px] text-on-surface leading-7 overflow-x-auto md:overflow-hidden border-b md:border-b-0 md:border-r border-outline-variant/10">
-                  <div className="space-y-0">
+                <div className="flex-1 px-4 sm:px-8 py-6 font-mono text-[12px] sm:text-[13px] text-on-surface overflow-x-auto md:overflow-hidden border-b md:border-b-0 md:border-r border-outline-variant/10">
+                  <div>
                     {[
                       { n: 20, text: 'Q.  Could you please state your name for the record' },
                       { n: 21, text: '    and tell the court where you were on the night' },
@@ -132,16 +132,12 @@ export default function OurPlatform() {
                       { n: 27, text: '    evening but we did not stay passed midnight.' },
                       { n: 28, text: '' },
                     ].map((line) => (
-                      <div key={line.n} className="flex min-h-[1.75rem]">
-                        <span className="w-10 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 select-none leading-7">{line.n}</span>
+                      <div key={line.n} className="flex h-7 items-center">
+                        <span className="w-10 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 select-none">{line.n}</span>
                         {line.highlighted ? (
-                          <span className="leading-7">
-                            {'    '}
-                            <span className="border-b-2 border-error text-error font-semibold">residance</span>
-                            {' on Oak Street at approximately'}
-                          </span>
+                          <span className="whitespace-pre">{'    '}<span className="border-b-2 border-error text-error font-semibold">residance</span>{' on Oak Street at approximately'}</span>
                         ) : (
-                          <span className="whitespace-pre leading-7">{line.text}</span>
+                          <span className="whitespace-pre">{line.text}</span>
                         )}
                       </div>
                     ))}
