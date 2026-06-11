@@ -4,56 +4,89 @@ import SiteFooter from '../components/SiteFooter'
 const sections = [
   {
     num: '1.',
-    title: 'Acceptance of Terms & Professional Responsibility',
-    body: `The Service is an artificial intelligence-assisted proofreading and formatting tool designed for court reporters and legal professionals. Court Reportcard is not a replacement for professional human review. You maintain sole responsibility for the accuracy, legality, and formatting of any transcript, errata sheet, or document exported from the Service. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in the final output.`,
+    title: 'Beta Service — Provided As-Is',
+    body: `Court Reportcard is currently offered as a free, pre-release beta product. The Service is experimental, under active development, and provided strictly "AS-IS" and "AS-AVAILABLE" without warranty of any kind — express, implied, or statutory. This includes, without limitation, any implied warranties of merchantability, fitness for a particular purpose, accuracy, reliability, or non-infringement. Features may change, be removed, or be unavailable without notice. Your use of the Service during this beta period is entirely at your own risk.`,
   },
   {
     num: '2.',
-    title: 'Strict Prohibition of Protected Health Information (PHI)',
-    body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA).`,
-    bullets: [
-      'User Liability: By uploading a file to the Service, you affirmatively warrant that the document contains no PHI.',
-      'Indemnification: You agree to fully indemnify and hold harmless Court Reportcard against any legal action, fines, or damages resulting from your upload of HIPAA-regulated data.',
-    ],
+    title: 'Acceptance of Terms & Professional Responsibility',
+    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms. The Service is an artificial intelligence-assisted proofreading tool designed to assist — not replace — professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
   },
   {
     num: '3.',
-    title: 'Data Privacy, AI Processing, and Retention',
-    body: `We take the confidentiality of your legal transcripts seriously.`,
+    title: 'Disclaimer of Warranties',
+    body: `To the fullest extent permitted by applicable law, the Service and all content, features, and functionality are provided without any warranty whatsoever. Court Reportcard does not warrant that:`,
     bullets: [
-      'No Model Training: Text uploaded to Court Reportcard is processed using enterprise-grade Artificial Intelligence APIs. Your uploaded documents, text, and corrections are never used to train, fine-tune, or improve foundational AI models.',
-      'Data Retention: To limit liability and protect client confidentiality, the Service employs a strict data lifecycle. Uploaded files and generated suggestions are temporarily stored on secure, SOC 2 Type 2 compliant servers solely to facilitate your editing session. Files and their associated data will be permanently deleted from our servers upon your manual deletion or automatically after 14 days, whichever occurs first.',
+      'The Service will be uninterrupted, timely, secure, or error-free.',
+      'Any results obtained from the Service will be accurate, complete, or reliable.',
+      'Any errors in the Service will be corrected.',
+      'The Service is fit for any particular professional, legal, or commercial purpose.',
     ],
   },
   {
     num: '4.',
-    title: 'Billing, Subscriptions, and Page Credits',
-    body: `The Service operates on a subscription model utilizing a "Page Credit" system.`,
-    bullets: [
-      'Credit Usage: Processing documents consumes Page Credits based on the volume of text uploaded.',
-      'Renewals and Expiration: Subscription tiers grant a specific allotment of Page Credits per billing cycle. Unused credits do not roll over to the next billing cycle.',
-      'Refunds: Due to the computational costs associated with processing documents through AI language models, all purchases and subscriptions are non-refundable.',
-    ],
+    title: 'Limitation of Liability',
+    body: `To the maximum extent permitted by applicable law, Court Reportcard and its individual operator shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind — including but not limited to loss of profits, revenue, data, goodwill, or business — arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Because the Service is currently offered free of charge, and in recognition that you have paid no fees for access, our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed zero dollars ($0.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
   },
   {
     num: '5.',
-    title: 'Account Security',
-    body: `You are responsible for maintaining the confidentiality of your login credentials. Because the Service handles sensitive legal texts, you must notify us immediately of any unauthorized use of your account. You agree not to share your account access with third parties.`,
+    title: 'Indemnification',
+    body: `You agree to defend, indemnify, and hold harmless Court Reportcard and its individual operator from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to:`,
+    bullets: [
+      'Your use of or access to the Service.',
+      'Your violation of these Terms.',
+      'Your violation of any applicable law, rule, or regulation.',
+      'Any content or data you upload, transmit, or process through the Service, including any claim that such content infringes or violates any third-party right.',
+      'Any upload of Protected Health Information or other regulated data in violation of these Terms.',
+    ],
   },
   {
     num: '6.',
-    title: 'Limitation of Liability',
-    body: `To the maximum extent permitted by law, Court Reportcard, its founders, and its affiliates shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, data, or goodwill, arising out of your use of or inability to use the Service. In no event shall our total liability exceed the amount you paid to the Service in the three (3) months preceding the claim.`,
+    title: 'Strict Prohibition of Protected Health Information (PHI)',
+    body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA).`,
+    bullets: [
+      'By uploading a file to the Service, you affirmatively represent and warrant that the document contains no PHI or other regulated health data.',
+      'You agree to fully indemnify and hold harmless Court Reportcard and its operator against any legal action, regulatory fines, or damages resulting from your upload of HIPAA-regulated or otherwise prohibited data.',
+    ],
   },
   {
     num: '7.',
-    title: 'Termination',
-    body: `We reserve the right to suspend or terminate your account at any time, without notice, for conduct that we believe violates these Terms, including but not limited to the upload of prohibited medical data or abuse of the Service infrastructure.`,
+    title: 'Data Privacy, AI Processing, and Retention',
+    body: `We take the confidentiality of your legal transcripts seriously.`,
+    bullets: [
+      'No Model Training: Text uploaded to Court Reportcard is processed using enterprise-grade AI APIs. Your uploaded documents, text, and corrections are never used to train, fine-tune, or improve any AI models.',
+      'Data Retention: Uploaded files and generated suggestions are temporarily stored on secure, certified cloud infrastructure solely to facilitate your editing session. Files and their associated data will be permanently deleted from our servers upon your manual deletion or automatically after 90 days, whichever occurs first.',
+    ],
   },
   {
     num: '8.',
+    title: 'Billing, Subscriptions, and Page Credits',
+    body: `Where paid features are made available, the Service operates on a "Page Credit" system.`,
+    bullets: [
+      'Credit Usage: Processing documents consumes Page Credits based on the volume of text uploaded.',
+      'Renewals and Expiration: Subscription tiers grant a specific allotment of Page Credits per billing cycle. Unused credits do not roll over to the next billing cycle.',
+      'Refunds: Due to the computational costs associated with AI processing, all purchases and subscriptions are non-refundable once credits have been consumed.',
+    ],
+  },
+  {
+    num: '9.',
+    title: 'Account Security',
+    body: `You are responsible for maintaining the confidentiality of your login credentials. Because the Service handles sensitive legal texts, you must notify us immediately at courtreportcard@gmail.com of any unauthorized use of your account. You agree not to share your account access with third parties.`,
+  },
+  {
+    num: '10.',
+    title: 'Termination',
+    body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, the operator, or third parties. Upon termination, your right to use the Service ceases immediately.`,
+  },
+  {
+    num: '11.',
+    title: 'Dispute Resolution',
+    body: `Before filing any formal legal claim, you agree to contact us at courtreportcard@gmail.com and give us thirty (30) days to attempt to resolve the dispute informally. Any claim not resolved informally shall be resolved through binding individual arbitration rather than in court, except that either party may bring an individual claim in small claims court if it qualifies. You waive any right to participate in a class action lawsuit or class-wide arbitration.`,
+  },
+  {
+    num: '12.',
     title: 'Changes to These Terms',
-    body: `We may modify these Terms at any time. If we make material changes, we will notify you via email or through the Service. Your continued use of the Service after such modifications constitutes your acknowledgment and acceptance of the updated Terms.`,
+    body: `We may modify these Terms at any time. Material changes will be communicated via email or through the Service. Your continued use of the Service after any modification constitutes your acceptance of the updated Terms. If you do not agree to the updated Terms, you must stop using the Service.`,
   },
 ]
 
@@ -74,13 +107,13 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: May 12, 2026
+            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: June 11, 2026
           </p>
         </div>
 
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 mb-8">
           <p className="text-sm text-on-surface leading-relaxed">
-            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). By creating an account or using the Service, you agree to be bound by these Terms.
+            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). <strong>Court Reportcard is currently a free beta product operated by an individual and is not a registered legal entity.</strong> By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety. If you do not agree, do not use the Service.
           </p>
         </div>
 
