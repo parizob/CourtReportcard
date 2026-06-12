@@ -74,7 +74,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
     e.preventDefault()
     setResetSubmitting(true)
     const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-      redirectTo: `${window.location.origin}/dashboard`,
+      redirectTo: `${window.location.origin}/reset-password`,
     })
     setResetSubmitting(false)
     if (err) {

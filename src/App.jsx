@@ -19,6 +19,7 @@ import DashboardExport from './pages/dashboard/DashboardExport'
 import DashboardAccount from './pages/dashboard/DashboardAccount'
 import DashboardBilling from './pages/dashboard/DashboardBilling'
 import DashboardTelemetry from './pages/dashboard/DashboardTelemetry'
+import ResetPassword from './pages/ResetPassword'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 function AppShell() {
@@ -64,7 +65,11 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppShell />
+        <Routes>
+          {/* Completely isolated — no header, no nav, no modal */}
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="*" element={<AppShell />} />
+        </Routes>
       </BrowserRouter>
     </AuthProvider>
   )
