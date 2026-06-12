@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { trackEvent } from '../lib/telemetry'
 import BrandLogo from './BrandLogo'
 
 export default function SignInModal({ onClose, initialTab = 'signin' }) {
@@ -21,6 +22,8 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
   const [resetEmail, setResetEmail] = useState('')
   const [resetSent, setResetSent] = useState(false)
   const [resetSubmitting, setResetSubmitting] = useState(false)
+  const [confirmPending, setConfirmPending] = useState(false)
+  const [pendingEmail, setPendingEmail] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -45,14 +48,21 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
     try {
       if (tab === 'signin') {
         await signIn(email, password)
+        onClose()
+        navigate('/dashboard')
       } else {
         await signUp(email, password, {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
         })
+        setPendingEmail(email)
+        setConfirmPending(true)
+        trackEvent({
+          type: 'signup_confirm_prompt_shown',
+          name: 'signup_confirm_prompt_shown',
+          metadata: { email },
+        })
       }
-      onClose()
-      navigate('/dashboard')
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
@@ -93,11 +103,51 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
         <div className="px-8 pt-8 pb-10">
           <div className="mb-1"><BrandLogo size={22} className="text-xl" /></div>
           <p className="text-xs text-on-surface-variant mb-7">
-            {forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
+            {confirmPending ? 'One more step before you can sign in.' : forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
           </p>
 
-          {/* Forgot password view */}
-          {forgotMode ? (
+          {/* Email confirmation pending view */}
+          {confirmPending ? (
+            <div className="text-center py-2">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-3xl text-primary">mark_email_unread</span>
+              </div>
+              <h2 className="font-headline text-lg font-bold text-on-surface mb-2">Check your inbox</h2>
+              <p className="text-sm text-on-surface-variant leading-relaxed mb-1">
+                We sent a confirmation link to
+              </p>
+              <p className="font-semibold text-on-surface text-sm mb-5">{pendingEmail}</p>
+              <p className="text-xs text-on-surface-variant leading-relaxed mb-8">
+                Click the link in that email to activate your account, then come back here to sign in. Don't forget to check your spam folder if you don't see it within a minute.
+              </p>
+              <button
+                onClick={() => {
+                  trackEvent({
+                    type: 'click',
+                    name: 'signup_confirm_prompt_go_to_signin',
+                    trackId: 'signup_confirm_prompt_go_to_signin',
+                    metadata: { email: pendingEmail },
+                  })
+                  setConfirmPending(false)
+                  setTab('signin')
+                  setPassword('')
+                  setConfirm('')
+                  setError('')
+                }}
+                data-track-id="signup_confirm_prompt_go_to_signin"
+                className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-base">login</span>
+                I've confirmed — Sign In
+              </button>
+              <button
+                onClick={onClose}
+                className="mt-3 w-full text-xs text-on-surface-variant hover:text-primary transition-colors py-2"
+              >
+                I'll do this later
+              </button>
+            </div>
+          ) : forgotMode ? (
             resetSent ? (
               <div className="text-center py-4">
                 <span className="material-symbols-outlined text-4xl text-primary block mb-3">mark_email_read</span>
@@ -334,3 +384,4 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
     </div>
   )
 }
+
