@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
@@ -61,6 +61,7 @@ export default function Support() {
   const [sendError, setSendError] = useState(null)
   const [openFaq, setOpenFaq] = useState(null)
 
+  const thankYouRef = useRef(null)
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const handleSubmit = async (e) => {
@@ -78,6 +79,7 @@ export default function Support() {
         throw new Error(data.error || 'Something went wrong. Please try again.')
       }
       setSubmitted(true)
+      setTimeout(() => thankYouRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
     } catch (err) {
       setSendError(err.message)
     } finally {
@@ -120,11 +122,18 @@ export default function Support() {
           {/* Contact form — full width */}
           <div>
             {submitted ? (
-              <div className="bg-surface-container-lowest rounded-2xl p-12 editorial-shadow border border-outline-variant/10 text-center">
+              <div ref={thankYouRef} className="bg-surface-container-lowest rounded-2xl p-12 editorial-shadow border border-outline-variant/10 text-center">
                 <span className="material-symbols-outlined text-5xl text-green-500 block mb-4">mark_email_read</span>
                 <h2 className="font-headline font-bold text-2xl text-on-surface mb-2">Message sent!</h2>
-                <p className="text-on-surface-variant text-sm mb-6">
+                <p className="text-on-surface-variant text-sm mb-2">
                   We'll get back to you within one business day.
+                </p>
+                <p className="text-on-surface-variant text-sm mb-6">
+                  In the meantime, you may find an answer in the{' '}
+                  <a href="#faqs" className="text-primary font-semibold hover:underline">
+                    FAQs below
+                  </a>
+                  .
                 </p>
                 <button
                   onClick={() => { setSubmitted(false); setForm({ name: '', email: '', category: 'general', subject: '', message: '' }) }}
@@ -162,15 +171,20 @@ export default function Support() {
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Category</label>
-                  <select
-                    value={form.category}
-                    onChange={set('category')}
-                    className="w-full bg-surface-container px-4 py-3 rounded-lg text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30 transition-all appearance-none"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={form.category}
+                      onChange={set('category')}
+                      className="w-full bg-surface-container px-4 py-3 pr-10 rounded-lg text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/30 transition-all appearance-none cursor-pointer"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-base text-on-surface-variant">
+                      expand_more
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -233,7 +247,7 @@ export default function Support() {
         </div>
 
         {/* FAQ — full width below */}
-        <div className="mt-10 sm:mt-14">
+        <div id="faqs" className="mt-10 sm:mt-14">
           <div className="mb-6">
             <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
               Frequently Asked Questions
