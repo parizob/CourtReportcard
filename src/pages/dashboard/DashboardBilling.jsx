@@ -67,6 +67,21 @@ export default function DashboardBilling() {
           </p>
         </header>
 
+        {/* ─── Beta notice ─── */}
+        <section className="bg-tertiary-fixed/30 border border-tertiary-fixed-dim/40 rounded-2xl p-5 mb-8 flex items-start gap-4">
+          <span className="material-symbols-outlined text-tertiary-fixed-dim text-2xl shrink-0 mt-0.5">info</span>
+          <div>
+            <p className="text-sm font-bold text-on-surface mb-1">We're in beta — no purchasing required right now.</p>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              While we're in beta, there's no option to purchase tokens. But if you're running low, we're happy to load your account with more tokens for free to help you keep testing.{' '}
+              <a href="mailto:courtreportcard@gmail.com" className="text-primary font-semibold hover:underline">Email us</a>
+              {' '}or{' '}
+              <a href="/support" className="text-primary font-semibold hover:underline">submit a support ticket</a>
+              {' '}and we'll top you up right away.
+            </p>
+          </div>
+        </section>
+
         {/* ─── Current Balance ─── */}
         <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
