@@ -243,13 +243,35 @@ export default function DashboardEditor() {
     })
 
     let updatedOriginalText = curOriginalText
+    // Cache the clean-content position of this annotation BEFORE applying the
+    // correction, while the original word still exists at its unique location.
+    // This prevents the highlights builder from latching onto the wrong occurrence
+    // of the same word elsewhere in the document after acceptance.
+    let _cleanStart = null
+    let _cleanEnd = null
     if (curOriginalText) {
+      const { cleanContent: cc } = buildCleanContentMap(curOriginalText)
+      // Use the entry text as a location anchor to find the right occurrence.
+      const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
+      let searchFrom = 0
+      if (annotationEntry) {
+        const anchor = annotationEntry.text.trim().substring(0, 50)
+        if (anchor) {
+          const em = flexFind(cc, anchor)
+          if (em) searchFrom = em.start
+        }
+      }
+      const wordM = flexFind(cc.substring(searchFrom), ann.original)
+      if (wordM) {
+        _cleanStart = searchFrom + wordM.start
+        _cleanEnd = _cleanStart + finalSuggestion.length
+      }
       updatedOriginalText = applyCorrection(curOriginalText, ann.original, finalSuggestion)
     }
 
     const updatedAnnotations = curAnnotations.map((a) =>
       a.id === annotationId
-        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd }
+        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _cleanStart, _cleanEnd }
         : a
     )
     const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
@@ -322,6 +344,8 @@ export default function DashboardEditor() {
             _appliedEntryId: undefined,
             _appliedAt: undefined,
             _appliedEnd: undefined,
+            _cleanStart: undefined,
+            _cleanEnd: undefined,
           }
         : a
     )
@@ -817,9 +841,17 @@ export default function DashboardEditor() {
 
             const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
-            // Find highlights by searching in cleanContent (which matches Gemini's extracted text)
+            // Find highlights by searching in cleanContent (which matches Gemini's extracted text).
+            // For accepted annotations, prefer the cached clean-content position stored at accept
+            // time — this avoids matching the first occurrence of the accepted word in the document
+            // when the same word already exists elsewhere (e.g. "Plaintiff" on page 1 vs the
+            // corrected "plaintiff" → "Plaintiff" on page 6).
             const highlights = []
             for (const ann of allOpenAnnotations) {
+              if (ann.status === 'accepted' && ann._cleanStart != null) {
+                highlights.push({ ...ann, cleanStart: ann._cleanStart, cleanEnd: ann._cleanEnd })
+                continue
+              }
               const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
               if (!searchWord) continue
               const m = flexFind(cleanContent, searchWord)
