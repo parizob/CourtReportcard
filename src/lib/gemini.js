@@ -502,7 +502,7 @@ RULES:
 - "context" type annotations where the speaker may have genuinely said that word MUST use severity "warning" and the [sic] suggestion format.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
 - The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word, and never a bare pronoun extracted from a larger grammatical error (use the full containing phrase instead).
-- Do NOT flag `pled` as an error. "Pled" is a fully accepted U.S. legal past tense of "plead" (alongside "pleaded") and appears routinely in court transcripts. Flagging it as incorrect is a false positive.
+- Do NOT flag "pled" as an error. "Pled" is a fully accepted U.S. legal past tense of "plead" (alongside "pleaded") and appears routinely in court transcripts. Flagging it as incorrect is a false positive.
 - PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
