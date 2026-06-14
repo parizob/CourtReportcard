@@ -1,0 +1,76 @@
+{
+  "transcript": "transcript_01.txt",
+  "description": "Vocational-rehab deposition. 8 seeded errors spanning spelling, context/homophone, legal_term, punctuation, extra_word, and one speaker [sic] error. One deliberate false-positive trap ('Did you recall whether...' is grammatical and should NOT be flagged).",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "full name for the record",
+      "type": "punctuation",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "?",
+      "note": "Question with no question mark: 'Could you state your full name for the record' ends with no '?'."
+    },
+    {
+      "id": 2,
+      "match": "the the",
+      "type": "extra_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "the plaintiff",
+      "note": "Doubled article: 'for the the plaintiff'."
+    },
+    {
+      "id": 3,
+      "match": "waved",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "waived",
+      "note": "Homophone: 'before you waved your right' should be 'waived'."
+    },
+    {
+      "id": 4,
+      "match": "their",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "Homophone: 'did you go their in person' should be 'there'."
+    },
+    {
+      "id": 5,
+      "match": "goverment",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "government",
+      "note": "Misspelling: 'goverment benefits'."
+    },
+    {
+      "id": 6,
+      "match": "judgement",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "judgment",
+      "note": "U.S. legal spelling: 'summary judgement' should be 'judgment'. Prompt explicitly calls this out."
+    },
+    {
+      "id": 7,
+      "match": "Irregardless",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Speaker error (nonstandard word actually spoken). Should be [sic], NOT corrected to 'Regardless'."
+    },
+    {
+      "id": 8,
+      "match": "habeous",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "habeas",
+      "note": "Misspelled legal term: 'writ of habeous corpus' should be 'habeas'."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "Did you recall whether the plaintiff was taking",
+      "note": "Grammatical question. Some models hallucinate a missing 'not' here. Should NOT be flagged."
+    }
+  ]
+}

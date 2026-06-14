@@ -1,0 +1,88 @@
+{
+  "transcript": "transcript_03_hard.txt",
+  "description": "HARD. Subtle in-context homophones, a 3-error sentence, a cross-page-break error, a misspelled legal-Latin term, and one ambiguous speaker [sic] idiom. Includes a correct legal-Latin phrase ('res ipsa loquitur') as a false-positive trap.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "statue of limitations",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "statute",
+      "note": "statue/statute: 'the statue of limitations bars this claim'."
+    },
+    {
+      "id": 2,
+      "match": "notes discrete",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "discreet",
+      "note": "discrete/discreet: 'kept your notes discrete from the other officers' files'. Subtle — both are real words."
+    },
+    {
+      "id": 3,
+      "match": "per say",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "per se",
+      "note": "per say/per se. Could be typed legal_term or spelling; caught is the pass condition."
+    },
+    {
+      "id": 4,
+      "match": "Their is",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "There",
+      "note": "Multi-error sentence (1 of 3): Their/There."
+    },
+    {
+      "id": 5,
+      "match": "past the vehicle",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "passed",
+      "note": "Multi-error sentence (2 of 3): past/passed."
+    },
+    {
+      "id": 6,
+      "match": "accept on the shoulder",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "except",
+      "note": "Multi-error sentence (3 of 3): accept/except. Tests whether the model flags ALL three errors in one sentence."
+    },
+    {
+      "id": 7,
+      "match": "negligible",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "negligent",
+      "note": "CROSS-PAGE: '...conduct in your view clearly' (end of page 4) / 'negligible in failing to yield' (top of page 5). Should be 'negligent'."
+    },
+    {
+      "id": 8,
+      "match": "vior dire",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "voir dire",
+      "note": "Misspelled legal term: 'vior dire' should be 'voir dire'."
+    },
+    {
+      "id": 9,
+      "match": "could care less",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "AMBIGUOUS judgment call. Idiom 'could care less' (speaker likely meant 'couldn't'). Spoken by the witness, so [sic] is defensible; flagging at all is the pass condition. Severity may legitimately differ."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "res ipsa loquitur",
+      "note": "Correct legal-Latin spelling, used correctly. Must NOT be flagged."
+    },
+    {
+      "text": "The facts speak for themselves, counsel.",
+      "note": "Clean; 'counsel' is correct here. Must NOT be flagged as counsel/council."
+    }
+  ]
+}

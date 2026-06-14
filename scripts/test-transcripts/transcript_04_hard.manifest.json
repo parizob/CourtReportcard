@@ -1,0 +1,65 @@
+{
+  "transcript": "transcript_04_hard.txt",
+  "description": "HARD. Motion-hearing colloquy. Errors buried inside long judicial monologue, a grammar pronoun error, a missing word in a longer sentence, a duplicated word across a line break, and two ambiguous speaker-idiom [sic] calls (mute point, escape goat).",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "pending emotion",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "motion",
+      "note": "BURIED in a long THE COURT monologue: 'rule on the pending emotion' should be 'motion'. Tests whether errors deep inside colloquy blocks get caught."
+    },
+    {
+      "id": 2,
+      "match": "to\n               to put it plainly",
+      "match_loose": "to to put it",
+      "type": "extra_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "to put it",
+      "note": "Duplicated word across a line break: 'to / to put it plainly'."
+    },
+    {
+      "id": 3,
+      "match": "between you and I",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "you and me",
+      "note": "Pronoun case: 'between you and I' should be 'you and me'."
+    },
+    {
+      "id": 4,
+      "match": "mute point",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "moot",
+      "note": "AMBIGUOUS: mute/moot. Likely a reporter steno error (critical) but could be argued speaker. Caught is the pass condition; severity may differ."
+    },
+    {
+      "id": 5,
+      "match": "prepared accordance",
+      "type": "missing_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "in accordance",
+      "note": "Missing word in a longer sentence: 'was prepared accordance with' is missing 'in'."
+    },
+    {
+      "id": 6,
+      "match": "escape goat",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "AMBIGUOUS speaker malapropism: 'escape goat' (meant 'scapegoat'). Spoken by the attorney, so [sic] is defensible. Flagging at all is the pass condition."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "confine their remarks to the four corners of the briefs",
+      "note": "'their' is correct here (plural counsel). Must NOT be flagged as their/there."
+    },
+    {
+      "text": "I will review the record and issue a written order.",
+      "note": "Clean. Must NOT be flagged."
+    }
+  ]
+}

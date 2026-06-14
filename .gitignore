@@ -8,3 +8,4 @@ dist
 *.key
 .vercel
 .env*.local
+scripts/test-transcripts/results_*.json

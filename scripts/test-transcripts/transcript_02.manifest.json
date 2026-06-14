@@ -1,0 +1,73 @@
+{
+  "transcript": "transcript_02.txt",
+  "description": "Medical-malpractice deposition. 7 seeded errors weighted toward grammar, missing_word, capitalization, and homophones, plus one speaker [sic] malapropism. The closing exchange on page 5 (lines 3-6) is deliberately clean to measure false positives.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "florida atlantic university",
+      "type": "capitalization",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Florida Atlantic University",
+      "note": "Proper noun (institution) not capitalized."
+    },
+    {
+      "id": 2,
+      "match": "able\n               to the documents",
+      "match_loose": "to the documents",
+      "type": "missing_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "review",
+      "note": "Missing verb: 'were you able to the documents' is missing 'review' (or similar). Crosses a line boundary."
+    },
+    {
+      "id": 3,
+      "match": "principle",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "principal",
+      "note": "Homophone: 'principle investigator' should be 'principal'."
+    },
+    {
+      "id": 4,
+      "match": "affect",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "effect",
+      "note": "Homophone: 'have any affect on' should be 'effect' (noun)."
+    },
+    {
+      "id": 5,
+      "match": "Its important",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "It's",
+      "note": "its/it's: 'Its important that the jury' should be 'It's'."
+    },
+    {
+      "id": 6,
+      "match": "records was",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "records were",
+      "note": "Subject-verb agreement: 'The records was reviewed' should be 'were'."
+    },
+    {
+      "id": 7,
+      "match": "intensive purposes",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Speaker malapropism: 'for all intensive purposes' (meant 'intents and purposes'). Spoken by the attorney, so [sic] is appropriate; flagging at all is the pass condition."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "Thank you, Doctor.  I appreciate your time today",
+      "note": "Clean. Should not be flagged."
+    },
+    {
+      "text": "For the most part, yes, with minor variation.",
+      "note": "Clean. Should not be flagged."
+    }
+  ]
+}

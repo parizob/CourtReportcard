@@ -461,11 +461,16 @@ ERROR TYPES — flag every occurrence:
   • aloud / allowed            • coarse / course             • forth / fourth
   • liable / libel             • statue / stature / statute  • tenet / tenant
   • writ / rit / rid           • voir dire (spelling)        • corpus / corpse
+  • discrete / discreet        • elicit / illicit            • flaunt / flout
+  • pour / pore / pore over    • moot / mute                 • waiver / waver
   • sit / set (e.g., "sit aside" → "set aside"; "sit forth" → "set forth")
   • eminent / imminent (neither belongs in a motion name — flag if used; likely steno error for "emergency" or "amended")
   • compliant / complaint (near-miss in legal filings: "amend the compliant" is always wrong)
+  Nonstandard words — flag as "context" (not "grammar"), severity "warning", suggestion "<word> [sic]":
+  • irregardless (nonstandard; speaker likely meant "regardless" — speaker error, not reporter error)
 
-"grammar" — Subject-verb agreement, tense shift, double negative, fragment, pronoun error, dangling modifier.
+"grammar" — Subject-verb agreement, tense shift, double negative, fragment, pronoun case error, dangling modifier.
+  Pronoun case example: "between you and I" — the correct form is "between you and me" (object of preposition). This is a grammar error. IMPORTANT: the "original" field MUST be the full phrase containing the error ("you and I"), never a bare standalone pronoun ("I") — a bare pronoun is impossible to locate in context and will break the UI.
 
 "legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting, or an impossible motion name.
   Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
@@ -496,7 +501,8 @@ RULES:
 - For TYPE B / "warning" errors: the suggestion field MUST be exactly the original word followed by a space and [sic]. Example: original "thesis" → suggestion "thesis [sic]". Do NOT put the correct word in the suggestion field.
 - "context" type annotations where the speaker may have genuinely said that word MUST use severity "warning" and the [sic] suggestion format.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
-- The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word.
+- The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word, and never a bare pronoun extracted from a larger grammatical error (use the full containing phrase instead).
+- Do NOT flag `pled` as an error. "Pled" is a fully accepted U.S. legal past tense of "plead" (alongside "pleaded") and appears routinely in court transcripts. Flagging it as incorrect is a false positive.
 - PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.

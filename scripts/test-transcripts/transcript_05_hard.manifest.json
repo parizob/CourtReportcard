@@ -1,0 +1,69 @@
+{
+  "transcript": "transcript_05_hard.txt",
+  "description": "HARD. Legal-terminology focus: an impossible motion name, a single-character steno drop, a near-miss filing word, a correct-word/wrong-word legal near-miss, and a contextual capitalization call. Loaded with CORRECT legal-Latin (sua sponte, nunc pro tunc, res judicata, pled) as false-positive traps.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "Eminent\n                        Motion",
+      "match_loose": "Eminent Motion",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Emergency",
+      "note": "Impossible motion name 'Eminent Motion'. Prompt says flag as likely 'Emergency' or 'Amended' Motion. Either suggestion is acceptable; caught is the pass condition. Crosses a line break."
+    },
+    {
+      "id": 2,
+      "match": "the compliant",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "complaint",
+      "note": "compliant/complaint: 'amend the compliant'. Prompt explicitly calls this out as always wrong."
+    },
+    {
+      "id": 3,
+      "match": "Fith Amendment",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Fifth",
+      "note": "Single-character steno drop: 'Fith' should be 'Fifth'."
+    },
+    {
+      "id": 4,
+      "match": "the writ submissions",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "written",
+      "note": "writ/written near-miss: 'I reviewed the writ submissions' should be 'written'. Subtle because 'writ' is itself a real legal word."
+    },
+    {
+      "id": 5,
+      "match": "supreme court",
+      "type": "capitalization",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Supreme Court",
+      "note": "SOFT expectation: 'the supreme court has made clear' should be 'Supreme Court'. Contextual capitalization — a miss here is lower priority than the others."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "sua sponte",
+      "note": "Correct legal-Latin. Must NOT be flagged."
+    },
+    {
+      "text": "nunc pro tunc",
+      "note": "Correct legal-Latin. Must NOT be flagged."
+    },
+    {
+      "text": "res judicata",
+      "note": "Correct legal-Latin. Must NOT be flagged."
+    },
+    {
+      "text": "The plaintiff pled that",
+      "note": "'pled' is an accepted past tense. Must NOT be 'corrected' to 'pleaded'."
+    },
+    {
+      "text": "negligent supervision",
+      "note": "Correct cause-of-action term. Must NOT be flagged."
+    }
+  ]
+}
