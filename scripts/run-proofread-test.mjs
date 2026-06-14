@@ -33,7 +33,7 @@ globalThis.fetch = (url, opts) => {
 }
 
 // Import the REAL pipeline after patching fetch.
-const { extractTranscriptWithGemini } = await import('../src/lib/gemini.js')
+const { extractTranscriptWithGemini, flexFind, applyCorrectionDetailed } = await import('../src/lib/gemini.js')
 
 const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
 
@@ -119,6 +119,76 @@ function scoreTranscript(manifest, result) {
   }
 }
 
+// ── UI integrity checks ─────────────────────────────────────────────
+// For each annotation, simulate what the editor does on accept/revert:
+//   - flexFind must locate `original` in the entry text (highlighting)
+//   - applying/reverting the entry text by stored position must round-trip
+//     exactly (mirrors acceptAnnotation/reopenAnnotation for `entries`)
+//   - applying/reverting the raw transcript text via applyCorrectionDetailed
+//     must round-trip exactly (mirrors acceptAnnotation/reopenAnnotation for
+//     `originalText`)
+//   - applying to the raw text must not change the line count (no reflow
+//     exists yet, so a line-count change means formatting would break)
+function checkAnnotationIntegrity(ann, entries, rawText) {
+  const issues = []
+  const entry = entries.find((e) => e.id === ann.entry_id)
+  if (!entry) {
+    return { id: ann.id, original: ann.original, suggestion: ann.suggestion, issues: ['no matching entry for entry_id'] }
+  }
+
+  const entryMatch = flexFind(entry.text, ann.original)
+  if (!entryMatch) issues.push('original not locatable in entry text (highlight would fail)')
+
+  if (ann.original !== ann.suggestion) {
+    // Mirrors acceptAnnotation/reopenAnnotation: replace at the matched span,
+    // then revert by splicing the actual matched text (not `ann.original`,
+    // which may differ in case/whitespace from what flexFind matched) back
+    // into that same span — no re-searching for `suggestion`.
+    if (entryMatch) {
+      const matchedText = entry.text.substring(entryMatch.start, entryMatch.end)
+      const correctedEntry = entry.text.substring(0, entryMatch.start) + ann.suggestion + entry.text.substring(entryMatch.end)
+      if (correctedEntry === entry.text) issues.push('entry text accept was a no-op')
+      const appliedEnd = entryMatch.start + ann.suggestion.length
+      const revertedEntry = correctedEntry.substring(0, entryMatch.start) + matchedText + correctedEntry.substring(appliedEnd)
+      if (revertedEntry !== entry.text) issues.push('positional apply+revert on entry text did not round-trip')
+    }
+
+    // Mirrors DashboardEditor: accept stores the exact matched span/text via
+    // applyCorrectionDetailed, and reopenAnnotation reverts by splicing that
+    // span back in directly (no re-searching for `suggestion`).
+    const detail = applyCorrectionDetailed(rawText, ann.original, ann.suggestion)
+    if (detail.start === -1) {
+      issues.push('original not locatable in raw transcript text (export correction would fail)')
+    } else {
+      const correctedRaw = detail.text
+      if (correctedRaw === rawText) issues.push('applyCorrection on raw text was a no-op')
+
+      const beforeLines = rawText.split('\n').length
+      const afterLines = correctedRaw.split('\n').length
+      if (beforeLines !== afterLines) issues.push(`line count changed after apply: ${beforeLines} -> ${afterLines}`)
+
+      const revertedRaw = correctedRaw.substring(0, detail.start) + detail.matchedText + correctedRaw.substring(detail.end)
+      if (revertedRaw !== rawText) issues.push('positional apply+revert on raw text did not round-trip')
+    }
+  }
+
+  return { id: ann.id, original: ann.original, suggestion: ann.suggestion, issues }
+}
+
+function printIntegrityReport(results) {
+  const C = { red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', dim: '\x1b[2m', reset: '\x1b[0m' }
+  const withIssues = results.filter((r) => r.issues.length)
+  if (!withIssues.length) {
+    console.log(`  ${C.green}✓ All ${results.length} annotations pass apply/highlight/round-trip checks${C.reset}`)
+    return
+  }
+  console.log(`  ${C.red}✗ ${withIssues.length}/${results.length} annotations have apply/highlight issues:${C.reset}`)
+  for (const r of withIssues) {
+    console.log(`    [${r.id}] "${r.original}" → "${r.suggestion}"`)
+    for (const issue of r.issues) console.log(`        ${C.yellow}- ${issue}${C.reset}`)
+  }
+}
+
 function printReport(score) {
   const C = { red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', dim: '\x1b[2m', reset: '\x1b[0m', bold: '\x1b[1m' }
   console.log(`\n${C.bold}━━━ ${score.transcript} ━━━${C.reset}`)
@@ -171,6 +241,12 @@ async function main() {
     console.log('done.')
     const score = scoreTranscript(manifest, result)
     printReport(score)
+
+    const integrity = (result.annotations || []).map((a) => checkAnnotationIntegrity(a, result.entries, text))
+    console.log(`\n  UI apply/highlight integrity:`)
+    printIntegrityReport(integrity)
+    score.integrity = integrity
+
     allScores.push(score)
   }
 
@@ -178,9 +254,12 @@ async function main() {
   const totSeeded = allScores.reduce((s, x) => s + x.seeded, 0)
   const totCaught = allScores.reduce((s, x) => s + x.caught, 0)
   const totFP = allScores.reduce((s, x) => s + x.false_positives.length, 0)
+  const totAnnotations = allScores.reduce((s, x) => s + x.integrity.length, 0)
+  const totIntegrityIssues = allScores.reduce((s, x) => s + x.integrity.filter((r) => r.issues.length).length, 0)
   console.log(`\n\x1b[1m━━━ AGGREGATE ━━━\x1b[0m`)
   console.log(`Overall recall: ${totCaught}/${totSeeded} (${((totCaught / totSeeded) * 100).toFixed(0)}%)`)
   console.log(`Total possible false positives: ${totFP}`)
+  console.log(`UI apply/highlight integrity: ${totAnnotations - totIntegrityIssues}/${totAnnotations} annotations clean`)
 
   const outPath = join(TRANSCRIPT_DIR, `results_${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
   writeFileSync(outPath, JSON.stringify({ generated_at: new Date().toISOString(), scores: allScores }, null, 2))

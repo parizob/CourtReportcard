@@ -252,10 +252,22 @@ function _reflowLines(text, colWidth) {
  * (e.g. "as\n 2  identified" when searching for "as identified").
  * Returns the corrected text, or the original unchanged if not found.
  */
-export function applyCorrection(text, original, suggestion) {
-  if (!text || !original || !suggestion) return text
+/**
+ * Like applyCorrection, but also returns where in the resulting text the
+ * replacement landed and the exact raw substring that was replaced.
+ * Callers that need to revert a correction later (e.g. the editor's
+ * reopenAnnotation) should store `start`/`end`/`matchedText` and splice
+ * `matchedText` back in directly — searching for `suggestion` again with
+ * flexFind can match the wrong occurrence (e.g. a common word like "the")
+ * or, for corrections that spanned a line break, can't reconstruct the
+ * blanked-out tokens on the continuation line.
+ * Returns { text, start: -1, end: -1, matchedText: null } if `original`
+ * isn't found.
+ */
+export function applyCorrectionDetailed(text, original, suggestion) {
+  if (!text || !original || !suggestion) return { text, start: -1, end: -1, matchedText: null }
 
-  const doReplace = (matchStart, matchEnd, skipLineNums) => {
+  const buildReplacement = (matchStart, matchEnd, skipLineNums) => {
     const matchedRegion = text.substring(matchStart, matchEnd)
     const tokens = _tokenize(matchedRegion)
     const suggWords = suggestion.split(/\s+/).filter(Boolean)
@@ -276,8 +288,7 @@ export function applyCorrection(text, original, suggestion) {
       for (const idx of contentIndices) {
         tokens[idx] = { type: 'word', value: suggWords[wi++] }
       }
-      const rebuilt = tokens.map((t) => t.value).join('')
-      return text.substring(0, matchStart) + rebuilt + text.substring(matchEnd)
+      return tokens.map((t) => t.value).join('')
     }
 
     // When word counts differ across a line boundary, a flat string replace would
@@ -289,11 +300,21 @@ export function applyCorrection(text, original, suggestion) {
       for (let i = 1; i < contentIndices.length; i++) {
         tokens[contentIndices[i]] = { type: 'word', value: '' }
       }
-      const rebuilt = tokens.map((t) => t.value).join('')
-      return text.substring(0, matchStart) + rebuilt + text.substring(matchEnd)
+      return tokens.map((t) => t.value).join('')
     }
 
-    return text.substring(0, matchStart) + suggestion + text.substring(matchEnd)
+    return suggestion
+  }
+
+  const apply = (matchStart, matchEnd) => {
+    const matchedText = text.substring(matchStart, matchEnd)
+    const replacement = buildReplacement(matchStart, matchEnd, true)
+    return {
+      text: text.substring(0, matchStart) + replacement + text.substring(matchEnd),
+      start: matchStart,
+      end: matchStart + replacement.length,
+      matchedText,
+    }
   }
 
   // Fast path: direct match in text.
@@ -301,16 +322,21 @@ export function applyCorrection(text, original, suggestion) {
   // include transcript line numbers (e.g. "as\n 16        identified") which must
   // not be counted as content words during word-for-word replacement.
   const m = flexFind(text, original)
-  if (m) return doReplace(m.start, m.end, true)
+  if (m) return apply(m.start, m.end)
 
   // Fallback: search in clean content (strips line numbers from .txt transcripts)
   const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
   const cm = flexFind(cleanContent, original)
-  if (!cm) return text
+  if (!cm) return { text, start: -1, end: -1, matchedText: null }
 
   const origStart = cleanToOrig[cm.start]
   const origEnd = cleanToOrig[Math.min(cm.end - 1, cleanToOrig.length - 1)] + 1
-  return doReplace(origStart, origEnd, true)
+  return apply(origStart, origEnd)
+}
+
+export function applyCorrection(text, original, suggestion) {
+  if (!text || !original || !suggestion) return text
+  return applyCorrectionDetailed(text, original, suggestion).text
 }
 
 export function fixAnnotationPositions(entries, annotations) {

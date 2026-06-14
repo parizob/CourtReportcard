@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, buildCleanContentMap } from '../../lib/gemini'
+import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
 import { countByType } from '../../lib/annotationStats'
 import Tooltip from '../../components/Tooltip'
@@ -231,6 +231,7 @@ export default function DashboardEditor() {
     let appliedEntryId = null
     let appliedAt = null
     let appliedEnd = null
+    let appliedMatchedText = null
 
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
@@ -239,6 +240,7 @@ export default function DashboardEditor() {
       appliedEntryId = e.id
       appliedAt = m.start
       appliedEnd = m.start + finalSuggestion.length
+      appliedMatchedText = e.text.substring(m.start, m.end)
       return { ...e, text: e.text.substring(0, m.start) + finalSuggestion + e.text.substring(m.end) }
     })
 
@@ -249,6 +251,13 @@ export default function DashboardEditor() {
     // of the same word elsewhere in the document after acceptance.
     let _cleanStart = null
     let _cleanEnd = null
+    // Track exactly where in originalText the replacement landed so
+    // reopenAnnotation can revert it by splicing back the exact matched
+    // text, without re-searching (which can match the wrong occurrence of
+    // a common word, or fail to restore a line-break-spanning correction).
+    let _appliedOriginalStart = null
+    let _appliedOriginalEnd = null
+    let _appliedOriginalMatchedText = null
     if (curOriginalText) {
       const { cleanContent: cc } = buildCleanContentMap(curOriginalText)
       // Use the entry text as a location anchor to find the right occurrence.
@@ -266,12 +275,18 @@ export default function DashboardEditor() {
         _cleanStart = searchFrom + wordM.start
         _cleanEnd = _cleanStart + finalSuggestion.length
       }
-      updatedOriginalText = applyCorrection(curOriginalText, ann.original, finalSuggestion)
+      const detail = applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion)
+      updatedOriginalText = detail.text
+      if (detail.start !== -1) {
+        _appliedOriginalStart = detail.start
+        _appliedOriginalEnd = detail.end
+        _appliedOriginalMatchedText = detail.matchedText
+      }
     }
 
     const updatedAnnotations = curAnnotations.map((a) =>
       a.id === annotationId
-        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _cleanStart, _cleanEnd }
+        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _appliedMatchedText: appliedMatchedText, _cleanStart, _cleanEnd, _appliedOriginalStart, _appliedOriginalEnd, _appliedOriginalMatchedText }
         : a
     )
     const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
@@ -317,7 +332,7 @@ export default function DashboardEditor() {
           if (e.id !== ann._appliedEntryId) return e
           const before = e.text.substring(0, ann._appliedAt)
           const after  = e.text.substring(ann._appliedEnd)
-          return { ...e, text: before + ann.original + after }
+          return { ...e, text: before + (ann._appliedMatchedText ?? ann.original) + after }
         })
         entriesRef.current = curEntries
         setEntries(curEntries)
@@ -325,8 +340,18 @@ export default function DashboardEditor() {
 
       // Revert originalText — acceptAnnotation applied the correction here too.
       const curOriginalText = originalTextRef.current
-      if (curOriginalText && ann.suggestion) {
-        const reverted = applyCorrection(curOriginalText, ann.suggestion, ann.original)
+      if (curOriginalText) {
+        let reverted = curOriginalText
+        if (ann._appliedOriginalStart != null && ann._appliedOriginalMatchedText != null) {
+          // Splice back the exact text that was replaced — avoids flexFind
+          // matching the wrong occurrence of `suggestion` elsewhere in the
+          // document and correctly restores line-break-spanning corrections.
+          reverted = curOriginalText.substring(0, ann._appliedOriginalStart) +
+            ann._appliedOriginalMatchedText +
+            curOriginalText.substring(ann._appliedOriginalEnd)
+        } else if (ann.suggestion) {
+          reverted = applyCorrection(curOriginalText, ann.suggestion, ann.original)
+        }
         originalTextRef.current = reverted
         setOriginalText(reverted)
       }
@@ -344,8 +369,12 @@ export default function DashboardEditor() {
             _appliedEntryId: undefined,
             _appliedAt: undefined,
             _appliedEnd: undefined,
+            _appliedMatchedText: undefined,
             _cleanStart: undefined,
             _cleanEnd: undefined,
+            _appliedOriginalStart: undefined,
+            _appliedOriginalEnd: undefined,
+            _appliedOriginalMatchedText: undefined,
           }
         : a
     )
