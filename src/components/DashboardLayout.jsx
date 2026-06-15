@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { isTelemetryAdmin } from '../lib/telemetry'
-
 const navItems = [
   { icon: 'dashboard', label: 'Dashboard', to: '/dashboard', end: true },
   { icon: 'cloud_upload', label: 'Upload', to: '/dashboard/upload' },
@@ -21,7 +19,6 @@ export default function DashboardLayout() {
   const { pathname } = useLocation()
   const { signOut, tokenBalance, user } = useAuth()
   const navigate = useNavigate()
-  const showTelemetry = isTelemetryAdmin(user?.email)
   const [showGettingStarted, setShowGettingStarted] = useState(false)
 
   const handleSignOut = async () => {
@@ -75,20 +72,6 @@ export default function DashboardLayout() {
                 <span>{item.label}</span>
               </NavLink>
             ))}
-            {showTelemetry && (
-              <NavLink
-                to="/dashboard/telemetry"
-                data-track-id="dash_nav_telemetry"
-                className={({ isActive }) =>
-                  isActive
-                    ? 'flex items-center gap-3 px-4 py-3 bg-surface-container-lowest text-primary rounded-l-lg shadow-sm font-semibold'
-                    : 'flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-l-lg'
-                }
-              >
-                <span className="material-symbols-outlined">monitoring</span>
-                <span>Telemetry</span>
-              </NavLink>
-            )}
           </nav>
 
           {/* Bottom actions */}
