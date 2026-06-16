@@ -8,6 +8,20 @@ import { countByType } from '../../lib/annotationStats'
 import { stripRtf } from '../../lib/rtf'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
+const ALLOWED_EXTENSIONS = ['.txt', '.rtf']
+const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1 MB — mirrors the server-side limit
+
+function validateFile(file) {
+  const ext = '.' + file.name.split('.').pop().toLowerCase()
+  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    return 'Only .txt and .rtf files are supported.'
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    return 'TRANSCRIPT_TOO_LARGE'
+  }
+  return null
+}
+
 export default function DashboardUpload() {
   const { user, tokenBalance, spendTokens, refreshTokens } = useAuth()
   const [caseName, setCaseName] = useState('')
@@ -341,7 +355,14 @@ export default function DashboardUpload() {
                   type="file"
                   className="hidden"
                   accept=".txt,.rtf"
-                  onChange={(e) => setTranscriptFiles(e.target.files.length ? [e.target.files[0]] : [])}
+                  onChange={(e) => {
+                    const file = e.target.files[0]
+                    if (!file) return
+                    const err = validateFile(file)
+                    if (err) { setError(err); setTranscriptFiles([]); return }
+                    setError('')
+                    setTranscriptFiles([file])
+                  }}
                 />
               </label>
             ) : (
@@ -364,8 +385,15 @@ export default function DashboardUpload() {
                   <input
                     type="file"
                     className="hidden"
-                    accept=".txt,.rtf"
-                    onChange={(e) => { if (e.target.files.length > 0) setTranscriptFiles([e.target.files[0]]) }}
+                  accept=".txt,.rtf"
+                  onChange={(e) => {
+                    const file = e.target.files[0]
+                    if (!file) return
+                    const err = validateFile(file)
+                    if (err) { setError(err); setTranscriptFiles([]); return }
+                    setError('')
+                    setTranscriptFiles([file])
+                  }}
                   />
                 </label>
               </div>
