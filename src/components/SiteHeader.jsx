@@ -9,20 +9,31 @@ const publicNavClass = ({ isActive }) =>
     : 'text-on-surface-variant hover:text-primary font-headline font-bold tracking-tight transition-colors duration-200'
 
 
+const LOW_TOKEN_THRESHOLD = 10
+const ADMIN_ALWAYS_SHOW = 'parizob1@gmail.com'
+
 export default function SiteHeader() {
-  const { isAuthenticated, user, displayName, initials, openModal, signOut } = useAuth()
+  const { isAuthenticated, user, displayName, initials, openModal, signOut, tokenBalance } = useAuth()
   const navigate = useNavigate()
 
+  // Unauthenticated bell state
   const [bellRinging, setBellRinging] = useState(false)
   const [hasNotification, setHasNotification] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef(null)
+
+  // Authenticated bell state
+  const [authBellRinging, setAuthBellRinging] = useState(false)
+  const [hasLowTokenNotif, setHasLowTokenNotif] = useState(false)
+  const [lowTokenOpen, setLowTokenOpen] = useState(false)
+  const authNotifRef = useRef(null)
 
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  // Unauthenticated sign-up nudge
   useEffect(() => {
     if (isAuthenticated) return
     const timer = setTimeout(() => {
@@ -41,9 +52,24 @@ export default function SiteHeader() {
     return () => clearInterval(interval)
   }, [hasNotification, isAuthenticated])
 
+  // Authenticated low-token nudge
+  useEffect(() => {
+    if (!isAuthenticated || tokenBalance === null || !user) return
+    const isAdmin = user.email === ADMIN_ALWAYS_SHOW
+    const isLow = tokenBalance < LOW_TOKEN_THRESHOLD
+    if (!isLow && !isAdmin) return
+
+    const timer = setTimeout(() => {
+      setHasLowTokenNotif(true)
+      setAuthBellRinging(true)
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [isAuthenticated, tokenBalance, user])
+
   useEffect(() => {
     const handler = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
+      if (authNotifRef.current && !authNotifRef.current.contains(e.target)) setLowTokenOpen(false)
       if (accountRef.current && !accountRef.current.contains(e.target)) setAccountOpen(false)
     }
     document.addEventListener('mousedown', handler)
@@ -54,6 +80,12 @@ export default function SiteHeader() {
     setHasNotification(false)
     setNotifOpen(false)
     setBellRinging(false)
+  }
+
+  const dismissLowTokenNotif = () => {
+    setHasLowTokenNotif(false)
+    setLowTokenOpen(false)
+    setAuthBellRinging(false)
   }
 
   const handleSignOut = async () => {
@@ -73,9 +105,56 @@ export default function SiteHeader() {
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button className="flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
-            </button>
+
+            {/* Authenticated notification bell */}
+            <div className="relative" ref={authNotifRef}>
+              <button
+                onClick={() => setLowTokenOpen((v) => !v)}
+                data-track-id="header_auth_bell"
+                className="relative flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors"
+              >
+                <span
+                  className={`material-symbols-outlined text-on-surface-variant${authBellRinging ? ' bell-ring' : ''}`}
+                  onAnimationEnd={() => setAuthBellRinging(false)}
+                >
+                  notifications
+                </span>
+                {hasLowTokenNotif && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none">
+                    1
+                  </span>
+                )}
+              </button>
+
+              {lowTokenOpen && (
+                <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden z-50">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15">
+                    <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
+                    <button onClick={dismissLowTokenNotif} className="text-xs text-primary font-semibold hover:underline">Mark as read</button>
+                  </div>
+                  <div className="px-5 py-4 flex gap-3">
+                    <div className="shrink-0 w-9 h-9 rounded-full bg-tertiary-fixed flex items-center justify-center mt-0.5">
+                      <span className="material-symbols-outlined text-on-tertiary-fixed text-base">toll</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-on-surface leading-snug mb-1">You're running low on tokens</p>
+                      <p className="text-xs text-on-surface-variant leading-relaxed">We noticed your balance is getting low. Submit a support ticket and we'd love to help get you more tokens.</p>
+                      <Link
+                        to="/support"
+                        onClick={dismissLowTokenNotif}
+                        data-track-id="header_low_token_notif_support"
+                        className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
+                      >
+                        Submit a Support Ticket →
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="px-5 py-3 border-t border-outline-variant/10 text-center">
+                    <span className="text-[10px] text-on-surface-variant/50 uppercase tracking-widest">Court Reportcard</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="relative" ref={accountRef}>
               <button
