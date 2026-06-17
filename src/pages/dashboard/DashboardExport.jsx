@@ -145,6 +145,40 @@ export default function DashboardExport() {
     return output
   }
 
+  // Removes the line-number column while preserving all content indentation.
+  // Line numbers sit in a fixed-width band on the left; we detect that band's
+  // width (the body's left margin) and slice exactly that many characters from
+  // every line. Content indentation BEYOND the band is left untouched, so
+  // captions, "Plaintiff," indents, Q/A alignment, etc. stay exactly as-is.
+  const buildCleanText = () => {
+    const source = originalText || buildPlainText()
+    const lines = source.split('\n')
+
+    // The body left margin = the smallest "<spaces><number><spaces>" prefix
+    // among numbered lines. Un-indented lines (vs., names, Q/A) produce the true
+    // column width; indented lines produce a longer prefix and don't lower the min.
+    let colWidth = Infinity
+    for (const l of lines) {
+      const m = l.match(/^(\s*\d{1,4}\s+)\S/)
+      if (m) colWidth = Math.min(colWidth, m[1].length)
+    }
+    if (!isFinite(colWidth) || colWidth === 0) return source
+
+    return lines
+      .map((line) => {
+        // Blank testimony line: just a bare line number in the left band, no
+        // content. (A lone number further right is a page number — leave it.)
+        if (/^\s*\d{1,4}\s*$/.test(line) && line.search(/\d/) < colWidth) return ''
+        const isNumbered = /^\s*\d{1,4}\s/.test(line)
+        const bandIsBlank = /^\s*$/.test(line.slice(0, colWidth))
+        // Only cut the band when it holds a line number or pure whitespace
+        // (continuation/blank lines). Never slice into actual content.
+        if (isNumbered || bandIsBlank) return line.slice(colWidth)
+        return line
+      })
+      .join('\n')
+  }
+
   const buildJsonExport = () => {
     const payload = { title, entries, annotations }
     if (originalText) payload.originalText = originalText
@@ -176,6 +210,14 @@ export default function DashboardExport() {
         case 'rtf': {
           const content = originalText || buildPlainText()
           triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
+          break
+        }
+        case 'txt_clean': {
+          triggerDownload(buildCleanText(), `${baseName}_clean.txt`, 'text/plain')
+          break
+        }
+        case 'rtf_clean': {
+          triggerDownload(encodeRtf(buildCleanText()), `${baseName}_clean.rtf`, 'application/rtf')
           break
         }
         case 'json': {
@@ -297,34 +339,93 @@ export default function DashboardExport() {
           )}
         </div>
 
-        {/* Export formats */}
-        <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Download Transcript</p>
+        {/* Export formats — two columns */}
+        <div className="shrink-0 grid grid-cols-2 gap-4">
 
-        <div className="shrink-0 flex flex-col gap-2">
-          {[
-            { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', label: 'Corrected Transcript', ext: '.txt', desc: originalText ? 'Original formatting preserved — only accepted corrections applied.' : 'Court-standard format with line numbers and page breaks.' },
-            { format: 'rtf', icon: 'draft',   color: 'bg-indigo-50 text-indigo-600', label: 'Corrected Transcript', ext: '.rtf', desc: 'Rich Text Format — opens in Word, Pages, or any steno software.' },
-            { format: 'json', icon: 'data_object', color: 'bg-amber-50 text-amber-600', label: 'Annotated Export', ext: '.json', desc: 'Full transcript with all annotations, corrections, and audit trail.' },
-          ].map(({ format, icon, color, label, ext, desc }) => (
-            <button
-              key={format}
-              onClick={() => handleExport(format)}
-              disabled={!!exporting}
-              className="bg-surface-container-lowest rounded-xl editorial-shadow px-4 py-3.5 flex items-center gap-4 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-            >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
-                <span className="material-symbols-outlined text-xl">{icon}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-headline font-bold text-on-surface text-sm">{label} <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                <p className="text-[11px] text-on-surface-variant truncate">{desc}</p>
-              </div>
-              <span className="material-symbols-outlined text-primary text-xl shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                {exporting === format ? 'check_circle' : 'download'}
-              </span>
-            </button>
-          ))}
+          {/* Download Transcript */}
+          <div className="flex flex-col gap-2">
+            <div className="h-9 flex flex-col justify-end px-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Download Transcript</p>
+              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">With line numbers</p>
+            </div>
+            {[
+              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, formatting preserved.' },
+              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Opens in Word, Pages, or steno software.' },
+            ].map(({ format, icon, color, ext, desc }) => (
+              <button
+                key={format}
+                onClick={() => handleExport(format)}
+                disabled={!!exporting}
+                data-track-id={`export_${format}`}
+                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                  <span className="material-symbols-outlined text-lg">{icon}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-headline font-bold text-on-surface text-sm">Corrected <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                  <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                </div>
+                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {exporting === format ? 'check_circle' : 'download'}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Download Clean Copies */}
+          <div className="flex flex-col gap-2">
+            <div className="h-9 flex flex-col justify-end px-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Clean Copies</p>
+              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">No line numbers — for CAT software</p>
+            </div>
+            {[
+              { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, line numbers removed.' },
+              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Paste into Eclipse or any CAT tool.' },
+            ].map(({ format, icon, color, ext, desc }) => (
+              <button
+                key={format}
+                onClick={() => handleExport(format)}
+                disabled={!!exporting}
+                data-track-id={`export_${format}`}
+                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                  <span className="material-symbols-outlined text-lg">{icon}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-headline font-bold text-on-surface text-sm">Clean Copy <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                  <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                </div>
+                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {exporting === format ? 'check_circle' : 'download'}
+                </span>
+              </button>
+            ))}
+          </div>
+
         </div>
+
+        {/* Annotated export — full width */}
+        <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Annotated Export</p>
+
+        <button
+          onClick={() => handleExport('json')}
+          disabled={!!exporting}
+          data-track-id="export_json"
+          className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow px-4 py-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+        >
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600 bg-opacity-80 group-hover:scale-105 transition-transform">
+            <span className="material-symbols-outlined text-lg">data_object</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-headline font-bold text-on-surface text-sm">Annotated Export <span className="text-on-surface-variant font-normal">(.json)</span></p>
+            <p className="text-[11px] text-on-surface-variant leading-snug">Full transcript with all annotations, corrections, and audit trail.</p>
+          </div>
+          <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {exporting === 'json' ? 'check_circle' : 'download'}
+          </span>
+        </button>
 
         {/* Coming soon — compact */}
         <div className="shrink-0 flex items-center gap-3">
