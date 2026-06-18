@@ -9,14 +9,21 @@ import { stripRtf } from '../../lib/rtf'
 import courtReporterFacts from '../../data/courtReporterFacts'
 
 const ALLOWED_EXTENSIONS = ['.txt', '.rtf']
-const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1 MB — mirrors the server-side limit
+// RTF files carry heavy markup overhead (font tables, margin codes, etc.) that
+// can make a 49-page transcript 2–3 MB even though the actual text is ~9 KB.
+// Keep a generous limit per format rather than one flat number.
+const MAX_FILE_BYTES = {
+  '.txt': 2 * 1024 * 1024,   // 2 MB — well above any real plain-text transcript
+  '.rtf': 10 * 1024 * 1024,  // 10 MB — RTF markup overhead can be 10–50× text size
+}
 
 function validateFile(file) {
   const ext = '.' + file.name.split('.').pop().toLowerCase()
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     return 'Only .txt and .rtf files are supported.'
   }
-  if (file.size > MAX_FILE_BYTES) {
+  const limit = MAX_FILE_BYTES[ext] ?? MAX_FILE_BYTES['.txt']
+  if (file.size > limit) {
     return 'TRANSCRIPT_TOO_LARGE'
   }
   return null

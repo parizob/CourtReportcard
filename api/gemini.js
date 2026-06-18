@@ -1,6 +1,8 @@
 const ALLOWED_MODELS = ['gemini-2.5-pro']
 const DEFAULT_MODEL = 'gemini-2.5-pro'
-const MAX_FILE_BYTES = 1 * 1024 * 1024 // 1MB — well above any real transcript, blocks abuse
+// Guard is only applied to binary fileParts (PDFs). Plain-text transcripts
+// arrive as prompt text and are checked client-side per extension.
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10MB
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
