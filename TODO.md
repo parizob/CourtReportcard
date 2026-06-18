@@ -12,6 +12,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Celebrate when a user uploads a perfect transcript (something fun + bonus tokens) — needs a UID per uploaded document to prevent duplicate claims, or a monthly cap on free celebration tokens
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
 - [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
+- [ ] Refund tokens on failed uploads — if a transcript errors out (e.g. too large, needs to be split), the user should not be charged; credits should be returned automatically
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
 
 ## Done

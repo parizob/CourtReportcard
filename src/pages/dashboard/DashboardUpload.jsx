@@ -23,7 +23,7 @@ function validateFile(file) {
 }
 
 export default function DashboardUpload() {
-  const { user, tokenBalance, spendTokens, refreshTokens } = useAuth()
+  const { user, tokenBalance, spendTokens, refundTokens, refreshTokens } = useAuth()
   const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -98,6 +98,10 @@ export default function DashboardUpload() {
       return
     }
 
+    // Tokens are charged up front; if anything below fails we must give them back.
+    let tokensCharged = pendingPages
+    let createdId = null
+
     setUploading(true)
     setUploadPhase('Creating case...')
 
@@ -109,6 +113,7 @@ export default function DashboardUpload() {
         .single()
 
       if (caseErr) throw caseErr
+      createdId = caseRow.id
       setCreatedCaseId(caseRow.id)
 
       setUploadPhase('Uploading files...')
@@ -200,6 +205,9 @@ export default function DashboardUpload() {
 
       await supabase.from('cases').update({ status: 'analyzed' }).eq('id', caseRow.id)
 
+      // Completed successfully — the charge stands, so don't refund.
+      tokensCharged = 0
+
       setFinishing(true)
       await new Promise((r) => setTimeout(r, 800))
       setDone(true)
@@ -209,9 +217,27 @@ export default function DashboardUpload() {
       refreshTokens()
     } catch (err) {
       console.error('Upload failed:', err)
-      setError(err.message === 'TRANSCRIPT_TOO_LARGE' ? 'TRANSCRIPT_TOO_LARGE' : (err.message || 'Upload failed. Please try again.'))
+
+      // The analysis never completed — return the tokens we charged up front.
+      if (tokensCharged > 0) {
+        const refunded = await refundTokens(tokensCharged, 'Refund — failed upload')
+        if (!refunded) console.error('Token refund failed after upload error.')
+      }
+
+      // Soft-delete the half-built case so it doesn't linger as "processing"
+      // (mirrors the dashboard delete; 'failed' isn't an allowed status).
+      if (createdId) {
+        await supabase
+          .from('cases')
+          .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
+          .eq('id', createdId)
+      }
+
+      const tooLarge = err.message === 'TRANSCRIPT_TOO_LARGE'
+      setError(tooLarge ? 'TRANSCRIPT_TOO_LARGE' : (err.message || 'Upload failed. Please try again.'))
       setUploading(false)
       setUploadPhase('')
+      refreshTokens()
     }
   }
 

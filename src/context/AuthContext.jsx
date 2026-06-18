@@ -42,6 +42,35 @@ export function AuthProvider({ children }) {
     return true
   }, [user, tokenBalance])
 
+  // Returns tokens to the user — e.g. when an upload errors out before it
+  // finishes, so a failed analysis never costs credits. Re-reads the
+  // authoritative balance from the DB so it can't race with stale local state.
+  const refundTokens = useCallback(async (amount = 1, description = null) => {
+    if (!user || amount <= 0) return false
+    const { data, error: readErr } = await supabase
+      .from('user_profiles')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single()
+    if (readErr) return false
+    const newBalance = (data?.balance ?? 0) + amount
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+    if (error) return false
+    // Audit entry — best effort; never let a ledger hiccup block the refund.
+    const { error: ledgerErr } = await supabase.from('token_ledger').insert({
+      user_id: user.id,
+      amount,
+      type: 'refund',
+      description,
+    })
+    if (ledgerErr) console.error('Refund ledger insert failed:', ledgerErr.message)
+    setTokenBalance(newBalance)
+    return true
+  }, [user])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -113,6 +142,7 @@ export function AuthProvider({ children }) {
       userPlan,
       planRenewsAt,
       spendTokens,
+      refundTokens,
       refreshTokens: () => user && fetchTokenBalance(user.id),
       signIn,
       signUp,
