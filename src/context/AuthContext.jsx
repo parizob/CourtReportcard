@@ -24,50 +24,31 @@ export function AuthProvider({ children }) {
     setPlanRenewsAt(data?.plan_renews_at ?? null)
   }, [])
 
+  // Balance is mutated only through SECURITY DEFINER RPCs — the client has no
+  // direct write access to user_profiles.balance. The DB enforces the balance
+  // check atomically and writes the ledger row in the same transaction.
   const spendTokens = useCallback(async (amount = 1) => {
-    if (!user || tokenBalance === null || amount <= 0) return false
-    if (tokenBalance < amount) return false
-    const newBalance = tokenBalance - amount
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-    if (error) return false
-    await supabase.from('token_ledger').insert({
-      user_id: user.id,
-      amount: -amount,
-      type: 'spend',
-    })
-    setTokenBalance(newBalance)
+    if (!user || amount <= 0) return false
+    const { data, error } = await supabase.rpc('spend_tokens', { p_amount: amount })
+    // data is the new balance, or null on insufficient funds / no profile.
+    if (error || data === null || data === undefined) return false
+    setTokenBalance(data)
     return true
-  }, [user, tokenBalance])
+  }, [user])
 
   // Returns tokens to the user — e.g. when an upload errors out before it
-  // finishes, so a failed analysis never costs credits. Re-reads the
-  // authoritative balance from the DB so it can't race with stale local state.
+  // finishes, so a failed analysis never costs credits.
   const refundTokens = useCallback(async (amount = 1, description = null) => {
     if (!user || amount <= 0) return false
-    const { data, error: readErr } = await supabase
-      .from('user_profiles')
-      .select('balance')
-      .eq('user_id', user.id)
-      .single()
-    if (readErr) return false
-    const newBalance = (data?.balance ?? 0) + amount
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-    if (error) return false
-    // Audit entry — best effort; never let a ledger hiccup block the refund.
-    const { error: ledgerErr } = await supabase.from('token_ledger').insert({
-      user_id: user.id,
-      amount,
-      type: 'refund',
-      description,
+    const { data, error } = await supabase.rpc('refund_tokens', {
+      p_amount: amount,
+      p_description: description,
     })
-    if (ledgerErr) console.error('Refund ledger insert failed:', ledgerErr.message)
-    setTokenBalance(newBalance)
+    if (error || data === null || data === undefined) {
+      console.error('Refund failed:', error?.message || 'no balance returned')
+      return false
+    }
+    setTokenBalance(data)
     return true
   }, [user])
 
