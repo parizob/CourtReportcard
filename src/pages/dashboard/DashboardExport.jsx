@@ -342,15 +342,15 @@ export default function DashboardExport() {
         {/* Export formats — two columns */}
         <div className="shrink-0 grid grid-cols-2 gap-4">
 
-          {/* Download Transcript */}
+          {/* With line numbers */}
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Download Transcript</p>
-              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">With line numbers</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">With Line Numbers</p>
+              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">e.g. CaseCat, some software</p>
             </div>
             {[
               { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, formatting preserved.' },
-              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Opens in Word, Pages, or steno software.' },
+              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text, formatting preserved.' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -373,15 +373,15 @@ export default function DashboardExport() {
             ))}
           </div>
 
-          {/* Download Clean Copies */}
+          {/* Without line numbers */}
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Clean Copies</p>
-              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">No line numbers — for CAT software</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Without Line Numbers</p>
+              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">e.g. Eclipse, software that adds its own</p>
             </div>
             {[
               { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, line numbers removed.' },
-              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Paste into Eclipse or any CAT tool.' },
+              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text, line numbers removed.' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -405,6 +405,11 @@ export default function DashboardExport() {
           </div>
 
         </div>
+
+        {/* Disclaimer */}
+        <p className="shrink-0 text-[11px] text-on-surface-variant/70 leading-relaxed px-1">
+          <span className="font-semibold text-on-surface-variant">Not sure which to use?</span> Some software (e.g. CaseCat) imports line numbers as-is, so use the version with line numbers. Others (e.g. Eclipse) automatically add their own line numbers on import, which would cause duplicates — use the version without.
+        </p>
 
         {/* Annotated export — full width */}
         <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Annotated Export</p>
