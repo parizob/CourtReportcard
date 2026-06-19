@@ -60,6 +60,17 @@ reproduce the issue (run the harness, or describe exact repro steps) before
 proposing a fix. Don't guess at root cause from code reading alone if a quick
 test can confirm it.
 
+## When the Gemini prompt changes:
+
+The prompts (`EXTRACTION_ONLY_PROMPT`, `PROOFREAD_ONLY_PROMPT`) live in
+`src/lib/gemini.js` and are also called by the Supabase background Edge
+Function (built to handle async processing so users don't have to stay on
+the upload screen). Whenever a prompt is changed in `src/lib/gemini.js`,
+you MUST check whether the Supabase Edge Function has its own copy of the
+prompt and update it to match. Prompt drift between the two will cause
+inconsistent results depending on how the transcript was uploaded. Always
+confirm both are in sync before marking a prompt change as complete.
+
 ## When in doubt:
 
 This is a beta product for a small, trust-sensitive professional audience.
