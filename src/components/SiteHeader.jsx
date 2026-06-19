@@ -168,6 +168,7 @@ export default function SiteHeader() {
 
   const dismissReadyNotif = (id) => {
     setReadyNotifs((prev) => prev.filter((n) => n.id !== id))
+    setLowTokenOpen(false)
   }
 
   const totalAuthNotifs = (hasLowTokenNotif ? 1 : 0) + readyNotifs.length
