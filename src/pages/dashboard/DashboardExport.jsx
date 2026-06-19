@@ -213,11 +213,11 @@ export default function DashboardExport() {
           break
         }
         case 'txt_clean': {
-          triggerDownload(buildCleanText(), `${baseName}_clean.txt`, 'text/plain')
+          triggerDownload(buildCleanText(), `${baseName}.txt`, 'text/plain')
           break
         }
         case 'rtf_clean': {
-          triggerDownload(encodeRtf(buildCleanText()), `${baseName}_clean.rtf`, 'application/rtf')
+          triggerDownload(encodeRtf(buildCleanText()), `${baseName}.rtf`, 'application/rtf')
           break
         }
         case 'json': {
@@ -346,11 +346,10 @@ export default function DashboardExport() {
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">With Line Numbers</p>
-              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">e.g. CaseCat, some software</p>
             </div>
             {[
-              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, formatting preserved.' },
-              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text, formatting preserved.' },
+              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
+              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -363,7 +362,7 @@ export default function DashboardExport() {
                   <span className="material-symbols-outlined text-lg">{icon}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-headline font-bold text-on-surface text-sm">Corrected <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                  <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
                   <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
                 </div>
                 <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -377,11 +376,10 @@ export default function DashboardExport() {
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Without Line Numbers</p>
-              <p className="text-[10px] text-on-surface-variant/70 italic leading-tight">e.g. Eclipse, software that adds its own</p>
             </div>
             {[
-              { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text, line numbers removed.' },
-              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text, line numbers removed.' },
+              { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
+              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -394,7 +392,7 @@ export default function DashboardExport() {
                   <span className="material-symbols-outlined text-lg">{icon}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-headline font-bold text-on-surface text-sm">Clean Copy <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                  <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
                   <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
                 </div>
                 <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -406,10 +404,32 @@ export default function DashboardExport() {
 
         </div>
 
-        {/* Disclaimer */}
-        <p className="shrink-0 text-[11px] text-on-surface-variant/70 leading-relaxed px-1">
-          <span className="font-semibold text-on-surface-variant">Not sure which to use?</span> Some software (e.g. CaseCat) imports line numbers as-is, so use the version with line numbers. Others (e.g. Eclipse) automatically add their own line numbers on import, which would cause duplicates — use the version without.
-        </p>
+        {/* Which version tip */}
+        <div className="shrink-0 relative group/tip w-fit">
+          <button className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-sm">help_outline</span>
+            Not sure which version to use?
+          </button>
+          <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-0 w-80 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
+            <div className="bg-[#1a1a2e] text-white rounded-xl px-5 py-4 text-[11px] leading-relaxed shadow-xl">
+              <p className="text-white font-bold text-sm text-center mb-3 tracking-tight">Which version should I use?</p>
+              <div className="grid grid-cols-2 divide-x divide-white/15">
+                <div className="pr-4 flex flex-col items-center text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">With Line Numbers</p>
+                  <p className="text-white/75 leading-relaxed">Use if your software imports the file as-is.</p>
+                  <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Case CATalyst</span></p>
+                </div>
+                <div className="pl-4 flex flex-col items-center text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">Without Line Numbers</p>
+                  <p className="text-white/75 leading-relaxed">Use if your software adds its own numbers on import.</p>
+                  <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Eclipse</span></p>
+                </div>
+              </div>
+              <p className="text-white/30 mt-3 text-[10px] text-center">When in doubt, check your software's import settings.</p>
+            </div>
+            <div className="w-2 h-2 bg-[#1a1a2e] rotate-45 ml-4 -mt-[5px]" />
+          </div>
+        </div>
 
         {/* Annotated export — full width */}
         <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Annotated Export</p>
