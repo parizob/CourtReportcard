@@ -1,12 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { extractTranscriptWithGemini } from '../../lib/gemini'
 import { countPages } from '../../lib/pageCount'
-import { countByType } from '../../lib/annotationStats'
 import { stripRtf } from '../../lib/rtf'
-import courtReporterFacts from '../../data/courtReporterFacts'
 
 const ALLOWED_EXTENSIONS = ['.txt', '.rtf']
 // RTF files carry heavy markup overhead (font tables, margin codes, etc.) that
@@ -36,43 +33,21 @@ export default function DashboardUpload() {
   const [uploading, setUploading] = useState(false)
   const [uploadPhase, setUploadPhase] = useState('')
   const [done, setDone] = useState(false)
-  const [createdCaseId, setCreatedCaseId] = useState(null)
   const [error, setError] = useState('')
-  const [finishing, setFinishing] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingPages, setPendingPages] = useState(0)
   const [counting, setCounting] = useState(false)
   const [phiCertified, setPhiCertified] = useState(false)
 
-  const [elapsed, setElapsed] = useState(0)
-  const [factIndex, setFactIndex] = useState(() => Math.floor(Math.random() * courtReporterFacts.length))
-  const [factVisible, setFactVisible] = useState(true)
-  const timerRef = useRef(null)
-  const factTimerRef = useRef(null)
-
-  useEffect(() => {
-    if (uploadPhase === 'Analyzing your transcript...') {
-      setElapsed(0)
-      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
-
-      factTimerRef.current = setInterval(() => {
-        setFactVisible(false)
-        setTimeout(() => {
-          setFactIndex((prev) => (prev + 1) % courtReporterFacts.length)
-          setFactVisible(true)
-        }, 500)
-      }, 10000)
-    } else {
-      clearInterval(timerRef.current)
-      clearInterval(factTimerRef.current)
-    }
-    return () => {
-      clearInterval(timerRef.current)
-      clearInterval(factTimerRef.current)
-    }
-  }, [uploadPhase])
-
   const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading && !counting
+
+  const resetForm = () => {
+    setDone(false)
+    setCaseName('')
+    setTranscriptFiles([])
+    setPendingPages(0)
+    setError('')
+  }
 
   const handleUploadClick = async () => {
     setError('')
@@ -115,13 +90,12 @@ export default function DashboardUpload() {
     try {
       const { data: caseRow, error: caseErr } = await supabase
         .from('cases')
-        .insert({ user_id: user.id, name: caseName.trim() })
+        .insert({ user_id: user.id, name: caseName.trim(), tokens_charged: pendingPages })
         .select()
         .single()
 
       if (caseErr) throw caseErr
       createdId = caseRow.id
-      setCreatedCaseId(caseRow.id)
 
       setUploadPhase('Uploading files...')
 
@@ -146,86 +120,27 @@ export default function DashboardUpload() {
         if (fileErr) throw fileErr
       }
 
+      // Hand the case off to the background worker. Analysis (and the email
+      // notification + token refund on failure) now happens server-side in the
+      // analyze-case Edge Function, so the user never waits on this screen.
       await supabase.from('cases').update({ status: 'processing' }).eq('id', caseRow.id)
-      setUploadPhase('Analyzing your transcript...')
 
-      let totalEntries = 0
-      let totalIssues = 0
-      const byType = {}
+      // Fire-and-forget: don't await, the user can leave immediately.
+      supabase.functions
+        .invoke('analyze-case', { body: { case_id: caseRow.id } })
+        .catch((e) => console.error('Failed to start background analysis:', e))
 
-      for (const file of transcriptFiles) {
-        const isPdf = file.name.toLowerCase().endsWith('.pdf')
-        const isTxt = file.name.toLowerCase().endsWith('.txt')
-        const isRtf = file.name.toLowerCase().endsWith('.rtf')
-        let extractedJson
-
-        if (isPdf) {
-          const buffer = await file.arrayBuffer()
-          extractedJson = await extractTranscriptWithGemini(buffer, 'application/pdf')
-        } else {
-          const rawContent = await file.text()
-          // Strip RTF markup so Gemini and the editor see clean text.
-          const plainText = isRtf ? stripRtf(rawContent) : rawContent
-          extractedJson = await extractTranscriptWithGemini(plainText)
-          if (isTxt || isRtf) {
-            extractedJson.originalText = plainText
-          }
-        }
-
-        totalEntries += (extractedJson.entries || []).length
-        totalIssues += (extractedJson.annotations || []).length
-        const fileByType = countByType(extractedJson.annotations || [])
-        for (const [k, v] of Object.entries(fileByType)) {
-          byType[k] = (byType[k] || 0) + v
-        }
-
-        const jsonBlob = new Blob(
-          [JSON.stringify(extractedJson, null, 2)],
-          { type: 'application/json' }
-        )
-
-        const jsonFileName = file.name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_extracted.json'
-        const jsonStoragePath = `${user.id}/${caseRow.id}/extracted/${jsonFileName}`
-
-        await supabase.storage.from('case-files').upload(jsonStoragePath, jsonBlob, { upsert: true })
-
-        await supabase.from('case_files').insert({
-          case_id: caseRow.id,
-          file_type: 'extracted',
-          file_name: jsonFileName,
-          file_size: jsonBlob.size,
-          storage_path: jsonStoragePath,
-          mime_type: 'application/json',
-        })
-      }
-
-      await supabase.from('case_metrics').upsert({
-        case_id: caseRow.id,
-        total_entries: totalEntries,
-        total_issues: totalIssues,
-        accepted: 0,
-        ignored: 0,
-        open: totalIssues,
-        annotations_by_type: byType,
-        last_reviewed_at: new Date().toISOString(),
-      }, { onConflict: 'case_id' })
-
-      await supabase.from('cases').update({ status: 'analyzed' }).eq('id', caseRow.id)
-
-      // Completed successfully — the charge stands, so don't refund.
+      // The charge stands; the worker refunds it if analysis fails.
       tokensCharged = 0
 
-      setFinishing(true)
-      await new Promise((r) => setTimeout(r, 800))
       setDone(true)
       setUploading(false)
       setUploadPhase('')
-      setFinishing(false)
       refreshTokens()
     } catch (err) {
       console.error('Upload failed:', err)
 
-      // The analysis never completed — return the tokens we charged up front.
+      // Upload never completed — return the tokens we charged up front.
       if (tokensCharged > 0) {
         const refunded = await refundTokens(tokensCharged, 'Refund — failed upload')
         if (!refunded) console.error('Token refund failed after upload error.')
@@ -248,82 +163,37 @@ export default function DashboardUpload() {
     }
   }
 
-  if (uploading && uploadPhase === 'Analyzing your transcript...') {
-    const currentFact = courtReporterFacts[factIndex]
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-background p-8">
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-lg w-full">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
-            </div>
-            <div className="text-left">
-              <h2 className="font-headline text-lg font-bold text-on-surface">Analyzing Transcript</h2>
-              <p className="text-xs text-on-surface-variant">
-                <span className="font-semibold text-on-surface">{caseName}</span> &middot; {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full bg-surface-container rounded-full h-1.5 mb-8 overflow-hidden">
-            <div
-              className={`h-full bg-gradient-to-r from-primary to-tertiary-fixed-dim rounded-full transition-all ease-out ${finishing ? 'duration-500' : 'duration-[2000ms]'}`}
-              style={{ width: finishing ? '100%' : `${Math.max(4, (90 * elapsed) / (elapsed + 90))}%` }}
-            />
-          </div>
-
-          <div className="bg-surface-container/50 rounded-xl p-6 mb-6 min-h-[120px] flex flex-col items-center justify-center">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-xs">history_edu</span>
-              {currentFact.category}
-            </span>
-            <p
-              className={`text-sm text-on-surface leading-relaxed transition-all duration-300 ${factVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
-            >
-              {currentFact.fact}
-            </p>
-          </div>
-
-          <p className="text-[11px] text-on-surface-variant/50">
-            Please stay on this page while the analysis completes.
-          </p>
-        </div>
-      </main>
-    )
-  }
-
   if (done) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-background p-8">
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-md">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-            <span className="material-symbols-outlined text-green-600 text-3xl">check_circle</span>
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
+            <span className="material-symbols-outlined text-primary text-3xl">hourglass_top</span>
           </div>
-          <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Analysis Complete</h2>
-          <p className="text-sm text-on-surface-variant mb-2">
-            <span className="font-semibold text-on-surface">{caseName}</span> has been uploaded and analyzed.
+          <h2 className="font-headline text-2xl font-bold text-on-surface mb-3">Analysis started</h2>
+          <p className="text-sm text-on-surface-variant mb-2 leading-relaxed">
+            We're analyzing <span className="font-semibold text-on-surface">{caseName}</span> now. This usually
+            takes 2–5 minutes — you can safely close this tab.
           </p>
-          <p className="text-sm text-on-surface-variant mb-8">
-            Your transcript has been extracted and proofread. Review flagged issues in the editor.
+          <p className="text-sm text-on-surface-variant mb-8 leading-relaxed">
+            We'll email you the moment it's ready, and you can track progress on your dashboard.
           </p>
 
           <div className="flex justify-center gap-3">
-            {createdCaseId && (
-              <Link
-                to={`/dashboard/editor?case=${createdCaseId}`}
-                className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-base">edit_note</span>
-                Open in Editor
-              </Link>
-            )}
             <Link
               to="/dashboard"
-              className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
+              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-base">dashboard</span>
-              Dashboard
+              Go to Dashboard
             </Link>
+            <button
+              onClick={resetForm}
+              className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Upload another
+            </button>
           </div>
         </div>
       </main>
