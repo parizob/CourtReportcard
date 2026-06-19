@@ -18,6 +18,10 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const retryRan = useRef(false)
+  // Tracks statuses from the previous poll so we can detect processing→analyzed flips.
+  // null means "initial load not yet done" — we never fire events on first load.
+  const prevStatusesRef = useRef(null)
+
   useEffect(() => {
     fetchCases(true).then(() => {
       if (!retryRan.current) {
@@ -41,7 +45,21 @@ export default function Dashboard() {
       .select('*, case_files(*), case_metrics(*)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-    if (!error && data) setCases(data)
+    if (!error && data) {
+      // On polls (not initial load), fire an event for any case that just finished.
+      if (prevStatusesRef.current !== null) {
+        for (const c of data) {
+          const prev = prevStatusesRef.current[c.id]
+          if (prev === 'processing' && c.status === 'analyzed') {
+            window.dispatchEvent(new CustomEvent('transcript-ready', {
+              detail: { caseId: c.id, caseName: c.name }
+            }))
+          }
+        }
+      }
+      prevStatusesRef.current = Object.fromEntries(data.map((c) => [c.id, c.status]))
+      setCases(data)
+    }
     if (showLoading) setLoading(false)
   }
 

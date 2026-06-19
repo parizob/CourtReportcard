@@ -3,6 +3,28 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import BrandLogo from './BrandLogo'
 
+function playChime() {
+  try {
+    const ctx = new AudioContext()
+    const play = (freq, startTime, duration) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0, startTime)
+      gain.gain.linearRampToValueAtTime(0.25, startTime + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      osc.start(startTime)
+      osc.stop(startTime + duration)
+    }
+    play(523, ctx.currentTime, 0.5)        // C5
+    play(659, ctx.currentTime + 0.18, 0.5) // E5
+    play(784, ctx.currentTime + 0.36, 0.7) // G5
+  } catch (_) { /* autoplay blocked — silent fail */ }
+}
+
 const publicNavClass = ({ isActive }) =>
   isActive
     ? 'text-primary border-b-2 border-primary pb-1 font-headline font-bold tracking-tight'
@@ -26,6 +48,7 @@ export default function SiteHeader() {
   const [authBellRinging, setAuthBellRinging] = useState(false)
   const [hasLowTokenNotif, setHasLowTokenNotif] = useState(false)
   const [lowTokenOpen, setLowTokenOpen] = useState(false)
+  const [readyNotifs, setReadyNotifs] = useState([]) // [{id, caseName, caseId}]
   const authNotifRef = useRef(null)
 
   const [accountOpen, setAccountOpen] = useState(false)
@@ -76,6 +99,19 @@ export default function SiteHeader() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    const onReady = (e) => {
+      const { caseId, caseName } = e.detail || {}
+      if (!caseId) return
+      setReadyNotifs((prev) => [...prev, { id: Date.now(), caseId, caseName }])
+      setAuthBellRinging(true)
+      setLowTokenOpen(true)
+      playChime()
+    }
+    window.addEventListener('transcript-ready', onReady)
+    return () => window.removeEventListener('transcript-ready', onReady)
+  }, [])
+
   const dismissNotification = () => {
     setHasNotification(false)
     setNotifOpen(false)
@@ -84,9 +120,16 @@ export default function SiteHeader() {
 
   const dismissLowTokenNotif = () => {
     setHasLowTokenNotif(false)
+    setReadyNotifs([])
     setLowTokenOpen(false)
     setAuthBellRinging(false)
   }
+
+  const dismissReadyNotif = (id) => {
+    setReadyNotifs((prev) => prev.filter((n) => n.id !== id))
+  }
+
+  const totalAuthNotifs = (hasLowTokenNotif ? 1 : 0) + readyNotifs.length
 
   const handleSignOut = async () => {
     setAccountOpen(false)
@@ -119,9 +162,9 @@ export default function SiteHeader() {
                 >
                   notifications
                 </span>
-                {hasLowTokenNotif && (
+                {totalAuthNotifs > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none">
-                    1
+                    {totalAuthNotifs > 9 ? '9+' : totalAuthNotifs}
                   </span>
                 )}
               </button>
@@ -130,25 +173,61 @@ export default function SiteHeader() {
                 <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden z-50">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15">
                     <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
-                    <button onClick={dismissLowTokenNotif} className="text-xs text-primary font-semibold hover:underline">Mark as read</button>
+                    {totalAuthNotifs > 0 && (
+                      <button onClick={dismissLowTokenNotif} className="text-xs text-primary font-semibold hover:underline">Mark all read</button>
+                    )}
                   </div>
-                  <div className="px-5 py-4 flex gap-3">
-                    <div className="shrink-0 w-9 h-9 rounded-full bg-tertiary-fixed flex items-center justify-center mt-0.5">
-                      <span className="material-symbols-outlined text-on-tertiary-fixed text-base">toll</span>
+
+                  {/* Transcript ready notifications */}
+                  {readyNotifs.map((n) => (
+                    <div key={n.id} className="px-5 py-4 flex gap-3 border-b border-outline-variant/10">
+                      <div className="shrink-0 w-9 h-9 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                        <span className="material-symbols-outlined text-green-600 text-base">check_circle</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-on-surface leading-snug mb-1 truncate">
+                          {n.caseName} is ready
+                        </p>
+                        <p className="text-xs text-on-surface-variant leading-relaxed">Your transcript has been analyzed and is ready to review.</p>
+                        <Link
+                          to={`/dashboard/editor?case=${n.caseId}`}
+                          onClick={() => dismissReadyNotif(n.id)}
+                          className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
+                        >
+                          Open in Editor →
+                        </Link>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-on-surface leading-snug mb-1">You're running low on tokens</p>
-                      <p className="text-xs text-on-surface-variant leading-relaxed">We noticed your balance is getting low. Submit a support ticket and we'd love to help get you more tokens.</p>
-                      <Link
-                        to="/support"
-                        onClick={dismissLowTokenNotif}
-                        data-track-id="header_low_token_notif_support"
-                        className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
-                      >
-                        Submit a Support Ticket →
-                      </Link>
+                  ))}
+
+                  {/* Low-token notification */}
+                  {hasLowTokenNotif && (
+                    <div className="px-5 py-4 flex gap-3">
+                      <div className="shrink-0 w-9 h-9 rounded-full bg-tertiary-fixed flex items-center justify-center mt-0.5">
+                        <span className="material-symbols-outlined text-on-tertiary-fixed text-base">toll</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-on-surface leading-snug mb-1">You're running low on tokens</p>
+                        <p className="text-xs text-on-surface-variant leading-relaxed">We noticed your balance is getting low. Submit a support ticket and we'd love to help get you more tokens.</p>
+                        <Link
+                          to="/support"
+                          onClick={dismissLowTokenNotif}
+                          data-track-id="header_low_token_notif_support"
+                          className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
+                        >
+                          Submit a Support Ticket →
+                        </Link>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {totalAuthNotifs === 0 && (
+                    <div className="px-5 py-8 text-center">
+                      <span className="material-symbols-outlined text-on-surface-variant/30 text-3xl mb-2 block">notifications</span>
+                      <p className="text-xs text-on-surface-variant/50">No new notifications</p>
+                    </div>
+                  )}
+
                   <div className="px-5 py-3 border-t border-outline-variant/10 text-center">
                     <span className="text-[10px] text-on-surface-variant/50 uppercase tracking-widest">Court Reportcard</span>
                   </div>
