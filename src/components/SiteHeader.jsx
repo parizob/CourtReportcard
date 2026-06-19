@@ -85,6 +85,7 @@ export default function SiteHeader() {
     const timer = setTimeout(() => {
       setHasLowTokenNotif(true)
       setAuthBellRinging(true)
+      playChime()
     }, 5000)
     return () => clearTimeout(timer)
   }, [isAuthenticated, tokenBalance, user])
