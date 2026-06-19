@@ -3,9 +3,29 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import BrandLogo from './BrandLogo'
 
+// A single AudioContext shared across chimes. Browsers require it to be
+// created (or resumed) in response to a user gesture. We create it lazily
+// on the first click and reuse it for every subsequent chime.
+let _audioCtx = null
+
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new AudioContext() } catch (_) {}
+  }
+  return _audioCtx
+}
+
+// Call once on any user interaction to unlock the context.
+function unlockAudio() {
+  const ctx = getAudioCtx()
+  if (ctx && ctx.state === 'suspended') ctx.resume()
+}
+
 function playChime() {
   try {
-    const ctx = new AudioContext()
+    const ctx = getAudioCtx()
+    if (!ctx) return
+    if (ctx.state === 'suspended') ctx.resume()
     const play = (freq, startTime, duration) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
@@ -22,7 +42,7 @@ function playChime() {
     play(523, ctx.currentTime, 0.5)        // C5
     play(659, ctx.currentTime + 0.18, 0.5) // E5
     play(784, ctx.currentTime + 0.36, 0.7) // G5
-  } catch (_) { /* autoplay blocked — silent fail */ }
+  } catch (_) { /* silent fail */ }
 }
 
 const publicNavClass = ({ isActive }) =>
@@ -98,6 +118,14 @@ export default function SiteHeader() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Unlock the shared AudioContext on the user's first click so chimes can
+  // play from timers later (browsers block audio until a gesture has occurred).
+  useEffect(() => {
+    const unlock = () => { unlockAudio(); document.removeEventListener('click', unlock) }
+    document.addEventListener('click', unlock)
+    return () => document.removeEventListener('click', unlock)
   }, [])
 
   useEffect(() => {
