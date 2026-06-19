@@ -945,8 +945,8 @@ export default function DashboardEditor() {
 
               if (lineHighlights.length === 0) {
                 return (
-                  <div key={lineKey} className="min-h-[1.5rem] overflow-x-auto">
-                    <span className="whitespace-pre">{fullLine}</span>
+                  <div key={lineKey} className="min-h-[1.5rem]">
+                    <span className="whitespace-pre-wrap">{fullLine}</span>
                   </div>
                 )
               }
@@ -962,10 +962,10 @@ export default function DashboardEditor() {
 
               for (const h of lineHighlights) {
                 if (cursor < h.localStart) {
-                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor, h.localStart)}</span>)
+                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre-wrap">{content.substring(cursor, h.localStart)}</span>)
                 }
 
-                let cls = 'inline whitespace-pre '
+                let cls = 'inline whitespace-pre-wrap '
                 if (h.status === 'accepted') {
                   cls += 'text-green-600 font-semibold cursor-pointer'
                 } else if (h.status === 'ignored') {
@@ -1007,11 +1007,11 @@ export default function DashboardEditor() {
               }
 
               if (cursor < content.length) {
-                parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor)}</span>)
+                parts.push(<span key={`t-${cursor}`} className="whitespace-pre-wrap">{content.substring(cursor)}</span>)
               }
 
               return (
-                <div key={lineKey} className="min-h-[1.5rem] overflow-x-auto">
+                <div key={lineKey} className="min-h-[1.5rem]">
                   {parts}
                 </div>
               )

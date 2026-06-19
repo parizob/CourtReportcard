@@ -184,7 +184,7 @@ const _LINE_NUM_RE = /^(\s*\d{1,4}\s{2,})(.*)/s
  * Estimates the intended column width of a transcript by taking the 85th-percentile
  * length of numbered content lines (most lines sit at or below the column limit).
  */
-function _detectColumnWidth(text) {
+export function _detectColumnWidth(text) {
   const lengths = text.split('\n')
     .filter(l => _LINE_NUM_RE.test(l) && l.trim().length > 10)
     .map(l => l.length)
@@ -198,7 +198,7 @@ function _detectColumnWidth(text) {
  * to the beginning of the next numbered line (before its existing first word).
  * Iterates until no numbered line exceeds the column width.
  */
-function _reflowLines(text, colWidth) {
+export function _reflowLines(text, colWidth) {
   const lines = text.split('\n')
   let changed = false
 
