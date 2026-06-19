@@ -70,6 +70,9 @@ export default function SiteHeader() {
   const [lowTokenOpen, setLowTokenOpen] = useState(false)
   const [readyNotifs, setReadyNotifs] = useState([]) // [{id, caseName, caseId}]
   const authNotifRef = useRef(null)
+  // Tracks whether the low-token notification has already fired this session
+  // so it doesn't repeat on tokenBalance changes or re-renders.
+  const lowTokenShownRef = useRef(false)
 
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef(null)
@@ -95,13 +98,22 @@ export default function SiteHeader() {
     return () => clearInterval(interval)
   }, [hasNotification, isAuthenticated])
 
-  // Authenticated low-token nudge
+  // Reset the session guard on logout so the next login can show the notification again.
+  useEffect(() => {
+    if (!isAuthenticated) lowTokenShownRef.current = false
+  }, [isAuthenticated])
+
+  // Authenticated low-token nudge — fires at most once per login session.
   useEffect(() => {
     if (!isAuthenticated || tokenBalance === null || !user) return
+    if (lowTokenShownRef.current) return // already shown this session
+
     const isAdmin = user.email === ADMIN_ALWAYS_SHOW
     const isLow = tokenBalance < LOW_TOKEN_THRESHOLD
     if (!isLow && !isAdmin) return
 
+    // Mark shown immediately so tokenBalance changes don't queue a second timer.
+    lowTokenShownRef.current = true
     const timer = setTimeout(() => {
       setHasLowTokenNotif(true)
       setAuthBellRinging(true)
