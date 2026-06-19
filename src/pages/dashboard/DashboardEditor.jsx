@@ -282,6 +282,17 @@ export default function DashboardEditor() {
         _appliedOriginalEnd = detail.end
         _appliedOriginalMatchedText = detail.matchedText
       }
+
+      // Recompute _cleanEnd from the post-acceptance clean content. For
+      // cross-line annotations the cleanContent span includes newlines
+      // (one per blank line between transcript lines), making it longer
+      // than finalSuggestion.length. Without this, the green highlight
+      // gets truncated at the line break.
+      if (_cleanStart !== null) {
+        const { cleanContent: postCc } = buildCleanContentMap(updatedOriginalText)
+        const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
+        if (postM) _cleanEnd = _cleanStart + postM.end
+      }
     }
 
     const updatedAnnotations = curAnnotations.map((a) =>
