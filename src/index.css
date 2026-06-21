@@ -84,3 +84,16 @@
   animation: bellRing 0.8s ease-in-out;
   transform-origin: top center;
 }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

@@ -131,6 +131,39 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Testimonials — scrolling marquee */}
+        <section className="py-14 sm:py-20 bg-primary/5 overflow-hidden">
+          <div className="text-center mb-10 sm:mb-12 px-6">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">From working reporters</span>
+          </div>
+          {(() => {
+            const reviews = [
+              { quote: 'This will save me SO much time editing.', name: 'Christina C.', initial: 'C' },
+              { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'Z' },
+              { quote: 'I found the program extremely helpful.', name: 'Brijanne B.', initial: 'B' },
+              { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'F' },
+            ]
+            const Card = ({ quote, name, initial }) => (
+              <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0">
+                <div className="p-7 flex flex-col flex-1">
+                  <p className="text-on-surface text-base leading-relaxed flex-1">{quote}</p>
+                  <div className="mt-7 pt-5 border-t border-outline-variant/20 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{initial}</span>
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">{name}</span>
+                  </div>
+                </div>
+              </div>
+            )
+            return (
+              <div className="flex animate-marquee gap-6 w-max">
+                {[...reviews, ...reviews].map((r, i) => <Card key={i} {...r} />)}
+              </div>
+            )
+          })()}
+        </section>
+
         {/* How It Works Section */}
         <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
           <div className="max-w-[1440px] mx-auto">
