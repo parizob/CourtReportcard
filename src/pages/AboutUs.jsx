@@ -8,7 +8,7 @@ const stats = [
   { value: '98%', label: 'Avg. accuracy on first pass' },
   { value: '100×', label: 'Faster than manual review' },
   { value: '80%', label: 'Reduction in correction costs' },
-  { value: '0', label: 'Data leaks or lost files — ever' },
+  { value: '< 2 min', label: 'Average time to first results' },
 ]
 
 const pillars = [
@@ -132,9 +132,9 @@ export default function AboutUs() {
                   <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/50">The Old Way</span>
                   <div className="w-0.5 h-3 bg-outline-variant/50" />
                   {[
-                    { icon: 'person_search', label: 'Find a scopist', sub: '1–2 days wait' },
-                    { icon: 'payments',      label: 'Pay per job',    sub: '$150–$400' },
-                    { icon: 'schedule',      label: 'Miss deadlines', sub: 'Turnaround: days' },
+                    { icon: 'manage_search', label: 'Re-read everything', sub: 'Hours of your time' },
+                    { icon: 'error',         label: 'Errors slip by',     sub: 'Fatigue affects accuracy' },
+                    { icon: 'schedule',      label: 'Tight turnaround',   sub: 'No time to double-check' },
                   ].map((step) => (
                     <div key={step.label} className="w-full">
                       <div className="bg-surface-container/60 border border-outline-variant/15 rounded-xl px-3 py-2.5 flex items-center gap-2 opacity-60">
@@ -155,7 +155,7 @@ export default function AboutUs() {
                   <div className="w-0.5 h-3 bg-primary/60" />
                   {[
                     { icon: 'upload_file',  label: 'Upload transcript', sub: '30 seconds' },
-                    { icon: 'auto_fix_high', label: 'Errors detected',   sub: '< 3 minutes' },
+                    { icon: 'auto_fix_high', label: 'Errors detected',   sub: '< 2 minutes' },
                     { icon: 'task_alt',     label: 'Accept & export',    sub: 'Cents per page' },
                   ].map((step) => (
                     <div key={step.label} className="w-full">
