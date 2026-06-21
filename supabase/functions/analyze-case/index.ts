@@ -410,7 +410,7 @@ function failureEmailHtml(caseName: string, refunded: number): string {
         </p>
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
           This usually happens with very large files. Try splitting the transcript into chunks of
-          roughly 100 pages each and uploading again.
+          roughly 50 pages each and uploading again.
         </p>
         <a href="${supportUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Contact Support</a>
       </div>
