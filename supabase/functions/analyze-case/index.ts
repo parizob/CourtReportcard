@@ -27,7 +27,7 @@ const corsHeaders = {
 }
 
 // ── Gemini call (direct; mirrors api/gemini.js generationConfig) ──
-async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0): Promise<any> {
+async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0, thinkingBudget?: number): Promise<any> {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured.')
 
@@ -56,6 +56,7 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
           temperature: 0,
           maxOutputTokens: 131072,
           responseMimeType: 'application/json',
+          ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
         },
       }),
     })
@@ -304,7 +305,11 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
     promptSuffix = `\n\n${fileOrText}`
   }
 
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt)
+  // Extraction is mostly mechanical transcription, not multi-step reasoning, so a
+  // bounded thinking budget keeps latency predictable without hurting accuracy —
+  // this leaves more of the 135s deadline for the proofread pass below, which is
+  // the call that actually catches transcript errors and keeps full thinking.
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 1024)
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
