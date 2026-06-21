@@ -138,18 +138,18 @@ export default function LandingPage() {
           </div>
           {(() => {
             const reviews = [
-              { quote: 'This will save me SO much time editing.', name: 'Christina C.', initial: 'C' },
-              { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'Z' },
-              { quote: 'I found the program extremely helpful.', name: 'Brijanne B.', initial: 'B' },
-              { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'F' },
+              { quote: 'This will save me SO much time editing.', name: 'Christina C.', initial: 'CC' },
+              { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'ZZ' },
+              { quote: 'I found the program extremely helpful.', name: 'Brijanne B.', initial: 'BB' },
+              { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'FS' },
             ]
             const Card = ({ quote, name, initial }) => (
               <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0">
                 <div className="p-7 flex flex-col flex-1">
                   <p className="text-on-surface text-base leading-relaxed flex-1">{quote}</p>
                   <div className="mt-7 pt-5 border-t border-outline-variant/20 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{initial}</span>
+                    <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-bold text-on-secondary-container tracking-tight">{initial}</span>
                     </div>
                     <span className="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">{name}</span>
                   </div>
