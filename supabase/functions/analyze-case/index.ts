@@ -556,35 +556,37 @@ Deno.serve(async (req: Request) => {
     } catch (err) {
       console.error('Analysis failed for case', caseId, err)
 
-      // Refund the tokens charged up front (service role bypasses RLS).
       const refund = caseRow.tokens_charged || 0
-      if (refund > 0) {
-        const { data: prof } = await admin
-          .from('user_profiles')
-          .select('balance')
-          .eq('user_id', caseRow.user_id)
-          .single()
-        if (prof) {
-          await admin.from('user_profiles')
-            .update({ balance: prof.balance + refund, updated_at: new Date().toISOString() })
-            .eq('user_id', caseRow.user_id)
-          await admin.from('token_ledger').insert({
+
+      // Run all cleanup in parallel to finish well within the 150s hard-kill.
+      const [profResult, , userResult] = await Promise.all([
+        refund > 0
+          ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
+          : Promise.resolve({ data: null }),
+        admin.from('cases')
+          .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
+          .eq('id', caseId),
+        admin.auth.admin.getUserById(caseRow.user_id),
+      ])
+
+      // Refund tokens if we have a balance to restore.
+      if (refund > 0 && profResult.data) {
+        await Promise.all([
+          admin.from('user_profiles')
+            .update({ balance: profResult.data.balance + refund, updated_at: new Date().toISOString() })
+            .eq('user_id', caseRow.user_id),
+          admin.from('token_ledger').insert({
             user_id: caseRow.user_id,
             amount: refund,
             type: 'refund',
             description: 'Refund — failed analysis',
-          })
-        }
+          }),
+        ])
       }
 
-      // Soft-delete so it disappears from the dashboard (matches inline behavior).
-      await admin.from('cases')
-        .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
-        .eq('id', caseId)
-
-      const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
-      if (u?.user?.email) {
-        await sendEmail(u.user.email, `We couldn't finish analyzing ${caseRow.name}`, failureEmailHtml(caseRow.name, refund))
+      const email = (userResult as any)?.data?.user?.email
+      if (email) {
+        await sendEmail(email, `We couldn't finish analyzing ${caseRow.name}`, failureEmailHtml(caseRow.name, refund))
       }
     }
   })()
