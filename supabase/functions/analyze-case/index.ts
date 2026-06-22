@@ -57,8 +57,9 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
           temperature: 0,
           maxOutputTokens: 131072,
           responseMimeType: 'application/json',
-          ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
         },
+        // thinkingConfig must be top-level, not inside generationConfig
+        ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
       }),
     })
   } catch (err) {
