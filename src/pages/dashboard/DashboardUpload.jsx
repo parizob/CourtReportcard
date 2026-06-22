@@ -83,6 +83,7 @@ export default function DashboardUpload() {
     // Tokens are charged up front; if anything below fails we must give them back.
     let tokensCharged = pendingPages
     let createdId = null
+    const uploadedPaths = []
 
     setUploading(true)
     setUploadPhase('Creating case...')
@@ -106,6 +107,7 @@ export default function DashboardUpload() {
           .from('case-files')
           .upload(storagePath, file)
         if (storageErr) throw storageErr
+        uploadedPaths.push(storagePath)
 
         const { error: fileErr } = await supabase
           .from('case_files')
@@ -149,6 +151,10 @@ export default function DashboardUpload() {
       // Soft-delete the half-built case so it doesn't linger as "processing"
       // (mirrors the dashboard delete; 'failed' isn't an allowed status).
       if (createdId) {
+        if (uploadedPaths.length > 0) {
+          await supabase.storage.from('case-files').remove(uploadedPaths)
+        }
+        await supabase.from('case_files').delete().eq('case_id', createdId)
         await supabase
           .from('cases')
           .update({ deleted_at: new Date().toISOString(), status: 'deleted' })

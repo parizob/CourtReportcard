@@ -12,6 +12,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
 - [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
+- [ ] Add chunking to analyze-case so transcripts up to ~100 pages process in one upload without hitting the edge function's 135s deadline — split into segments, run extraction+proofread per segment, stitch entries/annotations back together (reuse deduplicateTranscript/fixAnnotationPositions)
 
 ## Done
 

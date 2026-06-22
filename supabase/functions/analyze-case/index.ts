@@ -437,6 +437,21 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
   console.error('Analysis failed for case', caseId, err)
   const refund = caseRow.tokens_charged || 0
 
+  // Clean up storage: case_files rows (transcript/extracted) plus any
+  // intermediate "extracting" JSON entries, which have no DB row.
+  const storagePaths: string[] = (caseRow.case_files || [])
+    .map((f: any) => f.storage_path)
+    .filter(Boolean)
+  const { data: extractingFiles } = await admin.storage
+    .from('case-files')
+    .list(`${caseRow.user_id}/${caseId}/extracting`)
+  for (const f of extractingFiles || []) {
+    storagePaths.push(`${caseRow.user_id}/${caseId}/extracting/${f.name}`)
+  }
+  if (storagePaths.length > 0) {
+    await admin.storage.from('case-files').remove(storagePaths)
+  }
+
   const [profResult, , userResult] = await Promise.all([
     refund > 0
       ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
