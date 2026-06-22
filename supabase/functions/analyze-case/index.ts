@@ -11,8 +11,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT } from './prompts.ts'
 
-const MODEL_EXTRACT = 'gemini-2.5-flash'  // Fast, supports thinkingBudget: 0 — extraction is parsing, not reasoning
-const MODEL_PROOFREAD = 'gemini-2.5-pro'   // Keep Pro for proofreading — needs nuanced judgment
+const MODEL_EXTRACT = 'gemini-2.5-flash'   // Fast, no thinking needed — extraction is structured parsing
+const MODEL_PROOFREAD = 'gemini-2.5-flash' // Flash with capped thinking — reliable speed, sufficient quality
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 
@@ -326,7 +326,7 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
   const { entries: cleanEntries } = deduplicateTranscript(entries, [])
   entries = cleanEntries
 
-  const proofreadResult = await callGemini(`${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`, null, deadlineAt)
+  const proofreadResult = await callGemini(`${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`, null, deadlineAt, 8192, MODEL_PROOFREAD)
 
   let annots = (proofreadResult.annotations || []).map((a: any, i: number) => ({
     id: a.id || i + 1,
