@@ -309,7 +309,7 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
   // bounded thinking budget keeps latency predictable without hurting accuracy —
   // this leaves more of the 135s deadline for the proofread pass below, which is
   // the call that actually catches transcript errors and keeps full thinking.
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 1024)
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0)
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
