@@ -524,8 +524,13 @@ Deno.serve(async (req: Request) => {
   if (caseErr || !caseRow) return json({ error: 'Case not found.' }, 404)
 
   const caseFiles: any[] = caseRow.case_files || []
-  const alreadyExtracted = caseFiles.some((f) => f.file_type === 'extracted')
-  const alreadyExtracting = caseFiles.some((f) => f.file_type === 'extracting')
+  const alreadyExtracted = caseFiles.some((f: any) => f.file_type === 'extracted')
+
+  // Intermediate entries live in storage only (no case_files record) — check the storage path.
+  const { data: extractingStorageFiles } = await admin.storage
+    .from('case-files')
+    .list(`${caseRow.user_id}/${caseId}/extracting`)
+  const alreadyExtracting = (extractingStorageFiles?.length ?? 0) > 0
 
   // ── Extract pass idempotency ──
   if (pass === 'extract') {
@@ -539,7 +544,6 @@ Deno.serve(async (req: Request) => {
       if (caseRow.status === 'processing') await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
       return json({ ok: true, skipped: 'already_analyzed' })
     }
-    if (!alreadyExtracting) return json({ error: 'No entries to proofread — extract pass not complete.' }, 400)
   }
 
   // ── Extract pass ──
@@ -569,25 +573,19 @@ Deno.serve(async (req: Request) => {
           }
 
           const jsonFileName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_entries.json'
+          // Store intermediate entries in storage only — no case_files DB record to avoid
+          // constraint issues with new file_type values.
           const jsonStoragePath = `${caseRow.user_id}/${caseId}/extracting/${jsonFileName}`
           const jsonBytes = new TextEncoder().encode(JSON.stringify(extractResult, null, 2))
-
-          await admin.storage.from('case-files').upload(jsonStoragePath, jsonBytes, {
+          const { error: upErr } = await admin.storage.from('case-files').upload(jsonStoragePath, jsonBytes, {
             upsert: true,
             contentType: 'application/json',
           })
-          await admin.from('case_files').insert({
-            case_id: caseId,
-            file_type: 'extracting',
-            file_name: jsonFileName,
-            file_size: jsonBytes.byteLength,
-            storage_path: jsonStoragePath,
-            mime_type: 'application/json',
-          })
+          if (upErr) throw new Error(`Failed to save entries for ${dbFile.file_name}: ${upErr.message}`)
         }
 
         // Fire proofread pass — it gets its own fresh 150s budget
-        await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
+        const proofResp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -596,6 +594,7 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({ case_id: caseId, pass: 'proofread' }),
         })
+        if (!proofResp.ok) throw new Error(`Failed to invoke proofread pass: ${proofResp.status}`)
       } catch (err) {
         await handleFailure(admin, caseRow, caseId, err)
       }
@@ -609,7 +608,14 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── Proofread pass ──
-  const extractingFiles = caseFiles.filter((f) => f.file_type === 'extracting')
+  // Entries files are stored in storage under extracting/ — list them directly.
+  const { data: storedEntries } = await admin.storage
+    .from('case-files')
+    .list(`${caseRow.user_id}/${caseId}/extracting`)
+
+  if (!storedEntries || storedEntries.length === 0) {
+    return json({ error: 'No entries files found — extract pass may not have completed.' }, 400)
+  }
 
   const work = (async () => {
     const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
@@ -618,11 +624,10 @@ Deno.serve(async (req: Request) => {
       let totalIssues = 0
       const byType: Record<string, number> = {}
 
-      for (const dbFile of extractingFiles) {
-        const { data: blob, error: dlErr } = await admin.storage
-          .from('case-files')
-          .download(dbFile.storage_path)
-        if (dlErr || !blob) throw new Error(`Failed to download entries file ${dbFile.file_name}`)
+      for (const storageFile of storedEntries) {
+        const entryPath = `${caseRow.user_id}/${caseId}/extracting/${storageFile.name}`
+        const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(entryPath)
+        if (dlErr || !blob) throw new Error(`Failed to download entries file ${storageFile.name}`)
 
         const extractResult = JSON.parse(await blob.text())
         const { title, entries, originalText } = extractResult
@@ -642,7 +647,7 @@ Deno.serve(async (req: Request) => {
         const fileByType = countByType(annotations)
         for (const [k, v] of Object.entries(fileByType)) byType[k] = (byType[k] || 0) + (v as number)
 
-        const finalName = dbFile.file_name.replace('_entries.json', '_extracted.json')
+        const finalName = storageFile.name.replace('_entries.json', '_extracted.json')
         const finalPath = `${caseRow.user_id}/${caseId}/extracted/${finalName}`
         const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
 
@@ -658,11 +663,8 @@ Deno.serve(async (req: Request) => {
           storage_path: finalPath,
           mime_type: 'application/json',
         })
-        // Clean up the intermediate entries file
-        await Promise.all([
-          admin.storage.from('case-files').remove([dbFile.storage_path]),
-          admin.from('case_files').delete().eq('id', dbFile.id),
-        ])
+        // Clean up intermediate entries file from storage
+        await admin.storage.from('case-files').remove([entryPath])
       }
 
       await admin.from('case_metrics').upsert({
