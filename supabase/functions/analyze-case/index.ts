@@ -11,8 +11,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT } from './prompts.ts'
 
-const MODEL_EXTRACT = 'gemini-2.5-flash'   // Fast, no thinking needed — extraction is structured parsing
-const MODEL_PROOFREAD = 'gemini-2.5-flash' // Flash with capped thinking — reliable speed, sufficient quality
+const MODEL_EXTRACT = 'gemini-2.5-flash' // Fast, no thinking — extraction is structured parsing
+const MODEL_PROOFREAD = 'gemini-2.5-pro'  // Full quality, uncapped thinking — proofreading IS the product
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 
@@ -57,9 +57,8 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
           temperature: 0,
           maxOutputTokens: 131072,
           responseMimeType: 'application/json',
+          ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
         },
-        // thinkingConfig must be top-level, not inside generationConfig
-        ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
       }),
     })
   } catch (err) {
@@ -295,22 +294,20 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
-// Two-pass extraction + proofread (mirrors extractTranscriptWithGemini).
-async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string | undefined, deadlineAt: number): Promise<any> {
+// Pass 1 — extraction only (Flash, no thinking). Returns raw entries + title.
+async function extractContent(fileOrText: string | ArrayBuffer, mimeType: string | undefined, deadlineAt: number): Promise<{ title: string; entries: any[]; originalText?: string }> {
   let filePart: unknown = null
   let promptSuffix = ''
+  let originalText: string | undefined
 
   if (mimeType === 'application/pdf' && fileOrText instanceof ArrayBuffer) {
     filePart = { inlineData: { mimeType: 'application/pdf', data: arrayBufferToBase64(fileOrText) } }
     promptSuffix = '\n\n[PDF file attached above]'
   } else {
+    originalText = fileOrText as string
     promptSuffix = `\n\n${fileOrText}`
   }
 
-  // Extraction is mostly mechanical transcription, not multi-step reasoning, so a
-  // bounded thinking budget keeps latency predictable without hurting accuracy —
-  // this leaves more of the 135s deadline for the proofread pass below, which is
-  // the call that actually catches transcript errors and keeps full thinking.
   const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0, MODEL_EXTRACT)
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
@@ -327,7 +324,22 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
   const { entries: cleanEntries } = deduplicateTranscript(entries, [])
   entries = cleanEntries
 
-  const proofreadResult = await callGemini(`${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`, null, deadlineAt, 8192, MODEL_PROOFREAD)
+  return {
+    title: extractionResult.title || '',
+    entries,
+    ...(originalText !== undefined ? { originalText } : {}),
+  }
+}
+
+// Pass 2 — proofreading only (Pro, full uncapped thinking). Returns annotations.
+async function proofreadContent(entries: any[], deadlineAt: number): Promise<any[]> {
+  const proofreadResult = await callGemini(
+    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`,
+    null,
+    deadlineAt,
+    undefined, // no budget cap — Pro gets full thinking for quality
+    MODEL_PROOFREAD,
+  )
 
   let annots = (proofreadResult.annotations || []).map((a: any, i: number) => ({
     id: a.id || i + 1,
@@ -358,12 +370,7 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
   })
   annots.forEach((a: any, i: number) => { a.id = i + 1 })
 
-  return {
-    title: extractionResult.title || '',
-    extracted_at: new Date().toISOString(),
-    entries,
-    annotations: annots,
-  }
+  return annots
 }
 
 // ── Email (Resend) ──
@@ -425,7 +432,45 @@ function failureEmailHtml(caseName: string, refunded: number): string {
   `
 }
 
+// ── Shared failure handler ──
+async function handleFailure(admin: any, caseRow: any, caseId: string, err: unknown): Promise<void> {
+  console.error('Analysis failed for case', caseId, err)
+  const refund = caseRow.tokens_charged || 0
+
+  const [profResult, , userResult] = await Promise.all([
+    refund > 0
+      ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
+      : Promise.resolve({ data: null }),
+    admin.from('cases')
+      .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
+      .eq('id', caseId),
+    admin.auth.admin.getUserById(caseRow.user_id),
+  ])
+
+  if (refund > 0 && profResult.data) {
+    await Promise.all([
+      admin.from('user_profiles')
+        .update({ balance: profResult.data.balance + refund, updated_at: new Date().toISOString() })
+        .eq('user_id', caseRow.user_id),
+      admin.from('token_ledger').insert({
+        user_id: caseRow.user_id,
+        amount: refund,
+        type: 'refund',
+        description: 'Refund — failed analysis',
+      }),
+    ])
+  }
+
+  const email = (userResult as any)?.data?.user?.email
+  if (email) {
+    await sendEmail(email, `We couldn't finish analyzing ${caseRow.name}`, failureEmailHtml(caseRow.name, refund))
+  }
+}
+
 // ── Handler ──
+// Supports two passes via `pass` body field:
+//   'extract'  (default) — Flash, no thinking, saves raw entries, fires proofread pass
+//   'proofread'          — Pro, full thinking, fresh 150s budget, finalises case
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -442,24 +487,33 @@ Deno.serve(async (req: Request) => {
   const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 
   let caseId: string
+  let pass: string
   try {
     const body = await req.json()
     caseId = body.case_id
+    pass = body.pass || 'extract'
   } catch {
     return json({ error: 'Invalid request body.' }, 400)
   }
   if (!caseId) return json({ error: 'case_id is required.' }, 400)
 
-  // Verify the caller owns the case (defense in depth on top of verify_jwt).
-  const authHeader = req.headers.get('Authorization') || ''
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  })
-  const { data: userData } = await userClient.auth.getUser()
-  const callerId = userData?.user?.id
-  if (!callerId) return json({ error: 'Unauthorized.' }, 401)
-
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+  // Extract pass: verify the caller owns the case via JWT.
+  // Proofread pass: invoked internally with service role — skip user JWT check.
+  if (pass === 'extract') {
+    const authHeader = req.headers.get('Authorization') || ''
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    })
+    const { data: userData } = await userClient.auth.getUser()
+    const callerId = userData?.user?.id
+    if (!callerId) return json({ error: 'Unauthorized.' }, 401)
+
+    const { data: caseCheck } = await admin.from('cases').select('user_id').eq('id', caseId).single()
+    if (!caseCheck) return json({ error: 'Case not found.' }, 404)
+    if (caseCheck.user_id !== callerId) return json({ error: 'Forbidden.' }, 403)
+  }
 
   const { data: caseRow, error: caseErr } = await admin
     .from('cases')
@@ -468,24 +522,95 @@ Deno.serve(async (req: Request) => {
     .single()
 
   if (caseErr || !caseRow) return json({ error: 'Case not found.' }, 404)
-  if (caseRow.user_id !== callerId) return json({ error: 'Forbidden.' }, 403)
 
-  // Idempotency: only process a case that's actively 'processing' with no result yet.
-  const alreadyExtracted = (caseRow.case_files || []).some((f: any) => f.file_type === 'extracted')
-  if (alreadyExtracted) {
-    if (caseRow.status === 'processing') {
-      await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
+  const caseFiles: any[] = caseRow.case_files || []
+  const alreadyExtracted = caseFiles.some((f) => f.file_type === 'extracted')
+  const alreadyExtracting = caseFiles.some((f) => f.file_type === 'extracting')
+
+  // ── Extract pass idempotency ──
+  if (pass === 'extract') {
+    if (alreadyExtracted || alreadyExtracting) return json({ ok: true, skipped: 'already_started' })
+    if (caseRow.status !== 'processing') return json({ ok: true, skipped: `status_${caseRow.status}` })
+  }
+
+  // ── Proofread pass idempotency ──
+  if (pass === 'proofread') {
+    if (alreadyExtracted) {
+      if (caseRow.status === 'processing') await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
+      return json({ ok: true, skipped: 'already_analyzed' })
     }
-    return json({ ok: true, skipped: 'already_analyzed' })
-  }
-  if (caseRow.status !== 'processing') {
-    return json({ ok: true, skipped: `status_${caseRow.status}` })
+    if (!alreadyExtracting) return json({ error: 'No entries to proofread — extract pass not complete.' }, 400)
   }
 
-  const transcriptFiles = (caseRow.case_files || []).filter((f: any) => f.file_type === 'transcript')
-  if (transcriptFiles.length === 0) return json({ error: 'No transcript files.' }, 400)
+  // ── Extract pass ──
+  if (pass === 'extract') {
+    const transcriptFiles = caseFiles.filter((f) => f.file_type === 'transcript')
+    if (transcriptFiles.length === 0) return json({ error: 'No transcript files.' }, 400)
 
-  // Do the heavy work after responding so the client truly fires-and-forgets.
+    const work = (async () => {
+      const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+      try {
+        for (const dbFile of transcriptFiles) {
+          const { data: blob, error: dlErr } = await admin.storage
+            .from('case-files')
+            .download(dbFile.storage_path)
+          if (dlErr || !blob) throw new Error(`Failed to download ${dbFile.file_name}`)
+
+          const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
+          const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
+
+          let extractResult: any
+          if (isPdf) {
+            extractResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt)
+          } else {
+            const rawContent = await blob.text()
+            const plainText = isRtf ? stripRtf(rawContent) : rawContent
+            extractResult = await extractContent(plainText, undefined, deadlineAt)
+          }
+
+          const jsonFileName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_entries.json'
+          const jsonStoragePath = `${caseRow.user_id}/${caseId}/extracting/${jsonFileName}`
+          const jsonBytes = new TextEncoder().encode(JSON.stringify(extractResult, null, 2))
+
+          await admin.storage.from('case-files').upload(jsonStoragePath, jsonBytes, {
+            upsert: true,
+            contentType: 'application/json',
+          })
+          await admin.from('case_files').insert({
+            case_id: caseId,
+            file_type: 'extracting',
+            file_name: jsonFileName,
+            file_size: jsonBytes.byteLength,
+            storage_path: jsonStoragePath,
+            mime_type: 'application/json',
+          })
+        }
+
+        // Fire proofread pass — it gets its own fresh 150s budget
+        await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+            'apikey': SERVICE_ROLE_KEY,
+          },
+          body: JSON.stringify({ case_id: caseId, pass: 'proofread' }),
+        })
+      } catch (err) {
+        await handleFailure(admin, caseRow, caseId, err)
+      }
+    })()
+
+    // @ts-ignore
+    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work)
+    else await work
+
+    return json({ ok: true, status: 'extract_started' }, 202)
+  }
+
+  // ── Proofread pass ──
+  const extractingFiles = caseFiles.filter((f) => f.file_type === 'extracting')
+
   const work = (async () => {
     const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
     try {
@@ -493,49 +618,51 @@ Deno.serve(async (req: Request) => {
       let totalIssues = 0
       const byType: Record<string, number> = {}
 
-      for (const dbFile of transcriptFiles) {
+      for (const dbFile of extractingFiles) {
         const { data: blob, error: dlErr } = await admin.storage
           .from('case-files')
           .download(dbFile.storage_path)
-        if (dlErr || !blob) throw new Error(`Failed to download ${dbFile.file_name}`)
+        if (dlErr || !blob) throw new Error(`Failed to download entries file ${dbFile.file_name}`)
 
-        const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
-        const isTxt = dbFile.file_name.toLowerCase().endsWith('.txt')
-        const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
+        const extractResult = JSON.parse(await blob.text())
+        const { title, entries, originalText } = extractResult
 
-        let extractedJson: any
-        if (isPdf) {
-          const buffer = await blob.arrayBuffer()
-          extractedJson = await analyzeContent(buffer, 'application/pdf', deadlineAt)
-        } else {
-          const rawContent = await blob.text()
-          const plainText = isRtf ? stripRtf(rawContent) : rawContent
-          extractedJson = await analyzeContent(plainText, undefined, deadlineAt)
-          if (isTxt || isRtf) extractedJson.originalText = plainText
+        const annotations = await proofreadContent(entries, deadlineAt)
+
+        const finalJson: any = {
+          title: title || '',
+          extracted_at: new Date().toISOString(),
+          entries,
+          annotations,
         }
+        if (originalText !== undefined) finalJson.originalText = originalText
 
-        totalEntries += (extractedJson.entries || []).length
-        totalIssues += (extractedJson.annotations || []).length
-        const fileByType = countByType(extractedJson.annotations || [])
+        totalEntries += entries.length
+        totalIssues += annotations.length
+        const fileByType = countByType(annotations)
         for (const [k, v] of Object.entries(fileByType)) byType[k] = (byType[k] || 0) + (v as number)
 
-        const jsonBytes = new TextEncoder().encode(JSON.stringify(extractedJson, null, 2))
-        const jsonFileName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_extracted.json'
-        const jsonStoragePath = `${caseRow.user_id}/${caseId}/extracted/${jsonFileName}`
+        const finalName = dbFile.file_name.replace('_entries.json', '_extracted.json')
+        const finalPath = `${caseRow.user_id}/${caseId}/extracted/${finalName}`
+        const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
 
-        await admin.storage.from('case-files').upload(jsonStoragePath, jsonBytes, {
+        await admin.storage.from('case-files').upload(finalPath, finalBytes, {
           upsert: true,
           contentType: 'application/json',
         })
-
         await admin.from('case_files').insert({
           case_id: caseId,
           file_type: 'extracted',
-          file_name: jsonFileName,
-          file_size: jsonBytes.byteLength,
-          storage_path: jsonStoragePath,
+          file_name: finalName,
+          file_size: finalBytes.byteLength,
+          storage_path: finalPath,
           mime_type: 'application/json',
         })
+        // Clean up the intermediate entries file
+        await Promise.all([
+          admin.storage.from('case-files').remove([dbFile.storage_path]),
+          admin.from('case_files').delete().eq('id', dbFile.id),
+        ])
       }
 
       await admin.from('case_metrics').upsert({
@@ -556,48 +683,13 @@ Deno.serve(async (req: Request) => {
         await sendEmail(u.user.email, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
       }
     } catch (err) {
-      console.error('Analysis failed for case', caseId, err)
-
-      const refund = caseRow.tokens_charged || 0
-
-      // Run all cleanup in parallel to finish well within the 150s hard-kill.
-      const [profResult, , userResult] = await Promise.all([
-        refund > 0
-          ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
-          : Promise.resolve({ data: null }),
-        admin.from('cases')
-          .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
-          .eq('id', caseId),
-        admin.auth.admin.getUserById(caseRow.user_id),
-      ])
-
-      // Refund tokens if we have a balance to restore.
-      if (refund > 0 && profResult.data) {
-        await Promise.all([
-          admin.from('user_profiles')
-            .update({ balance: profResult.data.balance + refund, updated_at: new Date().toISOString() })
-            .eq('user_id', caseRow.user_id),
-          admin.from('token_ledger').insert({
-            user_id: caseRow.user_id,
-            amount: refund,
-            type: 'refund',
-            description: 'Refund — failed analysis',
-          }),
-        ])
-      }
-
-      const email = (userResult as any)?.data?.user?.email
-      if (email) {
-        await sendEmail(email, `We couldn't finish analyzing ${caseRow.name}`, failureEmailHtml(caseRow.name, refund))
-      }
+      await handleFailure(admin, caseRow, caseId, err)
     }
   })()
 
-  // Keep the worker alive until the background work finishes (up to the
-  // platform wall-clock limit), but return immediately to the caller.
-  // @ts-ignore EdgeRuntime is provided by the Supabase Edge runtime.
+  // @ts-ignore
   if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work)
   else await work
 
-  return json({ ok: true, status: 'analysis_started' }, 202)
+  return json({ ok: true, status: 'proofread_started' }, 202)
 })
