@@ -11,7 +11,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT } from './prompts.ts'
 
-const MODEL = 'gemini-2.5-pro'
+const MODEL_EXTRACT = 'gemini-2.5-flash'  // Fast, supports thinkingBudget: 0 — extraction is parsing, not reasoning
+const MODEL_PROOFREAD = 'gemini-2.5-pro'   // Keep Pro for proofreading — needs nuanced judgment
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 
@@ -27,11 +28,11 @@ const corsHeaders = {
 }
 
 // ── Gemini call (direct; mirrors api/gemini.js generationConfig) ──
-async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0, thinkingBudget?: number): Promise<any> {
+async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0, thinkingBudget?: number, model = MODEL_PROOFREAD): Promise<any> {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured.')
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
   const parts: unknown[] = []
   if (filePart) parts.push(filePart)
   parts.push({ text: prompt })
@@ -309,7 +310,7 @@ async function analyzeContent(fileOrText: string | ArrayBuffer, mimeType: string
   // bounded thinking budget keeps latency predictable without hurting accuracy —
   // this leaves more of the 135s deadline for the proofread pass below, which is
   // the call that actually catches transcript errors and keeps full thinking.
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0)
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0, MODEL_EXTRACT)
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
