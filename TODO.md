@@ -13,6 +13,9 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
 - [ ] Add chunking to analyze-case so transcripts up to ~100 pages process in one upload without hitting the edge function's 135s deadline — split into segments, run extraction+proofread per segment, stitch entries/annotations back together (reuse deduplicateTranscript/fixAnnotationPositions)
+- [ ] Fix confirm password field layout on mobile (misaligned)
+- [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
+- [ ] Create a free downloadable guide for court reporters (marketing/traffic driver) — hide an easter egg inside, e.g. "I love Court Reportcard" written in steno, email it in for free tokens
 
 ## Done
 

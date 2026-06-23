@@ -142,6 +142,7 @@ export default function LandingPage() {
               { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'ZZ' },
               { quote: 'I found the program extremely helpful.', name: 'Brijanne B.', initial: 'BB' },
               { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'FS' },
+              { quote: 'I love the system.', name: 'James T.', initial: 'JT' },
             ]
             const Card = ({ quote, name, initial }) => (
               <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0">
