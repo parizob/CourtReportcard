@@ -282,7 +282,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
             </div>
 
             {tab === 'signup' ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1.5">
                     Password

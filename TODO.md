@@ -20,7 +20,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Add chunking to analyze-case so transcripts up to ~100 pages process in one upload without hitting the edge function's 135s deadline — split into segments, run extraction+proofread per segment, stitch entries/annotations back together (reuse deduplicateTranscript/fixAnnotationPositions)
 - [ ] Fix confirm password field layout on mobile (misaligned)
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
-- [ ] Create a free downloadable guide for court reporters (marketing/traffic driver) — hide an easter egg inside, e.g. "I love Court Reportcard" written in steno, email it in for free tokens
+- [ ] Build a resources/guide landing page that links the transcript proofing checklist PDF (`marketing/guides/transcript-proofing-checklist.pdf`), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Get email list from Zoe for court reporters
 
 ## Done
