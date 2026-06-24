@@ -7,6 +7,11 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Identify addresses in documents and hook up a tool to look up/verify they're correct
 - [ ] Allow stenographers to upload their dictionaries so we can store them and know which words they typically write / have saved more than others
 - [ ] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
+    - [ ] File Parizo Labs LLC with state Secretary of State
+    - [ ] File DBA for Court Reportcard (state or county, depending on location)
+    - [ ] Get EIN from IRS
+    - [ ] Open business bank account under Parizo Labs LLC
+    - [ ] Set up Stripe (or similar) business account once LLC/EIN/bank account are in place
 - [ ] Add options to upload NOD/style guide, pleadings, and exhibits
 - [ ] Celebrate when a user uploads a perfect transcript (something fun + bonus tokens) — needs a UID per uploaded document to prevent duplicate claims, or a monthly cap on free celebration tokens
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
@@ -16,6 +21,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Fix confirm password field layout on mobile (misaligned)
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Create a free downloadable guide for court reporters (marketing/traffic driver) — hide an easter egg inside, e.g. "I love Court Reportcard" written in steno, email it in for free tokens
+- [ ] Create a Facebook page for Court Reportcard
+- [ ] Add social media links to the site
 
 ## Done
 
