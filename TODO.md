@@ -21,8 +21,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Fix confirm password field layout on mobile (misaligned)
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Create a free downloadable guide for court reporters (marketing/traffic driver) — hide an easter egg inside, e.g. "I love Court Reportcard" written in steno, email it in for free tokens
-- [ ] Create a Facebook page for Court Reportcard
-- [ ] Add social media links to the site
+- [ ] Get email list from Zoe for court reporters
 
 ## Done
 
@@ -30,3 +29,5 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [x] Decided to keep free signup tokens at 50; top up manually on request during beta
 - [x] Refund tokens on failed uploads — if a transcript errors out (e.g. too large, needs to be split), the user should not be charged; credits should be returned automatically
 - [x] Build a testing bot: run against existing/uploaded transcripts, or have an agent generate new sample transcripts with known seeded errors, to verify Court Reportcard catches them all — `scripts/run-proofread-test.mjs` + `scripts/test-transcripts/` (5 seeded transcripts, manifests, recall/false-positive scoring, and UI apply/highlight/round-trip integrity checks)
+- [x] Create a Facebook page for Court Reportcard
+- [x] Add social media links to the site
