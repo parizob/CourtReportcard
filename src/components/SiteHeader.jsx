@@ -401,13 +401,13 @@ export default function SiteHeader() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 100 free tokens</p>
-                    <p className="text-xs text-on-surface-variant leading-relaxed">Create an account today and receive 50 tokens to start reviewing transcripts through our full proofreading platform. <br /> <i>1 token = 1 page.</i></p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">Create an account today and receive 100 tokens to start reviewing transcripts through our full proofreading platform. <br /> <i>1 token = 1 page.</i></p>
                     <button
                       onClick={() => { dismissNotification(); openModal('signup') }}
                       data-track-id="header_notification_claim_tokens"
                       className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
                     >
-                      Claim 50 Free Tokens →
+                      Claim 100 Free Tokens →
                     </button>
                   </div>
                 </div>
