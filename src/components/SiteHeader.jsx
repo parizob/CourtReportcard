@@ -400,7 +400,7 @@ export default function SiteHeader() {
                     <span className="material-symbols-outlined text-tertiary-fixed-dim text-base">card_giftcard</span>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 50 free tokens</p>
+                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 100 free tokens</p>
                     <p className="text-xs text-on-surface-variant leading-relaxed">Create an account today and receive 50 tokens to start reviewing transcripts through our full proofreading platform. <br /> <i>1 token = 1 page.</i></p>
                     <button
                       onClick={() => { dismissNotification(); openModal('signup') }}

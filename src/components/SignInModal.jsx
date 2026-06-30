@@ -103,7 +103,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
         <div className="px-8 pt-8 pb-10">
           <div className="mb-1"><BrandLogo size={22} className="text-xl" /></div>
           <p className="text-xs text-on-surface-variant mb-7">
-            {confirmPending ? 'One more step before you can sign in.' : forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 50 free tokens to get started.'}
+            {confirmPending ? 'One more step before you can sign in.' : forgotMode ? 'Enter your email to receive a password reset link.' : tab === 'signin' ? 'Welcome back. Sign in to your account.' : 'Create your account and receive 100 free tokens to get started.'}
           </p>
 
           {/* Email confirmation pending view */}

@@ -256,7 +256,7 @@ export default function OurPlatform() {
               Your next deposition review starts in 3 minutes.
             </h3>
             <p className="text-primary/80 text-base mb-8 max-w-lg mx-auto leading-relaxed">
-              50 free tokens — one per page — the moment you sign up. No credit card. No onboarding call. Just upload and go.
+              100 free tokens — one per page — the moment you sign up. No credit card. No onboarding call. Just upload and go.
             </p>
             <button
               onClick={() => openModal('signup')}
