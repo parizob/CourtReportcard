@@ -51,6 +51,7 @@ ERROR TYPES — flag every occurrence:
 "spelling" — Misspelled word. The word does not exist or is clearly malformed, OR is a single-character steno drop/substitution that produces a near-miss of the correct word.
   Examples: "residance" (residence), "goverment" (government), "atourney" (attorney)
   Single-character steno drops to catch: "Fith" (Fifth), "writ" for "written", "acept" (accept), "judgement" (judgment — in U.S. courts the correct legal spelling is always "judgment" without the 'e'; "judgement" is British and incorrect in U.S. legal transcripts)
+  • "alot" → "a lot" (always two words; flag as spelling error, severity critical)
 
 "context" — Correct spelling, WRONG word. This is the most common and most dangerous error class.
   Steno homophones to watch obsessively:
@@ -71,11 +72,31 @@ ERROR TYPES — flag every occurrence:
   • sit / set (e.g., "sit aside" → "set aside"; "sit forth" → "set forth")
   • eminent / imminent (neither belongs in a motion name — flag if used; likely steno error for "emergency" or "amended")
   • compliant / complaint (near-miss in legal filings: "amend the compliant" is always wrong)
+  • corroborate / collaborate     • deposition / disposition       • allude / elude
+  • adverse / averse              • ensure / insure / assure       • precede / proceed
+  • personal / personnel          • prescribe / proscribe          • canvas / canvass
+  • conscious / conscience         • complementary / complimentary  • further / farther
+  • accede / exceed                • moral / morale
   Nonstandard words — flag as "context" (not "grammar"), severity "warning", suggestion "<word> [sic]":
   • irregardless (nonstandard; speaker likely meant "regardless" — speaker error, not reporter error)
+  Common eggcorns — these are idiom-level speaker errors; flag as "context", severity "warning", suggestion "<eggcorn phrase> [sic]":
+  • "for all intensive purposes" (correct: "for all intents and purposes")
+  • "case and point" (correct: "case in point")
+  • "deep-seeded" (correct: "deep-seated")
+  • "escape goat" (correct: "scapegoat")
+  • "wet your appetite" (correct: "whet your appetite")
+  • "could care less" (correct: "couldn't care less")
 
 "grammar" — Subject-verb agreement, tense shift, double negative, fragment, pronoun case error, dangling modifier.
   Pronoun case example: "between you and I" — the correct form is "between you and me" (object of preposition). This is a grammar error. IMPORTANT: the "original" field MUST be the full phrase containing the error ("you and I"), never a bare standalone pronoun ("I") — a bare pronoun is impossible to locate in context and will break the UI.
+  Dictation contraction errors — the speaker said a contraction but it was written as two words with "of". Flag as reporter error, severity "critical":
+  • "would of" → "would have"    • "could of" → "could have"    • "should of" → "should have"
+  • "must of" → "must have"      • "might of" → "might have"
+  Irregular past-participle errors in spoken testimony — these are speaker errors; flag as "grammar", severity "warning", suggestion "<phrase> [sic]":
+  • "had went" (correct: "had gone")     • "had saw" (correct: "had seen")
+  • "had ran" (correct: "had run")       • "had did" (correct: "had done")
+  • "should have took" (correct: "should have taken") — and equivalent constructions with other irregular verbs
+  The "original" field for these must be the full auxiliary + past participle phrase (e.g., "had went"), never just the participle alone.
 
 "legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting, or an impossible motion name.
   Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
@@ -116,6 +137,8 @@ RULES:
 - CROSS-ENTRY CONTAMINATION RULE: When evaluating any single entry, you may ONLY use text within that entry as justification. Do NOT borrow a subject, object, noun, or any other word from a different entry to justify a grammar or agreement flag in the current entry. If the subject causing a subject-verb agreement concern is in a different entry, do not flag the verb.
 - STATEMENT vs QUESTION PUNCTUATION: An entry is only a question if its own text is grammatically structured as a question — meaning it contains an interrogative word (who, what, where, when, why, how) with inverted syntax, OR it is a short tag like "correct?" or "right?" A declarative sentence ending with a period is NEVER a question, regardless of what the surrounding entries say. Do NOT flag a period as a missing question mark unless the sentence within that same entry is unambiguously a question by its own grammar. The subject matter of a question in a nearby entry does NOT make a statement entry into a question.
 - SEMICOLON BEFORE CONFIRMATION TAGS: Court reporters commonly use a semicolon before short confirmation tags such as "correct?", "right?", "is that right?", "fair?", "true?", "okay?", and similar. Example: "This is your signature; correct?" — this is correct court reporter style. Do NOT flag the semicolon in this construction as a punctuation error under any circumstances.
+- DASH FOR INTERRUPTION: A double dash (--) at the end of an utterance marks a cut-off or interrupted speech. This is correct court reporter style. Do NOT flag -- as a punctuation error, an incomplete sentence, or a missing word. It is never an error.
+- FIXED-LIST HYPHENATION: The following terms are always hyphenated regardless of their position in a sentence. Flag any unhyphenated occurrence as a spelling error, severity critical: cross-examine, cross-examination, cross-examined, cross-examining, attorney-client (as in "attorney-client privilege"), work-product (as in "work-product doctrine"), well-being. Do not apply general compound-modifier hyphenation rules beyond this fixed list.
 - PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
