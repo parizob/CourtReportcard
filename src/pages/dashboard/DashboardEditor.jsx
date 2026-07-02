@@ -1174,7 +1174,7 @@ export default function DashboardEditor() {
         </section>
 
         {/* Sidebar */}
-        <aside className="w-80 shrink-0 bg-surface border-l border-outline-variant/15">
+        <aside className="w-80 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
 
           {/* Insights header */}
           <div className="p-5 border-b border-outline-variant/10 bg-surface-container-low">

@@ -17,10 +17,23 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
 - [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
-- [ ] Add chunking to analyze-case so transcripts up to ~100 pages process in one upload without hitting the edge function's 135s deadline — split into segments, run extraction+proofread per segment, stitch entries/annotations back together (reuse deduplicateTranscript/fixAnnotationPositions)
+- [ ] Step 1 — Add chunking to `analyze-case` to support 100+ page transcripts
+    - Current bottleneck: Supabase Edge Function has a 135s deadline; most real transcripts are 100+ pages (confirmed by Zoe, users already asking)
+    - Split transcript into ~25-page segments, run extraction+proofread per segment, stitch results back together
+    - Helpers already exist: `deduplicateTranscript` and `fixAnnotationPositions` handle the stitching
+    - This alone should get to 100-150 pages and solve the immediate user problem
+- [ ] Step 2 — Add Vercel Workflow on top of chunking if mid-processing failures become a real problem
+    - Wraps each chunk as a durable step with no timeout ceiling and resume-on-failure
+    - Pricing is event-based (~50k events/month free on Hobby) — essentially free at current scale
+    - Only build this if Step 1 chunking alone isn't reliable enough in practice
+- [ ] Make the suggestions panel on the right side of the editor sticky so it scrolls with the user as they move through the transcript
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page that links the transcript proofing checklist PDF (`marketing/guides/transcript-proofing-checklist.pdf`), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
-- [ ] Get email list from Zoe for court reporters
+- [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
+- [ ] Revisit ruleset support (Morson's, Gregg, etc.) once we have more feedback from power users
+    - Sam Mattern (Spectrum Reporting) specifically asked about this and is a good resource — follow up with him on which rules matter most in practice
+    - Zoe doesn't follow a specific named ruleset, so this may not be universal — validate before building
+    - Copyright concern: can't copy rulebook text directly into prompt; would need to summarize rules in our own words
 
 ## Done
 
