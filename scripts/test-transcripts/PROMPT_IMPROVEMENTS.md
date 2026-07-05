@@ -17,6 +17,57 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Batch: 2026-07-05 — Morson's-derived additions from PROMPT_ADDITIONS.md — applied
+
+Large batch add (not a single-theme fix): homophones (who's/whose, altogether/all
+together, awhile/a while, into/in to, onto/on to, sometime/some time,
+guaranty/guarantee), spelling (alright, -ful suffix, hard-c +k), legal_term
+(citation format rules + curated Latin/foreign term list), capitalization
+(unifying principle + 10 rules), and a full expansion of the `punctuation`
+category covering periods, question marks, semicolons, colons, commas (19
+rules), dashes, quotation marks, parentheses, apostrophes (11 rules), hyphens
+(6 rules + X-ray added to FIXED-LIST HYPHENATION), numbers (18 rules + a
+verbatim-priority guardrail + phone-number-parentheses handling), abbreviations,
+ellipsis points, and slants — plus ~24 new/extended guardrails (DASH FOR
+INTERRUPTION broadened, STATEMENT vs QUESTION extended, new GRAMMAR FRAGMENT
+EXEMPTION and EXTRA_WORD DOUBLED-WORD EXEMPTION, and ~19 narrowly-scoped
+guardrails covering polite-request punctuation, possessive-apostrophe edge
+cases, verbatim-preservation of quoted external material, etc.). Also fixed a
+pre-existing whitespace misalignment between `prompts.ts` and `gemini.js` so
+the two files are byte-identical again. Full rule text and reasoning: see
+(now-applied) `PROMPT_ADDITIONS.md` at the repo root.
+
+Prompt size grew from ~15.3KB to ~39.9KB (~2.6x) — flagging for cost
+awareness per the token-economy guardrail; this doesn't add API calls but
+does meaningfully increase input tokens on every proofread pass.
+
+**Validation: baseline (1 run) 33/35 (94%) recall, 1 FP → after all edits,
+final run 33/35 (94%) recall, 3 unmatched (all explainable, not new noise:
+one genuine comma-splice catch, one genuine duplicate-word catch, one
+pre-existing "Its"/"It's" partial-match artifact that predates this batch).**
+
+Two real regressions were caught mid-validation and fixed before finalizing:
+- `capitalization` rule 5 (direct-address titles) caused a false positive
+  correcting the pre-existing "counsel" false-positive trap to "Counsel" —
+  fixed by explicitly excluding "counsel" (generic noun) from the title list,
+  distinct from "Counselor" (a real title).
+- A blanket "severity warning for every item below" on the capitalization
+  category accidentally downgraded ordinary uncapitalized-proper-noun errors
+  (e.g., "florida atlantic university") from critical to warning — fixed by
+  scoping the warning-severity statement to only the 10 new numbered rules,
+  explicitly preserving critical severity for ordinary proper-noun misses.
+- The expanded punctuation section caused the model to start flagging
+  single-vs-double space after periods as a punctuation error (hitting a
+  pre-existing clean false-positive trap) — fixed with an explicit guardrail
+  that spacing is a typesetting convention, not enforceable signal in
+  extracted plain text.
+
+One unresolved item from PROMPT_ADDITIONS.md's own open question was decided
+by the user before implementation: keep current behavior (flag every
+read-back variance individually; no "(as read)" dense-passage exception).
+
+Status: **applied 2026-07-05**.
+
 ### Run: 2026-06-14 — HARD set (transcript_03/04/05_hard), run twice
 Designed to be tougher: subtle in-context homophones, multi-error sentences,
 cross-page-break errors, errors buried in colloquy, ambiguous [sic] calls, and

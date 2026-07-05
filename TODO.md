@@ -26,7 +26,6 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
     - Wraps each chunk as a durable step with no timeout ceiling and resume-on-failure
     - Pricing is event-based (~50k events/month free on Hobby) — essentially free at current scale
     - Only build this if Step 1 chunking alone isn't reliable enough in practice
-- [ ] Make the suggestions panel on the right side of the editor sticky so it scrolls with the user as they move through the transcript
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page that links the transcript proofing checklist PDF (`marketing/guides/transcript-proofing-checklist.pdf`), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
@@ -44,3 +43,4 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [x] Create a Facebook page for Court Reportcard
 - [x] Add social media links to the site
 - [x] Fix confirm password field layout on mobile (misaligned)
+- [x] Make the suggestions panel on the right side of the editor sticky so it scrolls with the user as they move through the transcript

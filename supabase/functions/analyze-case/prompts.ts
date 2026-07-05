@@ -52,6 +52,9 @@ ERROR TYPES — flag every occurrence:
   Examples: "residance" (residence), "goverment" (government), "atourney" (attorney)
   Single-character steno drops to catch: "Fith" (Fifth), "writ" for "written", "acept" (accept), "judgement" (judgment — in U.S. courts the correct legal spelling is always "judgment" without the 'e'; "judgement" is British and incorrect in U.S. legal transcripts)
   • "alot" → "a lot" (always two words; flag as spelling error, severity critical)
+  • "alright" → "all right" (nonstandard; always two words; severity critical)
+  • Words ending in the suffix "-ful" take only one L, never two: "hopeful," "careful," "grateful" — not "hopefull," "carefull," "gratefull." Severity critical.
+  • A word ending in a hard "c" sound inserts a "k" before "-ed"/"-ing" to preserve that hard sound: "picnicked," "trafficking" — not "picnicced," "trafficing." Severity warning.
 
 "context" — Correct spelling, WRONG word. This is the most common and most dangerous error class.
   Steno homophones to watch obsessively:
@@ -77,6 +80,9 @@ ERROR TYPES — flag every occurrence:
   • personal / personnel          • prescribe / proscribe          • canvas / canvass
   • conscious / conscience         • complementary / complimentary  • further / farther
   • accede / exceed                • moral / morale
+  • who's / whose                  • altogether / all together      • awhile / a while
+  • into / in to                   • onto / on to                   • sometime / some time
+  • guaranty / guarantee (legal noun for a pledge/collateral undertaking, not the general "guarantee")
   Nonstandard words — flag as "context" (not "grammar"), severity "warning", suggestion "<word> [sic]":
   • irregardless (nonstandard; speaker likely meant "regardless" — speaker error, not reporter error)
   Common eggcorns — these are idiom-level speaker errors; flag as "context", severity "warning", suggestion "<eggcorn phrase> [sic]":
@@ -101,11 +107,164 @@ ERROR TYPES — flag every occurrence:
 "legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting, or an impossible motion name.
   Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
   Motion name check: Standard legal motion names include Motion to Dismiss, Motion to Set Aside, Motion for Summary Judgment, Emergency Motion, Amended Motion, Motion to Strike, Motion in Limine, Motion for Default Judgment. If you see a motion described with a word that has no recognized legal meaning in that position (e.g., "Eminent Motion", "Imminent Motion"), flag it as a likely steno substitution for "Emergency Motion" or "Amended Motion".
+  Citation format — severity warning for each item below:
+  • No spaces around a colon in a legal or literary citation (volume:page, chapter:verse). Correct: "Section 4:12". Incorrect: "Section 4 : 12".
+  • A numbered reference to a paragraph, line, exhibit, question, or article is a figure and capitalized ("Question No. 8", "Exhibit 3", "Article II"); an informal, non-official use of "number" is spelled out and lowercase ("she's my number one fan").
+  • Page, line, stanza, verse, size, and vitamin references stay lowercase even before a figure ("page 4", "size 8", "vitamin b12") — unlike Article/Section/Question/Exhibit/Figure, which are capitalized before a figure.
+  • Only "v." is correct for "versus" inside an actual case citation ("Smith v. Jones"); spell out "versus" when it simply means "opposes" outside a citation ("It's her word versus his").
+  • "et al." is the only correct form — "et als." is a common but incorrect pluralization.
+  Latin/foreign legal term spellings — watch for steno/phonetic misspellings of these (curated for frequency and phonetic-error risk, not completeness):
+  voir dire, habeas corpus, certiorari (writ of certiorari — watch for "certiori," "certiorary"), res ipsa loquitur, res judicata, amicus curiae (not "amicus curae"), subpoena duces tecum, subpoena ad testificandum, corpus delicti (not "corpus delecti"), nolo contendere (not "nolo contender"), nolle prosequi (accepted short forms "nol-pros," "nol-prossed," "nol-prossing" are NOT errors), mens rea (not "men's rea"), prima facie, sui generis (not "sue generis"), guardian ad litem, pendente lite, per curiam, de novo, de facto, de jure, ex parte, in camera, in personam, in rem, in loco parentis, caveat emptor, quid pro quo, mea culpa, ipso facto, sine qua non, sine die, arguendo, gravamen, jurat, non compos mentis
 
 "punctuation" — Missing or wrong punctuation that changes meaning or readability.
   Examples: missing question mark on a question, missing comma creating ambiguity, wrong apostrophe.
+  Severity is "warning" for every rule below unless a rule explicitly says "critical".
+  GUARDRAIL: Do NOT flag single-space vs. double-space after a sentence-ending period, or any other inter-word/inter-sentence spacing, as a punctuation error. Spacing is a typesetting convention, not a content error, and is not reliable signal in extracted plain text.
+
+  PERIODS:
+  • An indirect question (a reporting statement whose main clause reports rather than asks) wrongly ends in "?" instead of "." — except when the main clause itself is phrased as an inverted question. "He asked what time it was." is correct; "He asked what time it was?" is wrong unless the main clause itself inverts ("Did he ask what time it was?").
+  • A sentence ending in an abbreviation takes only one period, never two.
+  • A period belongs inside a closing quotation mark, never outside.
+
+  QUESTION MARKS:
+  • A same-clause tag question ("isn't it," "don't you think") is missing its "?".
+  • A standalone confirmation-tag sentence ("Right?", "Correct?") is missing its "?".
+  • A question ending in an abbreviation needs BOTH the abbreviation's period AND the "?" ("Did you graduate from U.S.C.?").
+  • A question mark goes inside a closing quotation mark only when the quoted material itself is the question; otherwise it goes outside.
+  • An "if you recall," "if you remember," or "if you know" tag question is missing its comma or its "?".
+
+  SEMICOLONS:
+  • A comma splice/run-on: two independent clauses joined by only a comma, or by nothing at all, with no coordinating conjunction present.
+  • A missing semicolon before a transitional word (however, therefore, consequently, moreover, nevertheless) that begins a genuinely new independent clause — not when the transitional word merely interrupts a single clause.
+  • A missing semicolon before an explanatory word (namely, that is, for example) introducing a substantial list.
+  • A missing semicolon separating series items that themselves contain commas (addresses, names with titles).
+  • A missing semicolon before a coordinating conjunction when the clause it joins already has internal commas.
+  • A missing semicolon after each item in a numbered, lettered, or word-based enumeration ("First, ... Second, ...").
+  • A semicolon always goes outside a closing quotation mark.
+
+  COLONS:
+  • A missing colon before a list introduced by a signal phrase (as follows, the following, thus) — not required for an ordinary list with no signal phrase.
+  • A colon (not a comma or nothing) is mandatory when a demonstrative sits between "to be" and a question ("My question is this: Where were you at 9 p.m.?").
+  • A colon should never immediately follow a preposition (of, in, at, on) or the word "that."
+  • A colon always goes outside a closing quotation mark.
+  • No colon after a noun of direct address — use a comma instead ("Doctor, please continue." not "Doctor: please continue.").
+
+  COMMAS:
+  1. Missing comma before a coordinating conjunction (and, but, or, nor) joining two independent clauses — not required when either clause is about five words or fewer.
+  2. Missing serial (Oxford) comma in a series of three or more items.
+  3. Missing comma(s) around a noun of direct address, wherever it falls in the sentence.
+  4. Missing or misplaced comma with a direct quotation — a comma belongs before/around the quoted material and always inside the closing quotation mark.
+  5. Missing comma(s) in a date or address after every item following the day or street name — the commonly missed one is the closing comma ("June 17, 1993, and the following week...").
+  6. Missing comma(s) around a title or degree following a name (Esq., Ph.D., CEO).
+  7. Missing commas around "etc." mid-sentence.
+  8. Missing comma(s) separating numbered citation references (section, page, line).
+  9. Missing comma after an introductory adverb from a fixed common list (actually, accordingly, however, nonetheless, furthermore) — except "hence," "thus," "so," and "yet."
+  10. "Okay" or "All right" used as a standalone acknowledgment should be its own period-terminated sentence, not comma-spliced into the sentence that follows.
+  11. Missing comma after "yes" or "no" when a short phrase or clause follows that elaborates on or qualifies that same answer (e.g., "Yes, with minor variation."); use a period instead only when what follows is a separate, independent clause introducing genuinely new information unrelated to the yes/no answer itself (e.g., "No. I never received the letter.").
+  12. Missing comma after a long (four words or more) introductory prepositional phrase.
+  13. Missing comma after an introductory participial phrase, infinitive phrase, or adverbial dependent clause.
+  14. Missing comma before a nonessential clause introduced by a fixed list: although, even though, though, whereas, no matter what/who, some/none of which/whom, at which time, or "for" meaning "because."
+  15. A "which" clause is set off with commas; a "that" clause never is.
+  16. Missing comma(s) around an appositive introduced by "especially," "or," or "particularly."
+  17. Missing comma(s) around an "accompanied by," "along with," "as well as," "besides," "in addition to," "plus," or "together with" phrase specifically when it falls between the subject and the verb.
+  18. Missing comma after a mild command word (Remember, Look, Mind you, See) followed by a complete clause — no comma when "that" immediately follows.
+  19. Missing comma before a contrasting expression (even though, never, rather, though, though not) — except when "rather than" ends the sentence.
+
+  DASHES:
+  • A comma, colon, or semicolon should never sit directly adjacent to a dash — the one exception is a period belonging to an abbreviation.
+  • Missing dash before a summarizing main clause that follows an introductory list ("Rain, wind, hail — the storm brought all three.").
+  • A dash interrupting a speaker's own quoted material generally goes outside the closing quotation mark.
+
+  QUOTATION MARKS:
+  • When an attribution phrase ("she said") splits a direct quote: use a comma and a lowercase fragment if the same sentence continues; use a period and a capital letter if the two quoted parts are separate independent clauses.
+  • No comma and no capital letter on a quoted fragment embedded mid-sentence.
+  • "Quote... unquote" (or variants) should never appear alongside actual quotation marks for the same passage — use one or the other, never both.
+  • A nested quotation uses a single quotation mark for the inner quote.
+  • Only one mark of end punctuation when an inner and outer quotation end at the same point.
+  • Capitalize the first word of a complete unspoken thought or wondering ("I thought, If only I had left earlier.") — no quotation marks are required.
+  • Quotation marks belong around a bare single letter referring to itself (spelling something out, a variable) — except when the letter is part of a real word like "nth."
+  • A translation or definition of a foreign or technical term should be quoted.
+
+  PARENTHESES:
+  • End punctuation on a reporter's parenthetical sentence goes inside the closing parenthesis.
+  • Avoid filler openers ("whereupon," "at this point in time," "at this time") inside a parenthetical notation.
+  • Avoid the words "interrupting," "continuing," or "reading" inside a parenthetical notation — a dash or quotation marks already signal these.
+  • Parentheses should not be used to set off a spoken aside within testimony — use dashes or commas instead.
+  • CRITICAL, not warning: a reporter's parenthetical notation describing a witness's non-verbal action must state only the bare fact — no interpretive, descriptive, or qualifying detail about manner, distance, or characterization. "(Witness nods.)" is correct; "(Witness nods slowly, seeming reluctant.)" is not — a reporter editorializing on the record is a real accuracy and liability issue.
+
+  APOSTROPHES:
+  1. Missing possessive apostrophe on a singular noun.
+  2. A malformed plural possessive — the apostrophe sits somewhere that is neither valid singular nor valid plural placement.
+  3. A compound-word possessive takes the apostrophe on the last word only ("my mother-in-law's car").
+  4. A multi-word name or title possessive takes no comma before the apostrophe ("Baker, Inc.'s policy").
+  5. Missing possessive apostrophe on an inanimate time or value expression ("two weeks' notice") — not when the following word is an adjective ("three months pregnant").
+  6. Missing apostrophe on an abbreviated decade or year ("the late '80s").
+  7. "'til" is nonstandard — always use "till" or "until."
+  8. Missing apostrophe pluralizing a bare lowercase letter or a lowercase abbreviation with periods ("mind your p's and q's", "several a.m.'s").
+  9. An apostrophe belongs before a suffix when a letter, number, or abbreviation functions as a verb rather than a noun ("star-69'd", "OK's it" as a verb) — distinguish this from the plural noun form, which takes no apostrophe ("a dozen OKs").
+  10. Missing possessive apostrophe on an indefinite pronoun ("someone else's coat").
+  11. Joint vs. separate ownership possessive should match the number of the noun that follows: a singular noun after two names joined by "and" signals joint ownership with only the last name possessive ("Mark and Linda's house"); a plural noun signals separate ownership with each name possessive ("Mark's and Linda's houses"). Flag only when the pattern doesn't match the noun's number.
+
+  HYPHENS:
+  1. Hyphens belong between letters when spelling a name or word out for the record ("that's R-a-m-i-r-e-z").
+  2. A hyphen is used for exhibit labels, aircraft designations, and military rank/pay-grade designations ("Exhibit 4-A," "an F/A-18," "a Sergeant E-5").
+  3. No hyphen between an "-ly" adverb and the participle or adjective it modifies ("newly discovered evidence," not "newly-discovered evidence") — except when the "-ly" word is itself an adjective rather than an adverb ("a worldly-minded man").
+  4. No hyphen between "more," "most," "less," or "least" and the adjective they modify ("a more reasonable approach," not "a more-reasonable approach").
+  5. Never hyphenate a percent expression before a noun ("a 10 percent reduction," not "a 10-percent reduction").
+  6. Hyphenate a prefix attached directly to a capitalized word or a numeral ("anti-American," "post-2020") — this is not a general rule for every prefix-plus-word combination.
+
+  NUMBERS:
+  1. A numeral should not begin a sentence — spell it out or restructure the sentence; a figure is acceptable only if the number is too long or unwieldy to spell out.
+  2. A complete date uses figures for the day and year with no ordinal suffix in standard month-day-year order ("March 4, 2023"); an ordinal suffix is used when the day is separated from or precedes the month ("the 4th of March").
+  3. An address house number uses figures, except "One" ("One Main Street," "14 Main Street").
+  4. A numbered street name from one to ten is spelled out; above ten it uses figures ("Fifth Avenue," "42nd Street").
+  5. A number before "o'clock" is spelled out ("three o'clock"); a number before a.m./p.m. is a figure ("3 a.m."); "a.m."/"p.m." are never capitalized except for the first letter at the start of a sentence.
+  6. An even hour does not take ":00" in running text ("3 p.m.," not "3:00 p.m.").
+  7. An even dollar amount uses a dollar sign plus a figure with no decimal or trailing zeros ("$40," not "$40.00").
+  8. Cents alone use a figure plus the word "cents" at 10 or above; below 10, spell it out ("nine cents," "25 cents").
+  9. Dollars and cents together always use figures with a decimal ("$4.25").
+  10. Million, billion, and trillion amounts use a dollar sign, a figure, and the spelled-out word ("$4 million").
+  11. Never combine a bare number with "hundred" or "thousand" to form a compound figure ("2,200," not "22 hundred").
+  12. Ordinals are spelled out through "tenth"; above that, use a figure plus suffix ("11th"); a mixed-range series uses figures and ordinals throughout for consistency.
+  13. Dimensions use figures but always spell out the unit, and avoid "x" in place of "by" or "times" ("10 feet by 12 feet," not "10' x 12'").
+  14. Percentages in running text use a figure plus the spelled-out word "percent," not the % symbol; the symbol is acceptable only within an enumerated series.
+  15. A decimal takes a leading zero when there is no whole number ("0.5 inches") — except gun calibers and gauges, which never take a leading zero (".38-caliber").
+  16. A medical measurement with bodily significance always uses figures; "Fahrenheit" and "Celsius" are capitalized, "centigrade" is not.
+  17. When two numbers sit adjacent to each other, spell out one and use a figure for the other to avoid visual confusion ("three 4-inch pipes," not "3 4-inch pipes").
+  18. A phone number written with an area code in parentheses takes parentheses around the area code only when a local number follows it ("(609) 221-6565" is correct); a bare area code with no local number is not parenthesized ("area code 609").
+  CRITICAL GUARDRAIL governing all NUMBERS rules above: never suggest a "corrected," completed, or rounded numeral for any dollar amount, quantity, or range the speaker left incomplete, ambiguous, or rounded — the ambiguous/incomplete form exactly as spoken is correct, even when the intended full number seems obvious from context. The same principle extends to a shortened spoken measurement form ("five-four" for height) — preserve it as spoken; do not reconstruct it into a standard format.
+
+  ABBREVIATIONS:
+  • "Dr." is abbreviated only when a name immediately follows it; otherwise spell out "doctor."
+  • A title of dignity or respect (Reverend, Honorable, Father, Sister) is spelled out, never abbreviated.
+  • A period follows a letter that stands in for someone's real name or initial; no period when the letter is an arbitrary placeholder ("Mr. X," "Motorist A").
+  • Don't abbreviate "okay" to "OK" as a spoken response or acknowledgment (distinct from the verb form "OK's," which is a correct abbreviation — see APOSTROPHES above).
+  • When a normally lowercase abbreviation begins a sentence, capitalize only its first letter, never the whole abbreviation ("A.m. or p.m., either is fine," not "A.M. or p.m.").
+  • VERBATIM-PRIORITY GUARDRAIL: write an abbreviation exactly as spoken — don't expand it ("TV" to "television") or contract it based on which reads more naturally.
+  • GUARDRAIL: don't insert or remove an ampersand based on preference — use it only when it's part of a specific firm's actual established name.
+  • GUARDRAIL: a time-zone abbreviation (EST, PST) is used only when the speaker actually said it as an abbreviation; otherwise spell it out with only the location word capitalized.
+
+  ELLIPSIS POINTS:
+  • An ellipsis ("...") inside quoted material marks an intentional, correct omission — never flag it as an error, an incomplete sentence, a missing word, or a punctuation problem.
+  • GUARDRAIL, distinct from the DASH FOR INTERRUPTION rule below, do not conflate the two: an ellipsis marks a speaker's own voice trailing off inconclusively, often with unspoken body language completing the thought — a different phenomenon from a dash's external interruption or cutoff. Don't flag a trailing ellipsis as an incomplete sentence or a missing word.
+
+  SLANTS:
+  • Missing slash in a fixed alternative-word expression (and/or, if/when, unless/until, either/or).
+  • GUARDRAIL: don't flag the choice between a slash, a spoken "per," or a literally-spoken "slash" in a ratio notation as wrong — it depends on whether the text verbatim-copies a written exhibit notation or transcribes what was actually said.
 
 "capitalization" — Improper capitalization of proper nouns, party names, court names, judicial titles, legal terms that require capitals.
+  Unifying principle: a specific, formally-named entity is capitalized on full reference, but a shortened or generic reference to that same entity later is lowercase (e.g., "the State of Ohio" → "the state"; "the Superior Court of California" → "in court"; "the National Mediation Board" → "the board").
+  The numbered rules below are severity warning (they are stylistic/contextual conventions, not steno substitutions) — this does NOT change the severity of an ordinary uncapitalized proper noun (person, place, or institution name), which remains critical like any other reporter error:
+  1. "Court" is capitalized only for the presiding judge or as a short form of a specific court already named — never for a generic reference to courts in general.
+  2. "Judge" is lowercase unless it immediately precedes a name or is used as direct address ("Judge Hernandez", "Yes, Judge").
+  3. "State" and "City" are capitalized only in the formal corporate/legal-party sense ("the State moved to dismiss"), never in ordinary geographic reference ("she moved to the state of Texas"). Handle with care — do not guess when the sense is ambiguous.
+  4. An occupational title is capitalized only immediately before a name with no comma between them ("Detective Ramos") — not generically, not after the name, and not set off in apposition ("the detective, Maria Ramos,").
+  5. A direct-address professional title is capitalized ("Doctor", "Sergeant", "Counselor", "Your Honor"); a generic term of address is not ("sir", "madam", "officer", "miss", "counsel" — "counsel" is a generic collective noun, not a title, and stays lowercase even in direct address, unlike "Counselor").
+  6. Generic legal-document words (deposition, interrogatories, motion, petition, stipulation, will, contract, deed, lease) stay lowercase in running text unless preceded by "marked," "labeled," or "entitled."
+  7. A family-relation title is capitalized when it substitutes for a name with no possessive pronoun before it ("Ask Mother"); it stays lowercase with a possessive pronoun ("Ask my mother").
+  8. An abbreviated professional title after a name is always capitalized (R.N., Esq., C.S.R., Ph.D.).
+  9. "federal," "government," "nation," and "republic" are lowercase by default; capitalize only as part of a formal organization name.
+  10. "black" and "white" as racial descriptors stay lowercase even though other ethnicity terms are capitalized.
 
 "missing_word" — A word is clearly absent that makes the sentence incomplete or changes its meaning.
   Example: "The witness did [not] recall" — if "not" is missing, this is critical.
@@ -135,11 +294,32 @@ RULES:
 - Do NOT flag "if I was [verb-ing]" constructions as grammar errors. Past progressive conditionals ("if I was taking", "if I was going") are grammatically acceptable in American English and appear routinely in spoken testimony.
 - Your explanation field MUST only reference text that actually appears in the entry being annotated. NEVER invent, paraphrase, or quote a phrase that does not exist in the source transcript. If you cannot explain the error using the actual text, do not flag it.
 - CROSS-ENTRY CONTAMINATION RULE: When evaluating any single entry, you may ONLY use text within that entry as justification. Do NOT borrow a subject, object, noun, or any other word from a different entry to justify a grammar or agreement flag in the current entry. If the subject causing a subject-verb agreement concern is in a different entry, do not flag the verb.
-- STATEMENT vs QUESTION PUNCTUATION: An entry is only a question if its own text is grammatically structured as a question — meaning it contains an interrogative word (who, what, where, when, why, how) with inverted syntax, OR it is a short tag like "correct?" or "right?" A declarative sentence ending with a period is NEVER a question, regardless of what the surrounding entries say. Do NOT flag a period as a missing question mark unless the sentence within that same entry is unambiguously a question by its own grammar. The subject matter of a question in a nearby entry does NOT make a statement entry into a question.
+- STATEMENT vs QUESTION PUNCTUATION: An entry is only a question if its own text is grammatically structured as a question — meaning it contains an interrogative word (who, what, where, when, why, how) with inverted syntax, OR it is a short tag like "correct?" or "right?" A declarative sentence ending with a period is NEVER a question, regardless of what the surrounding entries say. Do NOT flag a period as a missing question mark unless the sentence within that same entry is unambiguously a question by its own grammar. The subject matter of a question in a nearby entry does NOT make a statement entry into a question. Identical or near-identical short phrases can correctly be punctuated as either a statement or a question depending on what was actually said (e.g., "That's all." vs. "That's all?") — the reporter's rendering is authoritative absent an internal grammatical contradiction within that same entry.
 - SEMICOLON BEFORE CONFIRMATION TAGS: Court reporters commonly use a semicolon before short confirmation tags such as "correct?", "right?", "is that right?", "fair?", "true?", "okay?", and similar. Example: "This is your signature; correct?" — this is correct court reporter style. Do NOT flag the semicolon in this construction as a punctuation error under any circumstances.
-- DASH FOR INTERRUPTION: A double dash (--) at the end of an utterance marks a cut-off or interrupted speech. This is correct court reporter style. Do NOT flag -- as a punctuation error, an incomplete sentence, or a missing word. It is never an error.
-- FIXED-LIST HYPHENATION: The following terms are always hyphenated regardless of their position in a sentence. Flag any unhyphenated occurrence as a spelling error, severity critical: cross-examine, cross-examination, cross-examined, cross-examining, attorney-client (as in "attorney-client privilege"), work-product (as in "work-product doctrine"), well-being. Do not apply general compound-modifier hyphenation rules beyond this fixed list.
+- DASH FOR INTERRUPTION: A double dash (--) at the end of an utterance marks a cut-off or interrupted speech. This is correct court reporter style. Do NOT flag -- as a punctuation error, an incomplete sentence, or a missing word. It is never an error. This also covers a mid-sentence self-correction dash (the speaker restarts a thought) and a leading dash at the start of an entry marking resumption after an interruption — do NOT try to verify cross-entry continuity for a leading or trailing dash; never flag either as an error. Do NOT flag a capitalization error on text resuming after a dash unless the resuming word is "I" or a proper noun.
+- GRAMMAR FRAGMENT EXEMPTION: The "grammar" category's fragment/incompleteness judgment does NOT apply to a short courtroom answer, objection, or follow-up clarification that stands alone as a complete response (e.g., "A: Not sure.", "MR. HALE: Objection. Leading."). Do NOT flag these as fragments or second-guess their terminal punctuation (period or "?" — both are acceptable). This exemption covers fragment/completeness judgment ONLY — spelling, apostrophes, homophones, and capitalization within the fragment are still checked normally (e.g., still flag "A: Dont recall." for the missing apostrophe).
+- EXTRA_WORD DOUBLED-WORD EXEMPTION: A doubled word where each instance is a grammatically distinct token (e.g., "that that," "had had," "is, is") must NEVER be flagged as "extra_word" duplication.
+- FIXED-LIST HYPHENATION: The following terms are always hyphenated regardless of their position in a sentence. Flag any unhyphenated occurrence as a spelling error, severity critical: cross-examine, cross-examination, cross-examined, cross-examining, attorney-client (as in "attorney-client privilege"), work-product (as in "work-product doctrine"), well-being, X-ray (verb/adjective form only, e.g., "X-rayed," "an X-ray technician"). Do not apply general compound-modifier hyphenation rules beyond this fixed list.
 - PUNCTUATION + CAPITALIZATION RULE: When a punctuation correction turns a mid-sentence comma (or similar) into a sentence-ending period, the following word must also be capitalized. In this case, extend the "original" field to include the following word (e.g., "longer, we") and extend the "suggestion" to include the capitalized version (e.g., "longer. We"). Never flag the punctuation change alone if it creates a capitalization obligation — handle both in a single annotation.
+- Do NOT flag/correct the period-vs-"?" choice on a polite request ("Will you please state your name.", "May I approach the witness."). Whether it was voiced as a request or a genuine question depends on courtroom role and real-time inflection the text can't supply.
+- Do NOT move a mid-sentence question mark placed before an add-on tag ("Are you willing to help? because that would save time."). Where the question mark falls is meaning-dependent and only the reporter who heard it can judge it correctly.
+- Do NOT flag whether a colon or a comma follows a "Just so I'm clear" or "So I have a complete picture" lead-in — this is an audio-inflection judgment call, not a mechanical rule.
+- Do NOT force a serial (Oxford) comma into a series where a conjunction already appears between every item (e.g., "red and white and blue").
+- Do NOT second-guess comma placement around a short direct-address phrase where inflection determines meaning.
+- Do NOT flag "now" or "then" comma placement at the start of a sentence — meaning-dependent (conversational filler vs. literal reference to time).
+- "As," "because," "if," "since," "so," and "unless" do not take a comma by default when introducing an essential clause; this distinction is genuinely vague, so do NOT actively check it.
+- Do NOT require quotation marks around indirect (reported) speech.
+- Do NOT apply context/homophone corrections to a witness's own quoted account of past speech — that is their sworn testimony, not a transcription artifact.
+- Do NOT require quotation marks around an exhibit designation following "marked" or "labeled."
+- Quoted material from an external document should never be silently corrected for spelling or wording — this extends the transcript's general verbatim-preservation principle.
+- Do NOT add an apostrophe to a former-contraction word that is now standard (phone, bus, plane, cello, possum).
+- Do NOT require an apostrophe+s for a plural number or a plural capitalized abbreviation (the 1990s, two IOUs).
+- Do NOT add apostrophes to common everyday word plurals (ifs, ands, buts, ins, outs, ups, downs, pros, cons).
+- Do NOT flag either form of a singular possessive on an s/z-ending name as wrong (Reynolds' or Reynolds's — both are valid and audio-dependent). The same applies to a ce/ss-ending "sake" idiom (for goodness' sake or for goodness's sake).
+- Do NOT apply general possessive-apostrophe rules to an organization or publication name.
+- HIGH-STAKES: a singular vs. plural possessive on a party or witness name can change the substance of the case (the plaintiff's vs. the plaintiffs') — only suggest a correction when that entry's own text clearly establishes which is meant; never guess.
+- Do NOT require a possessive apostrophe on a proper noun used descriptively/adjectivally rather than to show ownership (the Morgan farm, as opposed to Morgan's farm).
+- Do NOT hyphenate a foreign expression or a proper noun used as a modifier (ad hoc committee, Bay Area restaurant).
 - Flag proper nouns only if they are clearly misspelled (e.g., a witness name spelled two different ways in the same transcript).
 - Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
 - For entries labeled "APPEARANCES": do NOT annotate anything within the appearances block itself. Instead, read it to extract all proper nouns — attorney names, party names, firm names. Then, if any of those names appear spelled inconsistently anywhere in the testimony entries, flag the testimony entry. Annotate on the testimony entry only, never on the appearances entry itself.
