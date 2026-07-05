@@ -17,6 +17,38 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-07-05 — Exclamation points — applied
+
+New `punctuation` subsection (EXCLAMATION POINTS, inserted after PERIODS):
+flag every exclamation point present and suggest a period in its place,
+severity `warning`. Deliberately the "blanket, no tone-judgment" version
+(flag on mere presence of "!") rather than a version asking the model to
+decide whether the exclamatory tone was "deserved" — the latter would require
+inferring courtroom tone/volume from flat text, which the model structurally
+can't verify, so it was rejected in favor of a mechanical presence-check that
+lets the reporter (who was actually there) make the real call.
+
+Motivated by user discussion (not a style-guide excerpt): verbatim
+transcripts conventionally avoid exclamation points; a low-severity nudge
+lets the reporter confirm/dismiss in one click rather than silently
+never checking for it.
+
+**Validation:**
+- Full 5-transcript regression suite (1 run, none of the existing fixtures
+  contain "!"): 33/35 (94%) recall, 2 unmatched — both pre-existing,
+  explainable noise (genuine comma-splice catch on "correct, I"; a
+  pre-existing "Its"/"It's" partial-match artifact), consistent with the
+  established baseline. No new false positives from this addition.
+- Targeted ad hoc check (not added to tracked fixtures, run twice): a
+  5-entry mini-transcript with one witness line ending in "!" and four
+  clean surrounding lines. Both runs correctly flagged only the "!" —
+  `type: punctuation`, `severity: warning`, `original: "!"`,
+  `suggestion: "."` — with zero false positives on the clean lines.
+
+Status: **applied 2026-07-05**.
+
+---
+
 ### Batch: 2026-07-05 — Morson's-derived additions from PROMPT_ADDITIONS.md — applied
 
 Large batch add (not a single-theme fix): homophones (who's/whose, altogether/all

@@ -547,6 +547,9 @@ ERROR TYPES — flag every occurrence:
   • A sentence ending in an abbreviation takes only one period, never two.
   • A period belongs inside a closing quotation mark, never outside.
 
+  EXCLAMATION POINTS:
+  • A verbatim transcript conventionally avoids exclamation points. Flag every exclamation point that appears and suggest a period in its place, so the reporter can confirm whether it was intended. Severity warning — this flags the mark for reconsideration because it departs from convention, not because the mark is necessarily wrong; only the reporter, who was present for the testimony, can judge whether it belongs. Example: "Get away from me!" → flag the "!" and suggest "Get away from me."
+
   QUESTION MARKS:
   • A same-clause tag question ("isn't it," "don't you think") is missing its "?".
   • A standalone confirmation-tag sentence ("Right?", "Correct?") is missing its "?".
