@@ -60,16 +60,17 @@ Use for the single most important action on a surface. Only one per view.
 
 ### Stat card
 ```jsx
-<div className="bg-surface-container-lowest rounded-xl p-5 editorial-shadow flex items-center gap-4">
-  <div className="w-11 h-11 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
+<div className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 editorial-shadow flex items-center gap-3 sm:gap-4">
+  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
     <span className="material-symbols-outlined text-on-secondary-container">{icon}</span>
   </div>
-  <div>
+  <div className="min-w-0">
     <p className="text-2xl font-headline font-black text-primary leading-none">{value}</p>
-    <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mt-1">{label}</p>
+    <p className="text-[10px] uppercase tracking-wide sm:tracking-widest font-bold text-on-surface-variant mt-1 break-words">{label}</p>
   </div>
 </div>
 ```
+Grid wrapper: `grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4`. The `min-w-0` on the text column and `break-words` on the label are required — without them, a long uppercase label (e.g. "TOTAL SUGGESTIONS") in a 2-column mobile grid can overflow past the card edge instead of wrapping.
 
 ### Feature card with number watermark
 ```jsx

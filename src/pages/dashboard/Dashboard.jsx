@@ -234,18 +234,23 @@ export default function Dashboard() {
         </header>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          {stats.map((s) => (
-            <div key={s.label} className="bg-surface-container-lowest rounded-xl p-5 editorial-shadow flex items-center gap-4">
-              <div className="w-11 h-11 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-on-secondary-container">{s.icon}</span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
+          {stats.map((s) => {
+            const words = s.label.split(' ')
+            return (
+              <div key={s.label} className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 editorial-shadow flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-on-secondary-container">{s.icon}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-headline font-black text-primary leading-none">{s.value}</p>
+                  <p className="text-[10px] uppercase tracking-wide sm:tracking-widest font-bold text-on-surface-variant mt-1 break-words">
+                    {words.length === 2 ? <>{words[0]} <br className="sm:hidden" />{words[1]}</> : s.label}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-headline font-black text-primary leading-none">{s.value}</p>
-                <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mt-1">{s.label}</p>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Case Queue */}

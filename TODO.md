@@ -29,11 +29,6 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page that links the transcript proofing checklist PDF (`marketing/guides/transcript-proofing-checklist.pdf`), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
-- [ ] Revisit ruleset support (Morson's, Gregg, etc.) once we have more feedback from power users
-    - Sam Mattern (Spectrum Reporting) specifically asked about this and is a good resource — follow up with him on which rules matter most in practice
-    - Zoe doesn't follow a specific named ruleset, so this may not be universal — validate before building
-    - Copyright concern: can't copy rulebook text directly into prompt; would need to summarize rules in our own words
-
 ## Done
 
 - [x] Background processing: Gemini calls moved to async background function; upload page saves file and returns immediately, dashboard polls for completion — fixes stay-on-screen problem and token loss on navigation
@@ -44,3 +39,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [x] Add social media links to the site
 - [x] Fix confirm password field layout on mobile (misaligned)
 - [x] Make the suggestions panel on the right side of the editor sticky so it scrolls with the user as they move through the transcript
+- [x] Revisit ruleset support (Morson's, Gregg, etc.) once we have more feedback from power users
+    - Sam Mattern (Spectrum Reporting) specifically asked about this and is a good resource — follow up with him on which rules matter most in practice
+    - Zoe doesn't follow a specific named ruleset, so this may not be universal — validate before building
+    - Copyright concern: can't copy rulebook text directly into prompt; would need to summarize rules in our own words
