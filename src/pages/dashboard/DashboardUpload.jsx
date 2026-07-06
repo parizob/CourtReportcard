@@ -15,6 +15,20 @@ const MAX_FILE_BYTES = {
   '.rtf': 10 * 1024 * 1024,  // 10 MB — RTF markup overhead can be 10–50× text size
 }
 
+// Rough, honest expectation-setting for the post-upload confirmation screen —
+// larger documents go through the chunked/batched pipeline (see
+// CHUNK_THRESHOLD_PAGES in supabase/functions/analyze-case/index.ts) and take
+// meaningfully longer, with proofread batch time varying by content density.
+// Ranges are intentionally generous rather than precise so a slower-than-usual
+// run still lands inside what we told the user to expect.
+function processingTimeEstimate(pages) {
+  if (pages < 20) return 'This usually takes 2 to 5 minutes.'
+  if (pages < 50) return 'This usually takes 5 to 10 minutes.'
+  if (pages < 100) return 'This usually takes 10 to 20 minutes.'
+  if (pages < 150) return 'This can take up to 30 minutes.'
+  return 'This can take 30 minutes or more for very large documents.'
+}
+
 function validateFile(file) {
   const ext = '.' + file.name.split('.').pop().toLowerCase()
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
@@ -187,8 +201,7 @@ export default function DashboardUpload() {
           </div>
           <h2 className="font-headline text-2xl font-bold text-on-surface mb-3">Analysis started</h2>
           <p className="text-sm text-on-surface-variant mb-2 leading-relaxed">
-            We're analyzing <span className="font-semibold text-on-surface">{caseName}</span> now. This usually
-            takes 2–5 minutes — you can safely close this tab.
+            We're analyzing <span className="font-semibold text-on-surface">{caseName}</span> now. {processingTimeEstimate(pendingPages)} You can safely close this tab.
           </p>
           <p className="text-sm text-on-surface-variant mb-8 leading-relaxed">
             We'll email you the moment it's ready, and you can track progress on your dashboard.
@@ -330,7 +343,7 @@ export default function DashboardUpload() {
             <div className="space-y-2">
               {[
                 { icon: 'lock', text: 'Encrypted & secure' },
-                { icon: 'schedule', text: '2–5 min analysis' },
+                { icon: 'schedule', text: 'Analysis in minutes' },
                 { icon: 'toll', text: '1 token per page' },
               ].map((item) => (
                 <div key={item.icon} className="flex items-center gap-2">

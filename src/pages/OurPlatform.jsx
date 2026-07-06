@@ -68,7 +68,7 @@ export default function OurPlatform() {
               The fastest way to proofread<br className="hidden sm:block"/>a court transcript. By far.
             </h1>
             <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              A 200-page deposition that takes an experienced scopist six hours takes Court Reportcard under three minutes — at a fraction of the cost, with nothing missed.
+              A 200-page deposition that takes an experienced scopist six hours takes Court Reportcard just minutes — at a fraction of the cost, with nothing missed.
             </p>
           </div>
         </section>
@@ -232,7 +232,7 @@ export default function OurPlatform() {
                 <h3 className="font-headline font-bold text-lg text-on-primary mb-3">After Court Reportcard</h3>
                 <ul className="space-y-2.5 text-sm text-on-primary-container/90">
                   {[
-                    'Under 3 minutes to surface every issue in a transcript',
+                    'Minutes, not hours, to surface every issue in a transcript',
                     'Every word evaluated — no fatigue, no off days',
                     'Full audit trail exported with every transcript',
                     'Turnaround measured in minutes',
@@ -253,7 +253,7 @@ export default function OurPlatform() {
           <div className="max-w-3xl mx-auto bg-tertiary-fixed-dim rounded-3xl editorial-shadow p-8 sm:p-10 md:p-14 text-center">
             <span className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4 inline-flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">Start Today</span>
             <h3 className="font-headline text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary tracking-tight mb-4 leading-tight">
-              Your next deposition review starts in 3 minutes.
+              Your next deposition review starts in minutes.
             </h3>
             <p className="text-primary/80 text-base mb-8 max-w-lg mx-auto leading-relaxed">
               100 free tokens — one per page — the moment you sign up. No credit card. No onboarding call. Just upload and go.
