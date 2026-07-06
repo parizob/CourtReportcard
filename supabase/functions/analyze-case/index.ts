@@ -604,8 +604,8 @@ function failureEmailHtml(caseName: string, refunded: number): string {
           We've <strong>refunded ${refunded} token${refunded === 1 ? '' : 's'}</strong> — you weren't charged.
         </p>
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          This usually happens with very large files. Try splitting the transcript into chunks of
-          roughly 50 pages each and uploading again.
+          This is usually a temporary issue. Please try uploading again — if it happens a second
+          time, reach out and we'll take a look.
         </p>
         <a href="${supportUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Contact Support</a>
       </div>

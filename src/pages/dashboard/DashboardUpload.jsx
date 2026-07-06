@@ -230,8 +230,8 @@ export default function DashboardUpload() {
             <div className="shrink-0 p-3.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-3">
               <span className="material-symbols-outlined text-primary text-lg shrink-0 mt-0.5">volunteer_activism</span>
               <div>
-                <p className="text-sm font-bold text-on-surface">File too large for a single pass.</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">Try chunks of <span className="font-semibold text-on-surface">~100 pages each</span>.</p>
+                <p className="text-sm font-bold text-on-surface">That file looks unusually large for a transcript.</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Double check it exported correctly, or reach out and we'll take a look.</p>
               </div>
             </div>
           ) : (
