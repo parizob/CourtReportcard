@@ -71,6 +71,19 @@ export default function DashboardEditor() {
     [annotations, sortedAnnotations]
   )
 
+  // Mirrors Dashboard.jsx's getDisplayStatus() so the case status shown here
+  // always matches what the dashboard list shows for the same case.
+  const displayStatus = useMemo(() => {
+    const total = annotations.length
+    if (total === 0) return caseData?.status
+    const resolved = resolvedAnnotations.length
+    if (resolved >= total) return 'reviewed'
+    if (resolved > 0) return 'in_progress'
+    return caseData?.status
+  }, [annotations, resolvedAnnotations, caseData])
+
+  const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', in_progress: 'Editing', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
+
   useEffect(() => {
     if (!caseId) return
     loadCase()
@@ -920,7 +933,7 @@ export default function DashboardEditor() {
               if (lineHighlights.length === 0) {
                 return (
                   <div key={lineKey} className="min-h-[1.5rem]">
-                    <span className="whitespace-pre-wrap">{fullLine}</span>
+                    <span className="whitespace-pre">{fullLine}</span>
                   </div>
                 )
               }
@@ -936,10 +949,10 @@ export default function DashboardEditor() {
 
               for (const h of lineHighlights) {
                 if (cursor < h.localStart) {
-                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre-wrap">{content.substring(cursor, h.localStart)}</span>)
+                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor, h.localStart)}</span>)
                 }
 
-                let cls = 'inline whitespace-pre-wrap '
+                let cls = 'inline whitespace-pre '
                 if (h.status === 'accepted') {
                   cls += 'text-green-600 font-semibold cursor-pointer'
                 } else if (h.status === 'ignored') {
@@ -981,7 +994,7 @@ export default function DashboardEditor() {
               }
 
               if (cursor < content.length) {
-                parts.push(<span key={`t-${cursor}`} className="whitespace-pre-wrap">{content.substring(cursor)}</span>)
+                parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor)}</span>)
               }
 
               return (
@@ -995,11 +1008,10 @@ export default function DashboardEditor() {
               <div className="space-y-8">
                 {pages.map((page, pageIdx) => (
                   <div key={pageIdx} className="max-w-4xl mx-auto bg-surface-container-lowest shadow-sm relative">
-                    <div className="flex items-center justify-between px-8 pt-4 pb-1">
+                    <div className="px-8 pt-4 pb-1">
                       <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
-                      <span className="text-xs text-on-surface-variant/50 font-mono">{page[0]?.pageNum ?? pageIdx + 1}</span>
                     </div>
-                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface">
+                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface overflow-x-auto">
                       {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
                     </div>
                     {pageIdx < pages.length - 1 && (
@@ -1137,10 +1149,10 @@ export default function DashboardEditor() {
         </section>
 
         {/* Sidebar */}
-        <aside className="w-80 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        <aside className="w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
 
           {/* Insights header */}
-          <div className="p-5 border-b border-outline-variant/10 bg-surface-container-low">
+          <div className="p-4 border-b border-outline-variant/10 bg-surface-container-low">
             <div className="flex items-center justify-between">
               <h2 className="font-headline font-bold text-on-surface flex items-center gap-2 text-base">
                 <span className="material-symbols-outlined text-tertiary-fixed-dim">auto_awesome</span>
@@ -1154,7 +1166,7 @@ export default function DashboardEditor() {
           </div>
 
           {/* Annotation cards */}
-          <div className="p-5 space-y-4">
+          <div className="p-4 space-y-4">
             {openAnnotations.length === 0 && annotations.length > 0 && (
               <div className="text-center py-6">
                 <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
@@ -1252,10 +1264,10 @@ export default function DashboardEditor() {
           {/* Resolved annotations */}
           {resolvedAnnotations.length > 0 && (
             <div className="border-t border-outline-variant/10">
-              <p className="px-5 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              <p className="px-4 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
                 Resolved ({resolvedAnnotations.length})
               </p>
-              <div className="px-5 pb-4 space-y-2">
+              <div className="px-4 pb-4 space-y-2">
                 {resolvedAnnotations.map((ann) => (
                   <button
                     key={ann.id}
@@ -1290,12 +1302,12 @@ export default function DashboardEditor() {
           )}
 
           {/* Case details */}
-          <div className="px-5 py-4 border-t border-outline-variant/10">
+          <div className="px-4 py-4 border-t border-outline-variant/10">
             <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Case Details</p>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-on-surface-variant">Status</span>
-                <span className="font-semibold text-on-surface capitalize">{caseData?.status}</span>
+                <span className="font-semibold text-on-surface">{statusLabel(displayStatus)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-on-surface-variant">Uploaded</span>
@@ -1303,15 +1315,15 @@ export default function DashboardEditor() {
                   {caseData?.created_at && new Date(caseData.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-on-surface-variant">Transcript</span>
-                <span className="font-semibold text-on-surface truncate max-w-[140px]">{transcriptFile?.file_name || '—'}</span>
+              <div className="flex justify-between gap-2">
+                <span className="text-on-surface-variant shrink-0">Transcript</span>
+                <span className="font-semibold text-on-surface truncate min-w-0" title={transcriptFile?.file_name || ''}>{transcriptFile?.file_name || '—'}</span>
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="px-5 pb-5 pt-4 border-t border-outline-variant/10 space-y-3">
+          <div className="px-4 pb-5 pt-4 border-t border-outline-variant/10 space-y-3">
             <button
               onClick={handleSave}
               disabled={!hasChanges || saving}
