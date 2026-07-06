@@ -16,7 +16,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum } from './prompts.ts'
 
-const MODEL_EXTRACT = 'gemini-2.5-flash' // Fast, no thinking — extraction is structured parsing
+// Measured directly (scripts/calibrate-extraction-model.mjs) against production
+// EXTRACTION_ONLY_PROMPT: ~51% faster and ~48% cheaper per page than
+// gemini-2.5-flash with matching entry counts — extraction is structured
+// parsing, not reasoning, so the lighter model is a safe fit here.
+const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
 const MODEL_PROOFREAD = 'gemini-2.5-pro'  // Full quality, uncapped thinking — proofreading IS the product
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
@@ -148,7 +152,11 @@ const corsHeaders = {
 }
 
 // ── Gemini call (direct; mirrors api/gemini.js generationConfig) ──
-async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0, thinkingBudget?: number, model = MODEL_PROOFREAD): Promise<any> {
+// `thinkingConfig` is passed through as-is since the two models in play take
+// incompatible shapes: gemini-2.5-pro (proofread) uses the legacy
+// `thinkingBudget` number, gemini-3.1-flash-lite (extract) uses the newer
+// `thinkingLevel` string — sending both in one request is a 400 error.
+async function callGemini(prompt: string, filePart: unknown = null, deadlineAt = 0, thinkingConfig?: Record<string, unknown>, model = MODEL_PROOFREAD): Promise<any> {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured.')
 
@@ -178,7 +186,7 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
           temperature: 0,
           maxOutputTokens: 131072,
           responseMimeType: 'application/json',
-          ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
+          ...(thinkingConfig ? { thinkingConfig } : {}),
         },
       }),
     })
@@ -445,7 +453,7 @@ async function extractContent(
     promptSuffix = `\n\n${chunkAddendum}${contextBlock}${originalText}`
   }
 
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0, MODEL_EXTRACT)
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, { thinkingLevel: 'minimal' }, MODEL_EXTRACT)
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
