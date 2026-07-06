@@ -407,6 +407,14 @@ export default function DashboardEditor() {
     return 1
   }, [originalText, entries])
 
+  // Re-analyze runs as a single, non-chunked proofread call (see api/gemini.js's
+  // maxDuration: 300s). At the measured ~2.76s/page proofread rate that's a hard
+  // ceiling around 108 pages — this cap leaves real margin below it. Unlike the
+  // initial upload/extraction pipeline, Re-analyze isn't chunked yet, so large
+  // transcripts are blocked here rather than left to time out.
+  const REANALYZE_MAX_PAGES = 75
+  const reanalyzeTooLarge = reanalyzePages > REANALYZE_MAX_PAGES
+
   const handleReanalyzeConfirm = async () => {
     setShowReanalyzeConfirm(false)
     const ok = await spendTokens(reanalyzePages)
@@ -1524,11 +1532,18 @@ export default function DashboardEditor() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-on-surface mb-1">Re-analyze Transcript?</h3>
-                <p className="text-sm text-on-surface-variant leading-relaxed">
-                  This transcript consists of <span className="font-bold text-on-surface">{reanalyzePages} page{reanalyzePages !== 1 ? 's' : ''}</span> and
-                  will cost <span className="font-bold text-on-surface">{reanalyzePages} token{reanalyzePages !== 1 ? 's' : ''}</span> (1 per page).
-                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span> remaining.
-                </p>
+                {reanalyzeTooLarge ? (
+                  <p className="text-sm text-on-surface-variant leading-relaxed">
+                    This transcript is <span className="font-bold text-on-surface">{reanalyzePages} pages</span>, which is too large to re-analyze right now.
+                    Re-analyze currently supports transcripts up to {REANALYZE_MAX_PAGES} pages. We're working on raising this limit — reach out if you need this transcript re-analyzed in the meantime.
+                  </p>
+                ) : (
+                  <p className="text-sm text-on-surface-variant leading-relaxed">
+                    This transcript consists of <span className="font-bold text-on-surface">{reanalyzePages} page{reanalyzePages !== 1 ? 's' : ''}</span> and
+                    will cost <span className="font-bold text-on-surface">{reanalyzePages} token{reanalyzePages !== 1 ? 's' : ''}</span> (1 per page).
+                    You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span> remaining.
+                  </p>
+                )}
               </div>
             </div>
             <div className="px-6 pb-6 flex items-center justify-end gap-3">
@@ -1536,16 +1551,18 @@ export default function DashboardEditor() {
                 onClick={() => setShowReanalyzeConfirm(false)}
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
               >
-                Cancel
+                {reanalyzeTooLarge ? 'Close' : 'Cancel'}
               </button>
-              <button
-                onClick={handleReanalyzeConfirm}
-                disabled={(tokenBalance ?? 0) < reanalyzePages}
-                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-base">auto_awesome</span>
-                Re-analyze ({reanalyzePages} Token{reanalyzePages !== 1 ? 's' : ''})
-              </button>
+              {!reanalyzeTooLarge && (
+                <button
+                  onClick={handleReanalyzeConfirm}
+                  disabled={(tokenBalance ?? 0) < reanalyzePages}
+                  className="px-5 py-2.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base">auto_awesome</span>
+                  Re-analyze ({reanalyzePages} Token{reanalyzePages !== 1 ? 's' : ''})
+                </button>
+              )}
             </div>
           </div>
         </div>,

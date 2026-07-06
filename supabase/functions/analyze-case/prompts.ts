@@ -32,6 +32,26 @@ OUTPUT — respond with ONLY valid JSON:
 
 Now extract the following file content:`
 
+// Chunking-only addendum, prepended to EXTRACTION_ONLY_PROMPT when a document
+// is split into multiple parts (see analyze-case/index.ts). Never used below
+// the chunking threshold, so EXTRACTION_ONLY_PROMPT above is unaffected for
+// the vast majority of documents. Proposed + validated in
+// scripts/test-transcripts/PROMPT_IMPROVEMENTS.md before being added here.
+export function buildChunkAddendum(chunkIndex: number, totalChunks: number, trailingContext: string): string {
+  if (totalChunks <= 1) return ''
+  let addendum = `CHUNKING CONTEXT — you are receiving PART ${chunkIndex} of ${totalChunks} of a larger transcript that has been split for processing. This changes what you should expect:\n`
+  if (chunkIndex > 1) {
+    addendum += `- This is NOT the first part. Do NOT expect, invent, or fabricate a caption, appearances, or index page — those exist only in part 1 and are not part of your input.\n`
+  }
+  if (chunkIndex < totalChunks) {
+    addendum += `- This is NOT the final part. Do NOT expect, invent, or fabricate a certificate, signature, or closing page — those exist only in the last part and are not part of your input.\n`
+  }
+  if (trailingContext) {
+    addendum += `- The content below begins with READ-ONLY CONTEXT from the end of the previous part, wrapped in <PREVIOUS_CONTEXT> and </PREVIOUS_CONTEXT> tags. This is provided only so you understand what came immediately before — do NOT extract, re-number, or duplicate anything inside these tags as a new entry. Begin extracting fresh content only from what follows </PREVIOUS_CONTEXT>.\n`
+  }
+  return addendum + '\n'
+}
+
 export const PROOFREAD_ONLY_PROMPT = `You are the most meticulous court transcript proofreader and scopist in the country. You have reviewed thousands of depositions, trials, and hearings. You know that a single wrong word in a legal transcript can alter its meaning, create liability, and damage careers. Your standard is absolute: NOTHING gets missed.
 
 You will receive a JSON array of transcript entries extracted from a court reporter's .txt file. These files are produced by stenotype machines and voice writers — both are prone to specific error patterns you must know cold.

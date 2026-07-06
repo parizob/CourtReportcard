@@ -3,6 +3,7 @@ const MODEL = 'gemini-2.5-pro'
 async function callGemini(prompt, filePart, timeoutMs = 300000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const startedAt = Date.now()
 
   let response
   try {
@@ -30,6 +31,13 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
   if (!rawText) throw new Error('Gemini returned no content.')
+
+  // Logged (not returned, to avoid changing this function's contract) so
+  // real duration/token usage is visible in the console during test runs —
+  // used to calibrate chunk sizing against actual Gemini behavior.
+  if (data.usageMetadata) {
+    console.log(`Gemini call: ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, data.usageMetadata)
+  }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
   return JSON.parse(cleaned)

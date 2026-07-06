@@ -17,6 +17,64 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-07-06 — Chunk-aware extraction addendum (for large-transcript chunking) — PROPOSED, awaiting sign-off
+
+**Not a change to `EXTRACTION_ONLY_PROMPT` itself.** This is a new, separate,
+optional addendum block that only gets prepended when a document is large
+enough to require chunking (proposed 20-page activation threshold; see the
+chunking plan). Below that threshold, `EXTRACTION_ONLY_PROMPT` is sent
+completely unchanged, exactly as today — zero behavior change for the vast
+majority of current traffic.
+
+**Motivation:** without this, a chunked call has no way to know it's only
+seeing *part* of the document, so it would (a) invent a caption/appearances/
+index page that doesn't exist in that part, (b) invent a certificate/
+signature page that doesn't exist in that part, and (c) potentially
+re-extract the trailing-context snippet carried over from the previous chunk
+as if it were new content (duplicate entries at the seam).
+
+**Proposed addendum** (new exported template function, not a literal edit to
+the existing prompt constant — applied to both `prompts.ts` and `gemini.js`):
+
+```
+CHUNKING CONTEXT — you are receiving PART {K} of {N} of a larger transcript that has been split for processing. This changes what you should expect:
+{{IF K > 1}}
+- This is NOT the first part. Do NOT expect, invent, or fabricate a caption, appearances, or index page — those exist only in part 1 and are not part of your input.
+{{END IF}}
+{{IF K < N}}
+- This is NOT the final part. Do NOT expect, invent, or fabricate a certificate, signature, or closing page — those exist only in the last part and are not part of your input.
+{{END IF}}
+{{IF trailing context present}}
+- The content below begins with READ-ONLY CONTEXT from the end of the previous part, wrapped in <PREVIOUS_CONTEXT> and </PREVIOUS_CONTEXT> tags. This is provided only so you understand what came immediately before — do NOT extract, re-number, or duplicate anything inside these tags as a new entry. Begin extracting fresh content only from what follows </PREVIOUS_CONTEXT>.
+{{END IF}}
+```
+
+(`{{...}}` blocks are conditionally included by the orchestration code based
+on chunk position — not literal text sent to the model.)
+
+**Validation plan (not yet run — blocked on sign-off):** run
+`node scripts/test-chunk-split.mjs` (pure split-logic, no API calls, already
+passing 11/11) plus a live extraction test on a 2-3 chunk synthetic document,
+checking (a) no caption/certificate hallucinated in middle chunks, (b) the
+`<PREVIOUS_CONTEXT>` block is not re-extracted as duplicate entries, (c) full
+5-transcript regression suite still at baseline recall since this addendum
+never fires below the chunking threshold.
+
+**Implementation note:** added as `buildChunkAddendum()` in
+`supabase/functions/analyze-case/prompts.ts` only — not mirrored into
+`src/lib/gemini.js`. The prompts.ts/gemini.js mirroring convention covers the
+`EXTRACTION_ONLY_PROMPT` / `PROOFREAD_ONLY_PROMPT` constants themselves
+(both files send identical prompt text to Gemini for their respective call
+paths); this new function is chunking-orchestration-specific and only used
+by `index.ts`, which is the only place chunking exists. `gemini.js`'s
+`extractTranscriptWithGemini` has no chunking logic to call it from, so
+adding it there would be unused/dead code.
+
+Status: **applied 2026-07-06** (function added; full live validation still
+pending as part of the Phase 1 checkpoint once orchestration wiring is done).
+
+---
+
 ### Rule: 2026-07-05 — Exclamation points — applied
 
 New `punctuation` subsection (EXCLAMATION POINTS, inserted after PERIODS):

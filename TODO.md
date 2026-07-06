@@ -13,15 +13,10 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Celebrate when a user uploads a perfect transcript (something fun + bonus tokens) — needs a UID per uploaded document to prevent duplicate claims, or a monthly cap on free celebration tokens
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
-- [ ] Step 1 — Add chunking to `analyze-case` to support 100+ page transcripts
-    - Current bottleneck: Supabase Edge Function has a 135s deadline; most real transcripts are 100+ pages (confirmed by Zoe, users already asking)
-    - Split transcript into ~25-page segments, run extraction+proofread per segment, stitch results back together
-    - Helpers already exist: `deduplicateTranscript` and `fixAnnotationPositions` handle the stitching
-    - This alone should get to 100-150 pages and solve the immediate user problem
-- [ ] Step 2 — Add Vercel Workflow on top of chunking if mid-processing failures become a real problem
-    - Wraps each chunk as a durable step with no timeout ceiling and resume-on-failure
-    - Pricing is event-based (~50k events/month free on Hobby) — essentially free at current scale
-    - Only build this if Step 1 chunking alone isn't reliable enough in practice
+- [ ] Manually validate chunking end-to-end on staging/production before calling Phase 1 fully done — upload `scripts/test-transcripts/large_synthetic_180pages.txt` (and the 25-page one) through the real upload flow and confirm the case completes, entries/annotations look continuous with no duplicates at chunk seams, and check Supabase function logs for per-call timing/token usage (see `phase1-validate` in the chunking plan)
+- [ ] Phase 2 fast-follow — glossary support: extraction emits notable terms, proofread batches receive the merged glossary as context (drafted in `scripts/test-transcripts/PROMPT_IMPROVEMENTS.md`, deferred until Phase 1 chunking is proven solid in production)
+- [ ] Phase 2 — extend the editor's "Re-analyze" button to use the same chunked/batched approach as initial upload; it's currently a single non-chunked call and is guarded/blocked above 75 pages (`REANALYZE_MAX_PAGES` in `DashboardEditor.jsx`) until this is built
+- [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages) — it renders all pages/lines at once with no virtualization, and re-derives highlights/pagination from scratch on every render (not memoized); flagged during chunking work as a likely performance bottleneck once large documents start flowing through, not yet fixed
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page offering a legal/medical homophone & commonly-confused-word reference sheet (not a "how to proofread" checklist — Zoe's feedback is reporters won't use that, they already know how to edit), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
@@ -34,6 +29,15 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Done
 
+- [x] Chunking: `analyze-case` now supports large transcripts (200+ pages) instead of failing outright on the 135s Edge Function deadline
+    - Calibrated against real Gemini calls (`scripts/calibrate-chunk-size.mjs`) — extraction (Flash) is the binding constraint at ~4.21s/page, not proofreading (Pro), despite Pro's uncapped thinking
+    - Text transcripts over 20 pages are split into ~15-page chunks at speaker-turn boundaries (never mid-sentence); each chunk carries a small read-only trailing-context block from the previous chunk so judgment calls at the seam (e.g. their/there) still have context. Below 20 pages, behavior is byte-for-byte unchanged from before
+    - Chunks/batches are chained via self-fetch, each with its own fresh 135s budget, with per-chunk/per-batch idempotency (safe to retry or duplicate-invoke) and up to 2 automatic retries before falling back to the existing refund+delete+email failure path
+    - Proofreading is similarly batched by entry count (300 entries/batch) with a deterministic annotation-range guard so batches never annotate another batch's context-only entries
+    - Results are merged/deduplicated (renumbered ids + existing `deduplicateTranscript`) into the exact same file format the rest of the pipeline already expects — fully transparent to the editor UI
+    - Cost impact: ~$0.17 for a 200-page/14-chunk document (up from ~$0.09 pre-chunking on smaller docs), from repeated prompt overhead per chunk
+    - Editor's "Re-analyze" button is NOT chunked yet (still a single call) — guarded at 75 pages in the meantime, see Open items
+    - Tested with Node unit tests (`scripts/test-chunk-split.mjs` — splitting, boundary snapping, trailing-context, cross-chunk merge/dedup) + `deno check` type-checking; still needs one real staging/production upload test with a 150+ page document before calling Phase 1 fully validated (see Open items)
 - [x] Background processing: Gemini calls moved to async background function; upload page saves file and returns immediately, dashboard polls for completion — fixes stay-on-screen problem and token loss on navigation
 - [x] Decided to keep free signup tokens at 50; top up manually on request during beta
 - [x] Refund tokens on failed uploads — if a transcript errors out (e.g. too large, needs to be split), the user should not be charged; credits should be returned automatically

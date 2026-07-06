@@ -7,9 +7,14 @@
 // IMPORTANT: the dedup/flexFind logic below (and the prompts in prompts.ts) are
 // MIRRORED from src/lib/gemini.js (the browser source of truth). If you change
 // the proofreading logic or prompts there, update them here too.
+//
+// The chunking helpers (countPages, findSpeakerTurnBoundaries,
+// findNearestSplitPoint, splitIntoChunks, extractTrailingContext) are
+// similarly MIRRORED from src/lib/pageCount.js and src/lib/chunkSplit.js —
+// update both sides if you change the splitting/boundary logic.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
-import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT } from './prompts.ts'
+import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum } from './prompts.ts'
 
 const MODEL_EXTRACT = 'gemini-2.5-flash' // Fast, no thinking — extraction is structured parsing
 const MODEL_PROOFREAD = 'gemini-2.5-pro'  // Full quality, uncapped thinking — proofreading IS the product
@@ -20,6 +25,121 @@ const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 // calls a bit before that so the failure path (refund + email) always gets to
 // run instead of the worker being killed mid-analysis and leaving the case stuck.
 const ANALYSIS_DEADLINE_MS = 135000
+
+// ── Chunking (large-transcript support) ──
+// Measured directly (see scripts/calibrate-chunk-size.mjs against the real
+// production models): extraction runs ~4.21s/page and is the binding
+// constraint (not proofreading, despite Pro's uncapped thinking) — a document
+// this size regenerates its entire content as JSON, which is a lot of raw
+// output tokens even on a fast model. 15 pages/chunk leaves comfortable
+// margin (~63s of the 135s budget) for real-world variance and non-Gemini
+// overhead this measurement doesn't include (storage I/O, JSON parsing).
+const PAGES_PER_CHUNK = 15
+// Below this, the single-call path is completely unchanged — zero regression
+// risk to current traffic. 20 pages leaves ~51s margin at the measured rate.
+const CHUNK_THRESHOLD_PAGES = 20
+// Proofread batches are sized by entry count (not re-split from raw text) —
+// roughly matches 15 pages' worth of entries at observed density (~22-24
+// entries/page in calibration).
+const ENTRIES_PER_PROOFREAD_BATCH = 300
+// 1 initial attempt + 2 retries per chunk/batch before falling through to the
+// full refund+delete path — see handleFailure. Helps transient failures
+// (timeout, momentary 5xx); won't help a chunk whose content deterministically
+// confuses the model at temperature:0.
+const MAX_CHUNK_ATTEMPTS = 3
+
+/** Mirrors src/lib/pageCount.js's countPages. */
+function countPages(text: string): number {
+  if (!text) return 0
+  const lines = text.split('\n')
+  const pageMarkers = lines.filter((l) => /^\s{30,}\d{1,4}\s*$/.test(l))
+  if (pageMarkers.length > 0) return pageMarkers.length
+  const numbered = lines.filter((l) => /^\s*\d{1,4}\s{2,}/.test(l)).length
+  const lineCount = numbered > 0 ? numbered : lines.filter((l) => l.trim().length > 0).length
+  return Math.max(1, Math.ceil(lineCount / 25))
+}
+
+/** Mirrors src/lib/chunkSplit.js's TURN_START_RE + findSpeakerTurnBoundaries. */
+const TURN_START_RE = /^\s*\d{0,4}\s*(Q\.|A\.|BY\s+(MR|MS|MRS|DR)\.|MR\.\s|MS\.\s|MRS\.\s|DR\.\s|THE\s+COURT:|THE\s+WITNESS:|THE\s+CLERK:|THE\s+REPORTER:)/
+
+function findSpeakerTurnBoundaries(text: string): number[] {
+  const lines = text.split('\n')
+  const boundaries: number[] = []
+  let offset = 0
+  for (const line of lines) {
+    if (TURN_START_RE.test(line)) boundaries.push(offset)
+    offset += line.length + 1
+  }
+  return boundaries
+}
+
+/** Mirrors src/lib/chunkSplit.js's findNearestSplitPoint. */
+function findNearestSplitPoint(text: string, targetOffset: number, windowChars = 3000): number {
+  const boundaries = findSpeakerTurnBoundaries(text)
+  let best: number | null = null
+  let bestDist = Infinity
+  for (const b of boundaries) {
+    const dist = Math.abs(b - targetOffset)
+    if (dist < bestDist && dist <= windowChars) {
+      best = b
+      bestDist = dist
+    }
+  }
+  if (best !== null) return best
+
+  const lines = text.split('\n')
+  let offset = 0
+  let bestBlank: number | null = null
+  let bestBlankDist = Infinity
+  for (const line of lines) {
+    if (line.trim() === '') {
+      const dist = Math.abs(offset - targetOffset)
+      if (dist < bestBlankDist && dist <= windowChars) {
+        bestBlank = offset
+        bestBlankDist = dist
+      }
+    }
+    offset += line.length + 1
+  }
+  if (bestBlank !== null) return bestBlank
+  return targetOffset
+}
+
+/** Mirrors src/lib/chunkSplit.js's splitIntoChunks. */
+function splitIntoChunks(text: string, pagesPerChunk = PAGES_PER_CHUNK): string[] {
+  const totalPages = countPages(text)
+  if (totalPages <= pagesPerChunk) return [text]
+
+  const numChunks = Math.ceil(totalPages / pagesPerChunk)
+  const approxCharsPerPage = text.length / totalPages
+
+  const splitPoints: number[] = []
+  for (let i = 1; i < numChunks; i++) {
+    const targetOffset = Math.round(i * pagesPerChunk * approxCharsPerPage)
+    splitPoints.push(findNearestSplitPoint(text, targetOffset))
+  }
+  for (let i = 1; i < splitPoints.length; i++) {
+    if (splitPoints[i] <= splitPoints[i - 1]) splitPoints[i] = splitPoints[i - 1] + 1
+  }
+
+  const chunks: string[] = []
+  let start = 0
+  for (const sp of splitPoints) {
+    const clamped = Math.min(sp, text.length)
+    chunks.push(text.slice(start, clamped))
+    start = clamped
+  }
+  chunks.push(text.slice(start))
+  return chunks
+}
+
+/** Mirrors src/lib/chunkSplit.js's extractTrailingContext. */
+function extractTrailingContext(chunkText: string, numTurns = 2): string {
+  const boundaries = findSpeakerTurnBoundaries(chunkText)
+  if (boundaries.length === 0) return ''
+  const startIdx = boundaries[Math.max(0, boundaries.length - numTurns)]
+  return chunkText.slice(startIdx).trim()
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +159,7 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
 
   const controller = new AbortController()
   let timer: number | undefined
+  const startedAt = Date.now()
   if (deadlineAt) {
     const remaining = deadlineAt - Date.now()
     if (remaining <= 0) throw new Error('ANALYSIS_TIMEOUT')
@@ -76,6 +197,13 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   const data = await response.json()
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!rawText) throw new Error('Gemini returned no content.')
+
+  // Real per-call timing + token usage, visible in Supabase function logs —
+  // used to calibrate chunk sizing and to monitor cost/latency once chunking
+  // is live in production.
+  if (data.usageMetadata) {
+    console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, JSON.stringify(data.usageMetadata))
+  }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
   return JSON.parse(cleaned)
@@ -295,7 +423,14 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 // Pass 1 — extraction only (Flash, no thinking). Returns raw entries + title.
-async function extractContent(fileOrText: string | ArrayBuffer, mimeType: string | undefined, deadlineAt: number): Promise<{ title: string; entries: any[]; originalText?: string }> {
+// `chunkInfo` is only ever set for text (never PDF — binary file parts aren't
+// text-splittable, so PDFs always take the single-call path regardless of size).
+async function extractContent(
+  fileOrText: string | ArrayBuffer,
+  mimeType: string | undefined,
+  deadlineAt: number,
+  chunkInfo?: { index: number; total: number; trailingContext: string },
+): Promise<{ title: string; entries: any[]; originalText?: string }> {
   let filePart: unknown = null
   let promptSuffix = ''
   let originalText: string | undefined
@@ -305,7 +440,9 @@ async function extractContent(fileOrText: string | ArrayBuffer, mimeType: string
     promptSuffix = '\n\n[PDF file attached above]'
   } else {
     originalText = fileOrText as string
-    promptSuffix = `\n\n${fileOrText}`
+    const chunkAddendum = chunkInfo ? buildChunkAddendum(chunkInfo.index + 1, chunkInfo.total, chunkInfo.trailingContext) : ''
+    const contextBlock = chunkInfo?.trailingContext ? `<PREVIOUS_CONTEXT>\n${chunkInfo.trailingContext}\n</PREVIOUS_CONTEXT>\n\n` : ''
+    promptSuffix = `\n\n${chunkAddendum}${contextBlock}${originalText}`
   }
 
   const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, 0, MODEL_EXTRACT)
@@ -332,7 +469,14 @@ async function extractContent(fileOrText: string | ArrayBuffer, mimeType: string
 }
 
 // Pass 2 — proofreading only (Pro, full uncapped thinking). Returns annotations.
-async function proofreadContent(entries: any[], deadlineAt: number): Promise<any[]> {
+// `ownIdRange` is only set when proofreading is batched (large documents):
+// `entries` includes a few leading entries carried from the previous batch as
+// read-only context (so judgment calls at the seam have surrounding text to
+// reason from), but this batch doesn't "own" those — a deterministic filter,
+// not just a prompt instruction, drops any annotation landing outside this
+// batch's own range, since model compliance with "don't annotate context"
+// isn't guaranteed.
+async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?: { min: number; max: number }): Promise<any[]> {
   const proofreadResult = await callGemini(
     `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`,
     null,
@@ -360,6 +504,10 @@ async function proofreadContent(entries: any[], deadlineAt: number): Promise<any
   const entryIds = new Set(entries.map((e: any) => e.id))
   annots = annots.filter((a: any) => entryIds.has(a.entry_id))
 
+  if (ownIdRange) {
+    annots = annots.filter((a: any) => a.entry_id >= ownIdRange.min && a.entry_id <= ownIdRange.max)
+  }
+
   const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
   const seenAnnotations = new Set<string>()
   annots = annots.filter((a: any) => {
@@ -371,6 +519,39 @@ async function proofreadContent(entries: any[], deadlineAt: number): Promise<any
   annots.forEach((a: any, i: number) => { a.id = i + 1 })
 
   return annots
+}
+
+// Merges N extraction chunk files for one transcript file into a single
+// continuous, deduplicated entries array — reuses deduplicateTranscript
+// unchanged (see id-remap-merge design note) by first renumbering every
+// entry to a globally-unique id across all chunks, since dedup's internal
+// id-remap tables are keyed by raw numeric id and each chunk's ids restart at 1.
+// Does NOT delete the chunk files itself — the caller only does that after the
+// merged result is durably saved, so a failed save can safely retry the merge
+// from the still-intact chunk files instead of burning retries on "missing chunk".
+async function mergeExtractionChunks(
+  admin: any,
+  userId: string,
+  caseId: string,
+  jsonBaseName: string,
+  numChunks: number,
+  plainText: string,
+): Promise<{ title: string; entries: any[]; originalText: string; chunkPaths: string[] }> {
+  let title = ''
+  let allEntries: any[] = []
+  const chunkPaths: string[] = []
+  for (let i = 0; i < numChunks; i++) {
+    const path = `${userId}/${caseId}/extracting/${jsonBaseName}_chunk${i}.json`
+    chunkPaths.push(path)
+    const { data: blob, error } = await admin.storage.from('case-files').download(path)
+    if (error || !blob) throw new Error(`Missing chunk ${i} for ${jsonBaseName} during merge`)
+    const chunkResult = JSON.parse(await blob.text())
+    if (i === 0) title = chunkResult.title || ''
+    allEntries.push(...chunkResult.entries)
+  }
+  allEntries.forEach((e, i) => { e.id = i + 1 })
+  const { entries } = deduplicateTranscript(allEntries, [])
+  return { title, entries, originalText: plainText, chunkPaths }
 }
 
 // ── Email (Resend) ──
@@ -482,10 +663,45 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
   }
 }
 
+// Fires the next unit of work (next chunk, next batch, next file, or the
+// pass transition) with its own fresh ANALYSIS_DEADLINE_MS budget. Always
+// marked `internal` so the receiving invocation skips the client JWT check.
+async function selfFetchContinue(SUPABASE_URL: string, SERVICE_ROLE_KEY: string, body: Record<string, unknown>): Promise<void> {
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+      'apikey': SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify({ ...body, internal: true }),
+  })
+  if (!resp.ok) throw new Error(`Failed to invoke continuation (${JSON.stringify(body)}): ${resp.status}`)
+}
+
+function runInBackground(work: Promise<void>): void {
+  // @ts-ignore
+  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work)
+  else work
+}
+
 // ── Handler ──
-// Supports two passes via `pass` body field:
-//   'extract'  (default) — Flash, no thinking, saves raw entries, fires proofread pass
-//   'proofread'          — Pro, full thinking, fresh 150s budget, finalises case
+// Supports two passes via `pass` body field, each internally sequenced across
+// N extraction chunks / M proofread batches for large documents (see
+// PAGES_PER_CHUNK / CHUNK_THRESHOLD_PAGES above):
+//   'extract'   (default) — Flash, no thinking. Below CHUNK_THRESHOLD_PAGES,
+//               single call per file, unchanged from the original 2-pass
+//               design. Above it, splits into chunks (chunk_index), each
+//               self-fetched with a fresh budget, then merges into the same
+//               `_entries.json` the rest of the pipeline already expects.
+//   'proofread' — Pro, full thinking. Batches large entry sets (batch_index)
+//               the same way, then merges annotations and finalizes the case
+//               once every transcript file's every batch is done.
+// `file_index` sequences multiple transcript files on one case (rare in
+// practice, but preserved from the original design). `attempt` is a bounded
+// per-unit retry counter (see MAX_CHUNK_ATTEMPTS) — a chunk/batch that throws
+// is re-invoked in place with a fresh budget before falling through to the
+// existing handleFailure (refund + delete + email) path, unchanged.
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -503,10 +719,20 @@ Deno.serve(async (req: Request) => {
 
   let caseId: string
   let pass: string
+  let fileIndex: number
+  let chunkIndex: number
+  let batchIndex: number
+  let attempt: number
+  let internal: boolean
   try {
     const body = await req.json()
     caseId = body.case_id
     pass = body.pass || 'extract'
+    fileIndex = body.file_index || 0
+    chunkIndex = body.chunk_index || 0
+    batchIndex = body.batch_index || 0
+    attempt = body.attempt || 0
+    internal = body.internal === true
   } catch {
     return json({ error: 'Invalid request body.' }, 400)
   }
@@ -514,9 +740,10 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // Extract pass: verify the caller owns the case via JWT.
-  // Proofread pass: invoked internally with service role — skip user JWT check.
-  if (pass === 'extract') {
+  // Only the genuine client-initiated extract call needs the JWT ownership
+  // check — every chunk/batch continuation, retry, and pass transition is
+  // self-fetched internally with the service role key.
+  if (pass === 'extract' && !internal) {
     const authHeader = req.headers.get('Authorization') || ''
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
@@ -539,137 +766,282 @@ Deno.serve(async (req: Request) => {
   if (caseErr || !caseRow) return json({ error: 'Case not found.' }, 404)
 
   const caseFiles: any[] = caseRow.case_files || []
-  const alreadyExtracted = caseFiles.some((f: any) => f.file_type === 'extracted')
 
-  // Intermediate entries live in storage only (no case_files record) — check the storage path.
-  const { data: extractingStorageFiles } = await admin.storage
-    .from('case-files')
-    .list(`${caseRow.user_id}/${caseId}/extracting`)
-  const alreadyExtracting = (extractingStorageFiles?.length ?? 0) > 0
-
-  // ── Extract pass idempotency ──
-  if (pass === 'extract') {
-    if (alreadyExtracted || alreadyExtracting) return json({ ok: true, skipped: 'already_started' })
+  // Duplicate-kick guard — only relevant for the genuine first external call
+  // (e.g. a double-clicked upload button). Every other invocation legitimately
+  // expects prior extracting/ state to already exist.
+  if (pass === 'extract' && !internal) {
+    const alreadyExtracted = caseFiles.some((f: any) => f.file_type === 'extracted')
+    const { data: extractingStorageFiles } = await admin.storage
+      .from('case-files')
+      .list(`${caseRow.user_id}/${caseId}/extracting`)
+    const alreadyStarted = alreadyExtracted || (extractingStorageFiles?.length ?? 0) > 0
+    if (alreadyStarted) return json({ ok: true, skipped: 'already_started' })
     if (caseRow.status !== 'processing') return json({ ok: true, skipped: `status_${caseRow.status}` })
-  }
-
-  // ── Proofread pass idempotency ──
-  if (pass === 'proofread') {
-    if (alreadyExtracted) {
-      if (caseRow.status === 'processing') await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
-      return json({ ok: true, skipped: 'already_analyzed' })
-    }
   }
 
   // ── Extract pass ──
   if (pass === 'extract') {
-    const transcriptFiles = caseFiles.filter((f) => f.file_type === 'transcript')
+    const transcriptFiles = caseFiles.filter((f: any) => f.file_type === 'transcript')
     if (transcriptFiles.length === 0) return json({ error: 'No transcript files.' }, 400)
+
+    if (fileIndex >= transcriptFiles.length) {
+      // Every transcript file is fully extracted — hand off to proofreading,
+      // which gets its own fresh budget via the same self-fetch pattern.
+      const work = (async () => {
+        try {
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: 0, batch_index: 0, attempt: 0 })
+        } catch (err) {
+          await handleFailure(admin, caseRow, caseId, err)
+        }
+      })()
+      runInBackground(work)
+      return json({ ok: true, status: 'extract_complete' }, 202)
+    }
+
+    const dbFile = transcriptFiles[fileIndex]
+    const jsonBaseName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '')
+    const extractingDir = `${caseRow.user_id}/${caseId}/extracting`
+    const finalEntriesName = `${jsonBaseName}_entries.json`
+    const finalEntriesPath = `${extractingDir}/${finalEntriesName}`
+    const chunkName = `${jsonBaseName}_chunk${chunkIndex}.json`
+    const chunkPath = `${extractingDir}/${chunkName}`
+
+    // Idempotency — this file's merged entries already exist: skip straight
+    // to the next file rather than redoing (or re-triggering) its work.
+    const { data: existingFinal } = await admin.storage.from('case-files').list(extractingDir, { search: finalEntriesName })
+    if ((existingFinal?.length ?? 0) > 0) {
+      const work = (async () => {
+        try {
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
+        } catch (err) {
+          await handleFailure(admin, caseRow, caseId, err)
+        }
+      })()
+      runInBackground(work)
+      return json({ ok: true, skipped: 'file_already_extracted' }, 202)
+    }
+
+    // Idempotency — this specific chunk already exists (only possible once
+    // chunking is active): skip straight to the next chunk index. This is
+    // what lets a resumed/duplicated invocation pick up from the correct
+    // next chunk instead of either redoing work or abandoning the chain.
+    const { data: existingChunk } = await admin.storage.from('case-files').list(extractingDir, { search: chunkName })
+    if ((existingChunk?.length ?? 0) > 0) {
+      const work = (async () => {
+        try {
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex + 1, attempt: 0 })
+        } catch (err) {
+          await handleFailure(admin, caseRow, caseId, err)
+        }
+      })()
+      runInBackground(work)
+      return json({ ok: true, skipped: 'chunk_already_extracted' }, 202)
+    }
 
     const work = (async () => {
       const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
       try {
-        for (const dbFile of transcriptFiles) {
-          const { data: blob, error: dlErr } = await admin.storage
-            .from('case-files')
-            .download(dbFile.storage_path)
-          if (dlErr || !blob) throw new Error(`Failed to download ${dbFile.file_name}`)
+        const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(dbFile.storage_path)
+        if (dlErr || !blob) throw new Error(`Failed to download ${dbFile.file_name}`)
 
-          const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
-          const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
+        const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
+        const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
 
-          let extractResult: any
-          if (isPdf) {
-            extractResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt)
+        let finalResult: { title: string; entries: any[]; originalText?: string } | null = null
+        let mergedChunkPaths: string[] | null = null
+
+        if (isPdf) {
+          // PDFs are sent as a binary file part — not text-splittable, so
+          // they always take the single-call path regardless of size.
+          finalResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt)
+        } else {
+          const rawContent = await blob.text()
+          const plainText = isRtf ? stripRtf(rawContent) : rawContent
+          const totalPages = countPages(plainText)
+
+          if (totalPages <= CHUNK_THRESHOLD_PAGES) {
+            // Below the threshold — identical to the original single-call
+            // behavior, byte for byte. This is the majority of current traffic.
+            finalResult = await extractContent(plainText, undefined, deadlineAt)
           } else {
-            const rawContent = await blob.text()
-            const plainText = isRtf ? stripRtf(rawContent) : rawContent
-            extractResult = await extractContent(plainText, undefined, deadlineAt)
-          }
+            const chunks = splitIntoChunks(plainText, PAGES_PER_CHUNK)
 
-          const jsonFileName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '') + '_entries.json'
-          // Store intermediate entries in storage only — no case_files DB record to avoid
-          // constraint issues with new file_type values.
-          const jsonStoragePath = `${caseRow.user_id}/${caseId}/extracting/${jsonFileName}`
-          const jsonBytes = new TextEncoder().encode(JSON.stringify(extractResult, null, 2))
-          const { error: upErr } = await admin.storage.from('case-files').upload(jsonStoragePath, jsonBytes, {
-            upsert: true,
-            contentType: 'application/json',
-          })
-          if (upErr) throw new Error(`Failed to save entries for ${dbFile.file_name}: ${upErr.message}`)
+            if (chunkIndex >= chunks.length) {
+              // All chunks for this file are in — merge now.
+              const merged = await mergeExtractionChunks(admin, caseRow.user_id, caseId, jsonBaseName, chunks.length, plainText)
+              finalResult = { title: merged.title, entries: merged.entries, originalText: merged.originalText }
+              mergedChunkPaths = merged.chunkPaths
+            } else {
+              const chunkText = chunks[chunkIndex]
+              const trailingContext = chunkIndex > 0 ? extractTrailingContext(chunks[chunkIndex - 1]) : ''
+              const chunkResult = await extractContent(chunkText, undefined, deadlineAt, {
+                index: chunkIndex,
+                total: chunks.length,
+                trailingContext,
+              })
+              const chunkBytes = new TextEncoder().encode(JSON.stringify(chunkResult, null, 2))
+              const { error: upErr } = await admin.storage.from('case-files').upload(chunkPath, chunkBytes, { upsert: true, contentType: 'application/json' })
+              if (upErr) throw new Error(`Failed to save chunk ${chunkIndex} for ${dbFile.file_name}: ${upErr.message}`)
+
+              await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex + 1, attempt: 0 })
+              return
+            }
+          }
         }
 
-        // Fire proofread pass — it gets its own fresh 150s budget
-        const proofResp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-            'apikey': SERVICE_ROLE_KEY,
-          },
-          body: JSON.stringify({ case_id: caseId, pass: 'proofread' }),
-        })
-        if (!proofResp.ok) throw new Error(`Failed to invoke proofread pass: ${proofResp.status}`)
+        // finalResult is set — this file is fully extracted (below threshold,
+        // a PDF, or just merged from its chunks). Save under the SAME
+        // filename the non-chunked path always used, so proofreading and
+        // finalization don't need to know or care whether chunking happened.
+        const finalBytes = new TextEncoder().encode(JSON.stringify(finalResult, null, 2))
+        const { error: upErr } = await admin.storage.from('case-files').upload(finalEntriesPath, finalBytes, { upsert: true, contentType: 'application/json' })
+        if (upErr) throw new Error(`Failed to save entries for ${dbFile.file_name}: ${upErr.message}`)
+
+        // Only clean up per-chunk files once the merged result they fed into
+        // is durably saved — see mergeExtractionChunks' note on why deletion
+        // isn't done there.
+        if (mergedChunkPaths) await admin.storage.from('case-files').remove(mergedChunkPaths)
+
+        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
       } catch (err) {
-        await handleFailure(admin, caseRow, caseId, err)
+        if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+          try {
+            await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: attempt + 1 })
+          } catch (retryErr) {
+            await handleFailure(admin, caseRow, caseId, retryErr)
+          }
+        } else {
+          await handleFailure(admin, caseRow, caseId, err)
+        }
       }
     })()
 
-    // @ts-ignore
-    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work)
-    else await work
-
+    runInBackground(work)
     return json({ ok: true, status: 'extract_started' }, 202)
   }
 
   // ── Proofread pass ──
-  // Entries files are stored in storage under extracting/ — list them directly.
-  const { data: storedEntries } = await admin.storage
-    .from('case-files')
-    .list(`${caseRow.user_id}/${caseId}/extracting`)
+  const transcriptFiles = caseFiles.filter((f: any) => f.file_type === 'transcript')
 
-  if (!storedEntries || storedEntries.length === 0) {
-    return json({ error: 'No entries files found — extract pass may not have completed.' }, 400)
+  if (fileIndex >= transcriptFiles.length) {
+    // Every transcript file is fully proofread — finalize the case once.
+    // Totals are recomputed from the persisted _extracted.json files rather
+    // than accumulated across invocations, since local variables don't
+    // survive the self-fetch chain — this keeps the finalize step itself
+    // idempotent/resumable like everything else.
+    const work = (async () => {
+      try {
+        const extractedDir = `${caseRow.user_id}/${caseId}/extracted`
+        const { data: extractedFiles } = await admin.storage.from('case-files').list(extractedDir)
+        let totalEntries = 0
+        let totalIssues = 0
+        const byType: Record<string, number> = {}
+        for (const f of extractedFiles || []) {
+          const { data: blob } = await admin.storage.from('case-files').download(`${extractedDir}/${f.name}`)
+          if (!blob) continue
+          const finalJson = JSON.parse(await blob.text())
+          totalEntries += (finalJson.entries || []).length
+          totalIssues += (finalJson.annotations || []).length
+          const fileByType = countByType(finalJson.annotations || [])
+          for (const [k, v] of Object.entries(fileByType)) byType[k] = (byType[k] || 0) + (v as number)
+        }
+
+        await admin.from('case_metrics').upsert({
+          case_id: caseId,
+          total_entries: totalEntries,
+          total_issues: totalIssues,
+          accepted: 0,
+          ignored: 0,
+          open: totalIssues,
+          annotations_by_type: byType,
+          last_reviewed_at: new Date().toISOString(),
+        }, { onConflict: 'case_id' })
+
+        await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
+
+        const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
+        if (u?.user?.email) {
+          await sendEmail(u.user.email, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
+        }
+      } catch (err) {
+        await handleFailure(admin, caseRow, caseId, err)
+      }
+    })()
+    runInBackground(work)
+    return json({ ok: true, status: 'proofread_complete' }, 202)
   }
 
-  const work = (async () => {
-    const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
-    try {
-      let totalEntries = 0
-      let totalIssues = 0
-      const byType: Record<string, number> = {}
+  const dbFile = transcriptFiles[fileIndex]
+  const jsonBaseName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '')
+  const extractingDir = `${caseRow.user_id}/${caseId}/extracting`
+  const extractedDir = `${caseRow.user_id}/${caseId}/extracted`
+  const entriesPath = `${extractingDir}/${jsonBaseName}_entries.json`
+  const finalName = `${jsonBaseName}_extracted.json`
+  const finalPath = `${extractedDir}/${finalName}`
 
-      for (const storageFile of storedEntries) {
-        const entryPath = `${caseRow.user_id}/${caseId}/extracting/${storageFile.name}`
-        const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(entryPath)
-        if (dlErr || !blob) throw new Error(`Failed to download entries file ${storageFile.name}`)
+  // Idempotency — this file's final proofread output already exists: move on.
+  const { data: existingFinal } = await admin.storage.from('case-files').list(extractedDir, { search: finalName })
+  if ((existingFinal?.length ?? 0) > 0) {
+    const work = (async () => {
+      try {
+        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
+      } catch (err) {
+        await handleFailure(admin, caseRow, caseId, err)
+      }
+    })()
+    runInBackground(work)
+    return json({ ok: true, skipped: 'file_already_proofread' }, 202)
+  }
 
-        const extractResult = JSON.parse(await blob.text())
-        const { title, entries, originalText } = extractResult
+  const { data: entriesBlob, error: entriesErr } = await admin.storage.from('case-files').download(entriesPath)
+  if (entriesErr || !entriesBlob) {
+    return json({ error: `Entries file not found for ${dbFile.file_name} — extract pass may not have completed.` }, 400)
+  }
+  const { title, entries, originalText } = JSON.parse(await entriesBlob.text())
+  const numBatches = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PROOFREAD_BATCH))
+  const batchName = `${jsonBaseName}_annotations_batch${batchIndex}.json`
+  const batchPath = `${extractingDir}/${batchName}`
 
-        const annotations = await proofreadContent(entries, deadlineAt)
+  if (batchIndex >= numBatches) {
+    // All batches for this file are in — merge annotations and finalize it.
+    const work = (async () => {
+      try {
+        let allAnnotations: any[] = []
+        const batchPaths: string[] = []
+        for (let i = 0; i < numBatches; i++) {
+          const p = `${extractingDir}/${jsonBaseName}_annotations_batch${i}.json`
+          batchPaths.push(p)
+          const { data: blob, error } = await admin.storage.from('case-files').download(p)
+          if (error || !blob) throw new Error(`Missing annotation batch ${i} for ${jsonBaseName} during merge`)
+          const batchResult = JSON.parse(await blob.text())
+          allAnnotations.push(...(batchResult.annotations || []))
+        }
+
+        // Final cross-batch safety net: the annotation-range-guard in
+        // proofreadContent already prevents cross-batch contamination at the
+        // source, but this catches any remaining byte-identical duplicate
+        // near a seam, the same way the single-call path always has.
+        const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+        const seen = new Set<string>()
+        allAnnotations = allAnnotations.filter((a) => {
+          const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        allAnnotations.forEach((a, i) => { a.id = i + 1 })
 
         const finalJson: any = {
           title: title || '',
           extracted_at: new Date().toISOString(),
           entries,
-          annotations,
+          annotations: allAnnotations,
         }
         if (originalText !== undefined) finalJson.originalText = originalText
 
-        totalEntries += entries.length
-        totalIssues += annotations.length
-        const fileByType = countByType(annotations)
-        for (const [k, v] of Object.entries(fileByType)) byType[k] = (byType[k] || 0) + (v as number)
-
-        const finalName = storageFile.name.replace('_entries.json', '_extracted.json')
-        const finalPath = `${caseRow.user_id}/${caseId}/extracted/${finalName}`
         const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
-
-        await admin.storage.from('case-files').upload(finalPath, finalBytes, {
-          upsert: true,
-          contentType: 'application/json',
-        })
+        await admin.storage.from('case-files').upload(finalPath, finalBytes, { upsert: true, contentType: 'application/json' })
         await admin.from('case_files').insert({
           case_id: caseId,
           file_type: 'extracted',
@@ -678,35 +1050,73 @@ Deno.serve(async (req: Request) => {
           storage_path: finalPath,
           mime_type: 'application/json',
         })
-        // Clean up intermediate entries file from storage
-        await admin.storage.from('case-files').remove([entryPath])
+        await admin.storage.from('case-files').remove([entriesPath, ...batchPaths])
+
+        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
+      } catch (err) {
+        if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+          try {
+            await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
+          } catch (retryErr) {
+            await handleFailure(admin, caseRow, caseId, retryErr)
+          }
+        } else {
+          await handleFailure(admin, caseRow, caseId, err)
+        }
       }
+    })()
+    runInBackground(work)
+    return json({ ok: true, status: 'proofread_merging' }, 202)
+  }
 
-      await admin.from('case_metrics').upsert({
-        case_id: caseId,
-        total_entries: totalEntries,
-        total_issues: totalIssues,
-        accepted: 0,
-        ignored: 0,
-        open: totalIssues,
-        annotations_by_type: byType,
-        last_reviewed_at: new Date().toISOString(),
-      }, { onConflict: 'case_id' })
-
-      await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
-
-      const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
-      if (u?.user?.email) {
-        await sendEmail(u.user.email, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
+  // Idempotency — this batch already exists: skip straight to the next one.
+  const { data: existingBatch } = await admin.storage.from('case-files').list(extractingDir, { search: batchName })
+  if ((existingBatch?.length ?? 0) > 0) {
+    const work = (async () => {
+      try {
+        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
+      } catch (err) {
+        await handleFailure(admin, caseRow, caseId, err)
       }
+    })()
+    runInBackground(work)
+    return json({ ok: true, skipped: 'batch_already_proofread' }, 202)
+  }
+
+  const work = (async () => {
+    const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+    try {
+      // A handful of leading entries from the previous batch are included as
+      // context (not owned by this batch) so a judgment call right at the
+      // seam still has surrounding text to reason from — see ownIdRange /
+      // the annotation-range-guard in proofreadContent for how those get
+      // filtered back out afterward.
+      const CONTEXT_ENTRIES = 8
+      const batchStart = batchIndex * ENTRIES_PER_PROOFREAD_BATCH
+      const batchEnd = Math.min(entries.length, batchStart + ENTRIES_PER_PROOFREAD_BATCH)
+      const contextStart = Math.max(0, batchStart - CONTEXT_ENTRIES)
+      const batchEntries = entries.slice(contextStart, batchEnd)
+      const rangeGuard = numBatches > 1 ? { min: entries[batchStart].id, max: entries[batchEnd - 1].id } : undefined
+
+      const annotations = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
+      const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations }, null, 2))
+      const { error: upErr } = await admin.storage.from('case-files').upload(batchPath, batchBytes, { upsert: true, contentType: 'application/json' })
+      if (upErr) throw new Error(`Failed to save annotation batch ${batchIndex} for ${jsonBaseName}: ${upErr.message}`)
+
+      await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
     } catch (err) {
-      await handleFailure(admin, caseRow, caseId, err)
+      if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+        try {
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
+        } catch (retryErr) {
+          await handleFailure(admin, caseRow, caseId, retryErr)
+        }
+      } else {
+        await handleFailure(admin, caseRow, caseId, err)
+      }
     }
   })()
 
-  // @ts-ignore
-  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work)
-  else await work
-
+  runInBackground(work)
   return json({ ok: true, status: 'proofread_started' }, 202)
 })
