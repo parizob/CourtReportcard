@@ -122,17 +122,25 @@ export default function DashboardUpload() {
         if (fileErr) throw fileErr
       }
 
-      // Hand the case off to the background worker. Analysis (and the email
-      // notification + token refund on failure) now happens server-side in the
-      // analyze-case Edge Function, so the user never waits on this screen.
+      // Hand the case off to the background worker. Analysis itself (and the
+      // email notification + token refund if THAT fails) happens server-side
+      // in the analyze-case Edge Function, so the user doesn't wait for
+      // Gemini here. But we do need to confirm the handoff itself was
+      // accepted — supabase-js does NOT reject on a non-2xx response from
+      // the function (it resolves with { error } instead), so a plain
+      // .catch() here would silently miss most failure modes (auth/lookup
+      // errors, cold-start issues, etc.) and leave the case stuck in
+      // "processing" forever with no refund. Awaiting and checking the
+      // result routes any handoff failure into the same refund/cleanup path
+      // below as every other upload failure.
       await supabase.from('cases').update({ status: 'processing' }).eq('id', caseRow.id)
 
-      // Fire-and-forget: don't await, the user can leave immediately.
-      supabase.functions
+      setUploadPhase('Starting analysis...')
+      const { error: invokeErr } = await supabase.functions
         .invoke('analyze-case', { body: { case_id: caseRow.id } })
-        .catch((e) => console.error('Failed to start background analysis:', e))
+      if (invokeErr) throw new Error('Could not start analysis. Please try again — your tokens were not charged.')
 
-      // The charge stands; the worker refunds it if analysis fails.
+      // Handoff confirmed — the worker now owns the charge and refunds it if analysis fails.
       tokensCharged = 0
 
       setDone(true)

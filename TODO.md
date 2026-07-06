@@ -4,18 +4,14 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Open
 
-- [ ] Identify addresses in documents and hook up a tool to look up/verify they're correct
-- [ ] Allow stenographers to upload their dictionaries so we can store them and know which words they typically write / have saved more than others
 - [ ] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
     - [ ] File Parizo Labs LLC with state Secretary of State
     - [ ] File DBA for Court Reportcard (state or county, depending on location)
     - [ ] Get EIN from IRS
     - [ ] Open business bank account under Parizo Labs LLC
     - [ ] Set up Stripe (or similar) business account once LLC/EIN/bank account are in place
-- [ ] Add options to upload NOD/style guide, pleadings, and exhibits
 - [ ] Celebrate when a user uploads a perfect transcript (something fun + bonus tokens) — needs a UID per uploaded document to prevent duplicate claims, or a monthly cap on free celebration tokens
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
-- [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
 - [ ] Allow users to optionally upload audio alongside their transcript; transcribe the audio and diff it against the written transcript to surface additional discrepancies/errors
 - [ ] Step 1 — Add chunking to `analyze-case` to support 100+ page transcripts
     - Current bottleneck: Supabase Edge Function has a 135s deadline; most real transcripts are 100+ pages (confirmed by Zoe, users already asking)
@@ -27,8 +23,15 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
     - Pricing is event-based (~50k events/month free on Hobby) — essentially free at current scale
     - Only build this if Step 1 chunking alone isn't reliable enough in practice
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
-- [ ] Build a resources/guide landing page that links the transcript proofing checklist PDF (`marketing/guides/transcript-proofing-checklist.pdf`), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
+- [ ] Build a resources/guide landing page offering a legal/medical homophone & commonly-confused-word reference sheet (not a "how to proofread" checklist — Zoe's feedback is reporters won't use that, they already know how to edit), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
+
+## Backlog
+
+- [ ] Identify addresses in documents and hook up a tool to look up/verify they're correct
+- [ ] Allow stenographers to upload their dictionaries so we can extract proper nouns/party names/technical jargon as a per-user glossary — no steno/stroke data available to us, so this can't verify translation accuracy, but it can (1) suppress false-positive spelling flags on legit unusual terms and (2) catch real inconsistent-spelling errors of those terms across a transcript. Will need to filter dictionary exports down to "interesting" entries (proper nouns, rare/technical words) rather than ingest the whole file, since most entries are just common briefs
+- [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
+
 ## Done
 
 - [x] Background processing: Gemini calls moved to async background function; upload page saves file and returns immediately, dashboard polls for completion — fixes stay-on-screen problem and token loss on navigation
