@@ -156,8 +156,8 @@ export default function Dashboard() {
   const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', in_progress: 'Editing', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
   const statusColor = (s) => ({
     uploaded: 'bg-blue-100 text-blue-700',
-    processing: 'bg-amber-100 text-amber-700',
-    analyzed: 'bg-amber-50 text-amber-600',
+    processing: 'bg-gray-100 text-gray-700',
+    analyzed: 'bg-amber-100 text-amber-700',
     in_progress: 'bg-sky-100 text-sky-600',
     reviewed: 'bg-green-100 text-green-700',
     exported: 'bg-purple-100 text-purple-700',

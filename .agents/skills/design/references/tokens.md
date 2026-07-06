@@ -59,8 +59,8 @@ These are raw Tailwind utilities (not custom tokens) used for status badges and 
 | State | Background | Text |
 |---|---|---|
 | Uploaded | `bg-blue-100` | `text-blue-700` |
-| Processing | `bg-amber-100` | `text-amber-700` |
-| Analyzed | `bg-amber-50` | `text-amber-600` |
+| Processing | `bg-gray-100` | `text-gray-700` (paired with an animated spinner) |
+| Analyzed | `bg-amber-100` | `text-amber-700` |
 | Reviewed | `bg-green-100` | `text-green-700` |
 | Exported | `bg-purple-100` | `text-purple-700` |
 | Error / Delete | `bg-error/10` | `text-error` |
