@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -382,7 +383,7 @@ export default function DashboardUpload() {
 
       </div>
 
-      {confirmOpen && (
+      {confirmOpen && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest rounded-2xl editorial-shadow max-w-md w-full p-8">
             {(tokenBalance ?? 0) < pendingPages ? (
@@ -453,7 +454,8 @@ export default function DashboardUpload() {
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </main>
   )

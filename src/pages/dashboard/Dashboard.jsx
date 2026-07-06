@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -438,7 +439,7 @@ export default function Dashboard() {
       </div>
 
       {/* Delete confirmation modal */}
-      {deleteTarget && (
+      {deleteTarget && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
           <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow p-8 max-w-md w-full mx-4 z-10">
@@ -485,11 +486,12 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* View/Download files modal */}
-      {viewTarget && (
+      {viewTarget && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewTarget(null)} />
           <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow p-8 max-w-lg w-full mx-4 z-10">
@@ -547,7 +549,8 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </main>
   )
