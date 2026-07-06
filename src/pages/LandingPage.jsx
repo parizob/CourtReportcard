@@ -22,7 +22,7 @@ export default function LandingPage() {
                 Precision Proofreading for <span className="text-primary italic">Court Reporters</span>
               </h1>
               <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Your second set of eyes on every transcript. <span className="whitespace-nowrap">Court Reportcard</span> catches steno errors, homophone substitutions, missing words, and punctuation mistakes before a single page leaves your desk.
+                Your second set of eyes on every transcript. Catch steno errors, homophone substitutions, missing words, and punctuation mistakes before a single page leaves your desk.
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
