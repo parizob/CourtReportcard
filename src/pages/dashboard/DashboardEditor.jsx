@@ -2,16 +2,13 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { proofreadTranscript, fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
-import { countPages } from '../../lib/pageCount'
+import { fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
 import { countByType } from '../../lib/annotationStats'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
   const caseId = searchParams.get('case')
-  const { tokenBalance, spendTokens, refreshTokens } = useAuth()
 
   const [caseData, setCaseData] = useState(null)
   const [entries, setEntries] = useState([])
@@ -21,11 +18,9 @@ export default function DashboardEditor() {
   const [loading, setLoading] = useState(!!caseId)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [originalText, setOriginalText] = useState(null)
-  const [showReanalyzeConfirm, setShowReanalyzeConfirm] = useState(false)
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
   const [legendOpen, setLegendOpen] = useState(false)
@@ -396,46 +391,6 @@ export default function DashboardEditor() {
 
     debouncedSync()
   }, [debouncedSync])
-
-  const handleReanalyzeClick = () => {
-    setShowReanalyzeConfirm(true)
-  }
-
-  const reanalyzePages = useMemo(() => {
-    if (originalText) return countPages(originalText)
-    if (entries.length > 0) return Math.max(1, Math.ceil(entries.length / 25))
-    return 1
-  }, [originalText, entries])
-
-  // Re-analyze runs as a single, non-chunked proofread call (see api/gemini.js's
-  // maxDuration: 300s). At the measured ~2.76s/page proofread rate that's a hard
-  // ceiling around 108 pages — this cap leaves real margin below it. Unlike the
-  // initial upload/extraction pipeline, Re-analyze isn't chunked yet, so large
-  // transcripts are blocked here rather than left to time out.
-  const REANALYZE_MAX_PAGES = 75
-  const reanalyzeTooLarge = reanalyzePages > REANALYZE_MAX_PAGES
-
-  const handleReanalyzeConfirm = async () => {
-    setShowReanalyzeConfirm(false)
-    const ok = await spendTokens(reanalyzePages)
-    if (!ok) {
-      setError('Insufficient tokens. Purchase more in Plans & Billing.')
-      return
-    }
-    setAnalyzing(true)
-    setError('')
-    try {
-      const freshAnnotations = await proofreadTranscript(entries)
-      setAnnotations(freshAnnotations)
-      setSaved(false)
-      refreshTokens()
-    } catch (err) {
-      console.error('Re-analysis failed:', err)
-      setError(err.message || 'Re-analysis failed.')
-    } finally {
-      setAnalyzing(false)
-    }
-  }
 
   const handleSave = async () => {
     if (!extractedFilePath || !hasChanges) return
@@ -1334,21 +1289,6 @@ export default function DashboardEditor() {
             </div>
           )}
 
-          {/* Re-analyze */}
-          <div className="px-5 py-4 border-t border-outline-variant/10">
-            <button
-              onClick={handleReanalyzeClick}
-              disabled={analyzing}
-              className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {analyzing ? (
-                <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Analyzing...</>
-              ) : (
-                <><span className="material-symbols-outlined text-base">auto_awesome</span> Re-analyze transcript</>
-              )}
-            </button>
-          </div>
-
           {/* Case details */}
           <div className="px-5 py-4 border-t border-outline-variant/10">
             <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Case Details</p>
@@ -1522,52 +1462,6 @@ export default function DashboardEditor() {
         )
       })()}
 
-      {/* Reanalyze confirmation modal */}
-      {showReanalyzeConfirm && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-6 pt-6 pb-4 flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-on-tertiary-container text-xl">toll</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-on-surface mb-1">Re-analyze Transcript?</h3>
-                {reanalyzeTooLarge ? (
-                  <p className="text-sm text-on-surface-variant leading-relaxed">
-                    This transcript is <span className="font-bold text-on-surface">{reanalyzePages} pages</span>, which is too large to re-analyze right now.
-                    Re-analyze currently supports transcripts up to {REANALYZE_MAX_PAGES} pages. We're working on raising this limit — reach out if you need this transcript re-analyzed in the meantime.
-                  </p>
-                ) : (
-                  <p className="text-sm text-on-surface-variant leading-relaxed">
-                    This transcript consists of <span className="font-bold text-on-surface">{reanalyzePages} page{reanalyzePages !== 1 ? 's' : ''}</span> and
-                    will cost <span className="font-bold text-on-surface">{reanalyzePages} token{reanalyzePages !== 1 ? 's' : ''}</span> (1 per page).
-                    You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span> remaining.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="px-6 pb-6 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowReanalyzeConfirm(false)}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
-              >
-                {reanalyzeTooLarge ? 'Close' : 'Cancel'}
-              </button>
-              {!reanalyzeTooLarge && (
-                <button
-                  onClick={handleReanalyzeConfirm}
-                  disabled={(tokenBalance ?? 0) < reanalyzePages}
-                  className="px-5 py-2.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-base">auto_awesome</span>
-                  Re-analyze ({reanalyzePages} Token{reanalyzePages !== 1 ? 's' : ''})
-                </button>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </main>
   )
 }

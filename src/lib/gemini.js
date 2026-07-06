@@ -875,29 +875,3 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     annotations: annots,
   }
 }
-
-/**
- * Standalone proofreading: takes already-extracted entries and returns fresh annotations.
- * Use this from the editor when the user clicks "Re-analyze".
- */
-export async function proofreadTranscript(entries) {
-  const parsed = await callGemini(
-    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`
-  )
-
-  let annots = (parsed.annotations || []).map((a, i) => ({
-    id: a.id || i + 1,
-    entry_id: a.entry_id,
-    type: a.type || 'spelling',
-    severity: a.severity || 'warning',
-    original: a.original || '',
-    suggestion: a.suggestion || '',
-    explanation: a.explanation || '',
-    confidence: a.confidence ?? 0.8,
-    start: a.start ?? 0,
-    end: a.end ?? 0,
-    status: 'open',
-  }))
-
-  return fixAnnotationPositions(entries, annots)
-}
