@@ -622,9 +622,14 @@ function failureEmailHtml(caseName: string, refunded: number): string {
 }
 
 // ── Shared failure handler ──
-async function handleFailure(admin: any, caseRow: any, caseId: string, err: unknown): Promise<void> {
-  console.error('Analysis failed for case', caseId, err)
+async function handleFailure(admin: any, caseRow: any, caseId: string, err: unknown, stage?: string): Promise<void> {
+  console.error('Analysis failed for case', caseId, stage, err)
   const refund = caseRow.tokens_charged || 0
+  // Truncated so a pathological error (e.g. a huge Gemini error body) can't
+  // blow past Postgres's practical row-size comfort zone. Stage is prefixed
+  // so a failure is diagnosable straight from the DB — no more reconstructing
+  // which chunk/batch died from storage/API request logs after the fact.
+  const lastError = `${stage ? `[${stage}] ` : ''}${(err as Error)?.message || String(err)}`.slice(0, 2000)
 
   // Clean up storage: case_files rows (transcript/extracted) plus any
   // intermediate "extracting" JSON entries, which have no DB row.
@@ -646,7 +651,7 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
       ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
       : Promise.resolve({ data: null }),
     admin.from('cases')
-      .update({ deleted_at: new Date().toISOString(), status: 'deleted' })
+      .update({ deleted_at: new Date().toISOString(), status: 'deleted', last_error: lastError })
       .eq('id', caseId),
     admin.auth.admin.getUserById(caseRow.user_id),
   ])
@@ -800,7 +805,7 @@ Deno.serve(async (req: Request) => {
         try {
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: 0, batch_index: 0, attempt: 0 })
         } catch (err) {
-          await handleFailure(admin, caseRow, caseId, err)
+          await handleFailure(admin, caseRow, caseId, err, `extract→proofread handoff (file ${fileIndex})`)
         }
       })()
       runInBackground(work)
@@ -823,7 +828,7 @@ Deno.serve(async (req: Request) => {
         try {
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
         } catch (err) {
-          await handleFailure(admin, caseRow, caseId, err)
+          await handleFailure(admin, caseRow, caseId, err, `extract file_index advance (file ${fileIndex})`)
         }
       })()
       runInBackground(work)
@@ -840,7 +845,7 @@ Deno.serve(async (req: Request) => {
         try {
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex + 1, attempt: 0 })
         } catch (err) {
-          await handleFailure(admin, caseRow, caseId, err)
+          await handleFailure(admin, caseRow, caseId, err, `extract chunk_index advance (file ${fileIndex} chunk ${chunkIndex})`)
         }
       })()
       runInBackground(work)
@@ -913,14 +918,18 @@ Deno.serve(async (req: Request) => {
 
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
       } catch (err) {
+        const stage = `extract file ${fileIndex} chunk ${chunkIndex} attempt ${attempt}`
         if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
           try {
             await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: attempt + 1 })
           } catch (retryErr) {
-            await handleFailure(admin, caseRow, caseId, retryErr)
+            // The original `err` is what actually failed the work — the retry
+            // dispatch failing too is secondary, but worth keeping so both are
+            // visible instead of the original cause getting silently dropped.
+            await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
           }
         } else {
-          await handleFailure(admin, caseRow, caseId, err)
+          await handleFailure(admin, caseRow, caseId, err, stage)
         }
       }
     })()
@@ -973,7 +982,7 @@ Deno.serve(async (req: Request) => {
           await sendEmail(u.user.email, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
         }
       } catch (err) {
-        await handleFailure(admin, caseRow, caseId, err)
+        await handleFailure(admin, caseRow, caseId, err, 'proofread finalize (case-level)')
       }
     })()
     runInBackground(work)
@@ -995,7 +1004,7 @@ Deno.serve(async (req: Request) => {
       try {
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
       } catch (err) {
-        await handleFailure(admin, caseRow, caseId, err)
+        await handleFailure(admin, caseRow, caseId, err, `proofread file_index advance (file ${fileIndex})`)
       }
     })()
     runInBackground(work)
@@ -1062,14 +1071,15 @@ Deno.serve(async (req: Request) => {
 
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
       } catch (err) {
+        const stage = `proofread merge file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
         if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
           try {
             await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
           } catch (retryErr) {
-            await handleFailure(admin, caseRow, caseId, retryErr)
+            await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
           }
         } else {
-          await handleFailure(admin, caseRow, caseId, err)
+          await handleFailure(admin, caseRow, caseId, err, stage)
         }
       }
     })()
@@ -1084,7 +1094,7 @@ Deno.serve(async (req: Request) => {
       try {
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
       } catch (err) {
-        await handleFailure(admin, caseRow, caseId, err)
+        await handleFailure(admin, caseRow, caseId, err, `proofread batch_index advance (file ${fileIndex} batch ${batchIndex})`)
       }
     })()
     runInBackground(work)
@@ -1113,14 +1123,15 @@ Deno.serve(async (req: Request) => {
 
       await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
     } catch (err) {
+      const stage = `proofread file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
       if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
         try {
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
         } catch (retryErr) {
-          await handleFailure(admin, caseRow, caseId, retryErr)
+          await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
         }
       } else {
-        await handleFailure(admin, caseRow, caseId, err)
+        await handleFailure(admin, caseRow, caseId, err, stage)
       }
     }
   })()
