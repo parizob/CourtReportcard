@@ -214,7 +214,43 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  return JSON.parse(cleaned)
+  return JSON.parse(extractFirstJsonValue(cleaned))
+}
+
+// Even with responseMimeType: 'application/json', Gemini has been observed
+// (production case: chunk-boundary content landing right at a closing
+// certificate/signature page) to emit a complete, valid JSON value and then
+// append extra non-whitespace content after it — which a bare JSON.parse
+// rejects outright ("Unexpected non-whitespace character after JSON").
+// Scans for the first balanced top-level object/array and discards anything
+// trailing it, so a well-formed response isn't thrown away over a model-side
+// formatting slip. Leaves genuinely malformed/truncated JSON to fail
+// JSON.parse normally — this only trims trailing garbage, never repairs the
+// value itself. Mirrored in src/lib/gemini.js.
+function extractFirstJsonValue(text: string): string {
+  const start = text.search(/[{[]/)
+  if (start === -1) return text
+  const openChar = text[start]
+  const closeChar = openChar === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') inString = true
+    else if (c === openChar) depth++
+    else if (c === closeChar) {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return text.slice(start)
 }
 
 // ── flexFind + position fixing (mirrored from src/lib/gemini.js) ──
