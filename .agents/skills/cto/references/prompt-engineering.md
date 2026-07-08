@@ -1,7 +1,10 @@
 # Prompt Engineering Workflow
 
 The two prompts that matter are `EXTRACTION_ONLY_PROMPT` and
-`PROOFREAD_ONLY_PROMPT` in `src/lib/gemini.js`. They are long, deliberately
+`PROOFREAD_ONLY_PROMPT`. **Production** reads them from
+`supabase/functions/analyze-case/prompts.ts`; `src/lib/gemini.js` holds a
+second, separately maintained copy used only by the test harness and
+calibration scripts (see `architecture.md`). They are long, deliberately
 verbose, and tuned through real testing. **Treat them like production code
 under change control, not like a draft.**
 
@@ -11,6 +14,12 @@ under change control, not like a draft.**
 applies even if the fix seems obviously correct (e.g. "just add this
 homophone pair") — small additions can shift model behavior in unrelated
 ways given the prompt's length and the model's non-determinism.
+
+**Both copies must change together.** A change applied only to `gemini.js`
+never reaches real users; a change applied only to `prompts.ts` never gets
+validated by the harness (which calls the `gemini.js` copy). Drift between
+the two means the harness stops meaning anything for production — always
+check both are in sync before marking a prompt change `applied`.
 
 ## The workflow
 
@@ -26,9 +35,10 @@ ways given the prompt's length and the model's non-determinism.
    theme, observation, suggested change, status = `proposed`. Include the
    exact text you'd add/change and where (which section of which prompt).
 4. **Wait for sign-off.** Present the proposal to the user. Do not apply.
-5. **Apply (small).** Once approved, make the smallest edit that addresses
-   the finding — typically adding one line to an existing list (e.g. the
-   homophone table) or one bullet to an existing rule section. Match the
+5. **Apply (small), to both copies.** Once approved, make the smallest edit
+   that addresses the finding — typically adding one line to an existing
+   list (e.g. the homophone table) or one bullet to an existing rule
+   section — **identically in `prompts.ts` and `gemini.js`**. Match the
    existing tone/format exactly (the prompts use specific formatting:
    `"word1 / word2"` pairs, `"original" (correction)` examples, etc.).
 6. **Re-test.** Run the full set 3x again. Compare:

@@ -5,10 +5,34 @@ summary plus operational gotchas.
 
 ## What it tests
 
-The harness runs **the real production pipeline** (`extractTranscriptWithGemini`
-from `src/lib/gemini.js`, unmodified) against seeded transcripts with known,
-hand-placed errors, and scores recall (errors caught), type/severity accuracy,
+The harness calls `extractTranscriptWithGemini` from `src/lib/gemini.js`
+(via `api/gemini.js`) against seeded transcripts with known, hand-placed
+errors, and scores recall (errors caught), type/severity accuracy,
 suggestion correctness, and false positives (unmatched annotations).
+
+**Important — this is a mirrored copy, not literally production.** Real
+uploads run through `supabase/functions/analyze-case/index.ts` (see
+`architecture.md`), a separately maintained Deno copy of the same
+extraction/dedup/proofread/position-repair logic and prompts. The harness is
+still the right tool for evaluating prompt changes (both copies use the same
+prompts from the same source of truth you're editing), but:
+- `gemini.js` calls the same two models as production (`gemini-3.1-flash-lite`
+  for extraction, `gemini-2.5-pro` for proofreading — see
+  `token-economy.md`), fixed 2026-07-08 after this had drifted to
+  `gemini-2.5-pro` for both passes. Re-ran the full set after the fix:
+  32/35 (91%) aggregate recall, 2 false positives — in line with the
+  existing documented baseline below, no regression.
+- It still doesn't exercise chunking (`CHUNK_THRESHOLD_PAGES` /
+  `PAGES_PER_CHUNK` in `index.ts`) since harness transcripts are short single
+  calls, not multi-chunk documents.
+- Whenever you change dedup/position-repair logic or either prompt, both
+  `gemini.js` and `index.ts` need the change (see `cto/SKILL.md`'s core
+  rules) — the harness only proves out the change in `gemini.js`'s copy.
+  The same now applies to the model/`thinkingConfig` split itself: if
+  production's models or thinking budgets change, update `gemini.js` and
+  `api/gemini.js` (the `ALLOWED_MODELS` allowlist + `thinkingConfig`
+  passthrough) to match, or the harness will silently drift out of sync
+  with production again.
 
 ## Files
 

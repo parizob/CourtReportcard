@@ -1,6 +1,14 @@
-const MODEL = 'gemini-2.5-pro'
+// Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD —
+// extraction uses the lighter/cheaper model (structured parsing, not reasoning),
+// proofreading uses full-quality Pro. Keep these in sync with index.ts.
+const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
+const MODEL_PROOFREAD = 'gemini-2.5-pro'
 
-async function callGemini(prompt, filePart, timeoutMs = 300000) {
+// `thinkingConfig` is passed through as-is since the two models take
+// incompatible shapes: gemini-2.5-pro uses the legacy `thinkingBudget` number,
+// gemini-3.1-flash-lite uses the newer `thinkingLevel` string — sending both
+// in one request is a 400 error. Mirrors index.ts's callGemini.
+async function callGemini(prompt, filePart, model, thinkingConfig, timeoutMs = 300000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const startedAt = Date.now()
@@ -11,7 +19,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ prompt, filePart, model: MODEL }),
+      body: JSON.stringify({ prompt, filePart, model, thinkingConfig }),
     })
   } catch (err) {
     clearTimeout(timer)
@@ -36,7 +44,7 @@ async function callGemini(prompt, filePart, timeoutMs = 300000) {
   // real duration/token usage is visible in the console during test runs —
   // used to calibrate chunk sizing against actual Gemini behavior.
   if (data.usageMetadata) {
-    console.log(`Gemini call: ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, data.usageMetadata)
+    console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, data.usageMetadata)
   }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -889,7 +897,7 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
 
   // ── PASS 1: Extract entries ──
   console.log('Gemini Pass 1: Extracting transcript entries...')
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart)
+  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
 
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
@@ -912,7 +920,10 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
   // ── PASS 2: Proofread entries ──
   console.log('Gemini Pass 2: Proofreading transcript...')
   const proofreadResult = await callGemini(
-    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`
+    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`,
+    null,
+    MODEL_PROOFREAD,
+    undefined, // no budget cap — Pro gets full thinking for quality
   )
 
   let annots = (proofreadResult.annotations || []).map((a, i) => ({

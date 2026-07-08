@@ -34,7 +34,10 @@ If a change doesn't clearly serve #1 without regressing #2 or #3, slow down.
 
 - Running or extending the proofreader test harness (`scripts/`)
 - Evaluating, proposing, or (with explicit sign-off) applying changes to the
-  extraction or proofreading prompts in `src/lib/gemini.js`
+  extraction or proofreading prompts (production copy:
+  `supabase/functions/analyze-case/prompts.ts`; mirrored harness copy:
+  `src/lib/gemini.js` — both must change together, see
+  `references/prompt-engineering.md`)
 - Debugging a UI bug, pipeline failure, or unexpected annotation behavior
 - Reviewing a planned feature for architectural fit (where does this live?
   what does it touch?)
@@ -52,10 +55,11 @@ If a change doesn't clearly serve #1 without regressing #2 or #3, slow down.
 - **Test before and after.** Any prompt or pipeline change gets run through the
   test harness (`node scripts/run-proofread-test.mjs`) before and after, ideally
   3+ times given known non-determinism at temperature 0.
-- **Token discipline.** Every `extractTranscriptWithGemini` call is 2 Gemini
-  requests (extraction pass + proofreading pass) against `gemini-2.5-pro`. Don't
-  add a third pass, don't re-run the full pipeline in a loop, and don't bump
-  `maxOutputTokens` or model tier without discussing cost impact. See
+- **Token discipline.** Every file goes through (at least) 2 Gemini requests —
+  extraction (`gemini-3.1-flash-lite`) + proofreading (`gemini-2.5-pro`, full
+  thinking) — and large documents chunk into more of each. Don't add a third
+  pass, don't re-run the full pipeline in a loop, and don't bump
+  `maxOutputTokens` or either model tier without discussing cost impact. See
   `references/token-economy.md`.
 - **Don't break what works.** The pipeline currently hits ~90-100% recall with
   zero-to-one false positives on the hard test set. That's the bar. A change
@@ -69,9 +73,10 @@ See `references/architecture.md` for the full picture. Quick orientation:
 | Layer | Where | Notes |
 |---|---|---|
 | Frontend | `src/` (React + Vite + Tailwind) | Dashboard, editor, upload flow |
-| Gemini pipeline | `src/lib/gemini.js` | Two-pass extract+proofread, annotation matching/repair, dedup |
-| API proxy | `api/gemini.js` (Vercel function) | Thin proxy to Gemini, no auth required, file-size/type guards |
-| Background jobs | `src/lib/backgroundAnalysis.js` | Runs extraction per uploaded file, writes results to Supabase |
+| **Production Gemini pipeline** | `supabase/functions/analyze-case/index.ts` + `prompts.ts` | Chunked two-pass extract+proofread, position repair, dedup — runs for every real upload |
+| Harness-only Gemini pipeline | `src/lib/gemini.js` | Mirrored copy of the same logic, called only by `scripts/run-proofread-test.mjs` via `api/gemini.js` — not part of the shipped app |
+| Test-only API proxy | `api/gemini.js` (Vercel function) | Thin proxy to Gemini for the harness only, no auth required, file-size/type guards |
+| Stuck-case safety net | `src/lib/backgroundAnalysis.js` | Re-invokes `analyze-case` for cases stuck `processing` 3+ min with no result |
 | Auth + tokens | `src/context/AuthContext.jsx` | Supabase auth, `user_profiles.balance`, `token_ledger` |
 | Data | Supabase (Postgres + Storage) | `supabase/migrations/` |
 | Design system | `.agents/skills/design/` | Use this skill for any UI work |
@@ -100,6 +105,17 @@ small, isolated edit to the relevant section of `PROOFREAD_ONLY_PROMPT` or
 
 See `references/debugging.md` for "where does X live" when something's broken.
 
+## Production Health Signals
+
+Two things fail silently unless someone actively checks for them: a case
+erroring out (nothing tells you why unless you query for it) and a real
+Gemini catch getting dropped because its position couldn't be confidently
+resolved (nothing tells you it even happened). Both now write to the
+database instead of just a console log — see `references/monitoring.md` for
+the exact queries, what's worth acting on, and suggested cadence. Check
+these whenever doing other CTO-skill work, not just when a user reports
+something — the whole point is catching what users don't report.
+
 ## References
 
 - `references/architecture.md` — system map, data flow, key files
@@ -107,3 +123,5 @@ See `references/debugging.md` for "where does X live" when something's broken.
 - `references/prompt-engineering.md` — safe prompt-change workflow
 - `references/token-economy.md` — Gemini cost model, what burns tokens
 - `references/debugging.md` — bug triage map by symptom
+- `references/monitoring.md` — production health signals (case failures,
+  dropped annotations), queries, and what's worth acting on

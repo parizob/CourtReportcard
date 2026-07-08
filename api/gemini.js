@@ -1,4 +1,5 @@
-const ALLOWED_MODELS = ['gemini-2.5-pro']
+// Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD.
+const ALLOWED_MODELS = ['gemini-2.5-pro', 'gemini-3.1-flash-lite']
 const DEFAULT_MODEL = 'gemini-2.5-pro'
 // Guard is only applied to binary fileParts (PDFs). Plain-text transcripts
 // arrive as prompt text and are checked client-side per extension.
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Gemini API key not configured on server.' })
   }
 
-  const { prompt, filePart, model: requestedModel } = req.body
+  const { prompt, filePart, model: requestedModel, thinkingConfig } = req.body
 
   // File size guard — base64 is ~33% larger than raw bytes, so adjust accordingly
   if (filePart?.inlineData?.data) {
@@ -53,6 +54,7 @@ export default async function handler(req, res) {
           temperature: 0,
           maxOutputTokens: 131072,
           responseMimeType: 'application/json',
+          ...(thinkingConfig ? { thinkingConfig } : {}),
         },
       }),
     })
