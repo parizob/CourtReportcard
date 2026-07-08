@@ -17,6 +17,70 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-07-08 — Unique locatability + entry_id self-verification — PROPOSED, awaiting sign-off
+
+**Not from a test-harness run — from a real production case.** A user
+(Zoe) reported several annotations displayed on completely unrelated
+sentences, with explanations describing content ("an order", "the
+speaker's neck", "entry 722... pain") that had nothing to do with the
+highlighted text. All examples were common short words ("on", "any",
+"same").
+
+**Root cause:** the app-side position-repair logic (`fixAnnotationPositions`
+in `src/lib/gemini.js` / `supabase/functions/analyze-case/index.ts`)
+relocates an annotation when its claimed `entry_id` doesn't contain the
+`original` text. This is a code-level rescue mechanism, not a prompt issue —
+but the prompt is the only place we can reduce how often the model emits a
+mismatched `entry_id` in the first place, and the only place we can make the
+`original` field distinctive enough that our code can relocate it correctly
+when a mismatch does happen. (A code-level fix already shipped 2026-07-08 —
+windowed-nearby-match repair + logging + drop-if-truly-ambiguous — but that's
+a safety net, not a fix for the underlying cause.)
+
+**Proposed additions to `PROOFREAD_ONLY_PROMPT`:**
+
+1. Extends the existing "original field must be a COMPLETE standalone word
+   or phrase" rule (line 312):
+   ```
+   - UNIQUE LOCATABILITY FOR COMMON WORDS: If the flagged word or phrase is a common word likely to appear more than once in this transcript (an article, preposition, pronoun, conjunction, or other short function word — "on", "any", "same", "the", "it", "that", etc.), the "original" field must include enough surrounding words to make this specific occurrence unique, not just the bare word alone. Example: instead of original "same", use original "give you the same courtesy". This does not apply to rare or distinctive words/phrases that are unlikely to repeat elsewhere in the transcript.
+   ```
+2. Extends the existing "each annotation must reference the entry_id of the
+   entry containing the error" rule (line 349):
+   ```
+   - VERIFY ENTRY_ID BEFORE OUTPUT: Before including any annotation, confirm the "original" text is verbatim present in the specific entry cited as "entry_id" — not merely present somewhere else in the transcript. If your explanation references another entry as supporting context (e.g., "based on how the witness answered in an earlier entry"), "entry_id" must still be the entry where the error itself physically appears, never the context entry you're citing for reasoning. If you cannot verify the flagged text is actually in the entry you're citing, correct "entry_id" to the right entry or do not output the annotation.
+   ```
+
+**Validation plan:** baseline full 5-transcript set, 3 runs, before editing.
+Apply both additions to `prompts.ts` and `gemini.js` identically. Re-run full
+set 3x. Compare aggregate recall, false positives, and (new focus) whether
+`original` fields get needlessly padded with extra words on rare/distinctive
+matches where it isn't required — that would be a regression in the
+opposite direction (a good exact match becoming an over-broad one, which
+could reduce `flexFind` precision on subtly different repeated phrasing).
+
+**Validation results:**
+- **Before (baseline, 3 runs):** 32/35, 32/35, 32/35 → 96/105 (91.4%)
+  aggregate recall. False positives: 1, 1, 3 (all recurring known noise —
+  see below). UI apply/highlight integrity: 33/33, 33/33, 35/35 (100%
+  clean).
+- **After (3 runs):** 33/35, 32/35, 32/35 → 97/105 (92.4%) aggregate
+  recall. False positives: 3, 2, 2. UI apply/highlight integrity: 36/36,
+  34/34, 34/34 (100% clean).
+- Recall is unchanged within the pipeline's known run-to-run
+  non-determinism (same single pre-existing miss, "supreme court" in
+  transcript_05_hard, in 2/3 runs both before and after).
+- Every false positive in both before and after sets is one of three
+  already-documented recurring items ("Its" → "It's" partial-match
+  artifact, "Counsel"/"counsel" capitalization drift, "correct, I" →
+  "correct. I" comma-splice catch) — no new false positives, and
+  specifically no sign of the regression risk flagged in the validation
+  plan (the model did not start needlessly padding `original` on
+  rare/distinctive matches).
+
+Status: **applied 2026-07-08.**
+
+---
+
 ### Rule: 2026-07-06 — Chunk-aware extraction addendum (for large-transcript chunking) — PROPOSED, awaiting sign-off
 
 **Not a change to `EXTRACTION_ONLY_PROMPT` itself.** This is a new, separate,

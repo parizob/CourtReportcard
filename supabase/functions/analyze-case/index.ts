@@ -313,21 +313,64 @@ function flexFind(text: string, search: string): { start: number; end: number } 
   return null
 }
 
-function fixAnnotationPositions(entries: any[], annotations: any[]): any[] {
-  return annotations.map((a) => {
-    if (!a.original) return a
+// How far (in entry id, which tracks document order) to look for a
+// mis-tagged annotation's real home before treating it as a document-wide
+// search. Chosen to comfortably cover an off-by-a-few slip within a single
+// proofread batch (see ENTRIES_PER_PROOFREAD_BATCH) without being so wide it
+// starts finding coincidental matches from unrelated parts of the document.
+const ANNOTATION_REPAIR_WINDOW = 15
+
+function fixAnnotationPositions(entries: any[], annotations: any[]): { annotations: any[]; droppedCount: number } {
+  const fixed: any[] = []
+  let unresolvedCount = 0
+  for (const a of annotations) {
+    if (!a.original) { fixed.push(a); continue }
     const entry = entries.find((e) => e.id === a.entry_id)
     if (entry) {
       const m = flexFind(entry.text, a.original)
-      if (m) return { ...a, start: m.start, end: m.end }
+      if (m) { fixed.push({ ...a, start: m.start, end: m.end }); continue }
     }
-    for (const e of entries) {
-      if (e.id === a.entry_id) continue
-      const m = flexFind(e.text, a.original)
-      if (m) return { ...a, entry_id: e.id, start: m.start, end: m.end }
+    // The model occasionally attaches an otherwise-correct annotation to the
+    // wrong entry_id — in practice almost always a small numbering slip
+    // (off by a handful), not a random jump to an unrelated part of the
+    // document. So: look nearby first, since that's the far more likely
+    // real target, and only widen to a full document search if nothing
+    // nearby matches. At every tier, only trust a reassignment when it's
+    // unique — for common short words (the usual offenders: "on", "any",
+    // "same"), a document-wide search alone would happily "confirm" a match
+    // at the very first occurrence (usually the opening appearances/
+    // admonition section), silently relocating a real correction onto an
+    // unrelated sentence with an explanation that no longer matches what's
+    // displayed.
+    const candidates = entries.filter((e) => e.id !== a.entry_id)
+    const nearby = candidates.filter((e) => Math.abs(e.id - a.entry_id) <= ANNOTATION_REPAIR_WINDOW)
+    const nearMatches = nearby.map((e) => ({ entry: e, m: flexFind(e.text, a.original) })).filter((r) => r.m)
+    if (nearMatches.length === 1) {
+      const { entry: e, m } = nearMatches[0]
+      fixed.push({ ...a, entry_id: e.id, start: m!.start, end: m!.end })
+      continue
     }
-    return a
-  })
+    if (nearMatches.length === 0) {
+      const far = candidates.filter((e) => Math.abs(e.id - a.entry_id) > ANNOTATION_REPAIR_WINDOW)
+      const farMatches = far.map((e) => ({ entry: e, m: flexFind(e.text, a.original) })).filter((r) => r.m)
+      if (farMatches.length === 1) {
+        const { entry: e, m } = farMatches[0]
+        fixed.push({ ...a, entry_id: e.id, start: m!.start, end: m!.end })
+        continue
+      }
+    }
+    // Nothing nearby, or genuinely ambiguous (multiple equally-plausible
+    // matches) even after widening — there's no reliable signal left to
+    // place this correctly, and a wrong guess is worse than no annotation.
+    // Logged (not silent) so we can see how often this residual case
+    // actually happens and revisit if it's more than rare.
+    unresolvedCount++
+    console.warn(`Unplaceable annotation dropped: entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)}`)
+  }
+  if (unresolvedCount > 0) {
+    console.warn(`fixAnnotationPositions: dropped ${unresolvedCount}/${annotations.length} annotation(s) as unplaceable`)
+  }
+  return { annotations: fixed, droppedCount: unresolvedCount }
 }
 
 function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entries: any[]; annotations: any[] } {
@@ -359,7 +402,7 @@ function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entr
     return { ...a, entry_id: targetId }
   })
 
-  annots = fixAnnotationPositions(deduped, annots)
+  annots = fixAnnotationPositions(deduped, annots).annotations
 
   const entryIds = new Set(deduped.map((e) => e.id))
   annots = annots.filter((a) => entryIds.has(a.entry_id))
@@ -520,7 +563,7 @@ async function extractContent(
 // not just a prompt instruction, drops any annotation landing outside this
 // batch's own range, since model compliance with "don't annotate context"
 // isn't guaranteed.
-async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?: { min: number; max: number }): Promise<any[]> {
+async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?: { min: number; max: number }): Promise<{ annotations: any[]; droppedCount: number }> {
   const proofreadResult = await callGemini(
     `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`,
     null,
@@ -543,7 +586,8 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     status: 'open',
   }))
 
-  annots = fixAnnotationPositions(entries, annots)
+  const { annotations: repaired, droppedCount } = fixAnnotationPositions(entries, annots)
+  annots = repaired
 
   const entryIds = new Set(entries.map((e: any) => e.id))
   annots = annots.filter((a: any) => entryIds.has(a.entry_id))
@@ -562,7 +606,7 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
   })
   annots.forEach((a: any, i: number) => { a.id = i + 1 })
 
-  return annots
+  return { annotations: annots, droppedCount }
 }
 
 // Merges N extraction chunk files for one transcript file into a single
@@ -989,6 +1033,7 @@ Deno.serve(async (req: Request) => {
         const { data: extractedFiles } = await admin.storage.from('case-files').list(extractedDir)
         let totalEntries = 0
         let totalIssues = 0
+        let totalDropped = 0
         const byType: Record<string, number> = {}
         for (const f of extractedFiles || []) {
           const { data: blob } = await admin.storage.from('case-files').download(`${extractedDir}/${f.name}`)
@@ -996,6 +1041,7 @@ Deno.serve(async (req: Request) => {
           const finalJson = JSON.parse(await blob.text())
           totalEntries += (finalJson.entries || []).length
           totalIssues += (finalJson.annotations || []).length
+          totalDropped += finalJson.dropped_annotations_count || 0
           const fileByType = countByType(finalJson.annotations || [])
           for (const [k, v] of Object.entries(fileByType)) byType[k] = (byType[k] || 0) + (v as number)
         }
@@ -1008,6 +1054,7 @@ Deno.serve(async (req: Request) => {
           ignored: 0,
           open: totalIssues,
           annotations_by_type: byType,
+          dropped_annotations_count: totalDropped,
           last_reviewed_at: new Date().toISOString(),
         }, { onConflict: 'case_id' })
 
@@ -1061,6 +1108,7 @@ Deno.serve(async (req: Request) => {
     const work = (async () => {
       try {
         let allAnnotations: any[] = []
+        let droppedAnnotationsCount = 0
         const batchPaths: string[] = []
         for (let i = 0; i < numBatches; i++) {
           const p = `${extractingDir}/${jsonBaseName}_annotations_batch${i}.json`
@@ -1069,6 +1117,7 @@ Deno.serve(async (req: Request) => {
           if (error || !blob) throw new Error(`Missing annotation batch ${i} for ${jsonBaseName} during merge`)
           const batchResult = JSON.parse(await blob.text())
           allAnnotations.push(...(batchResult.annotations || []))
+          droppedAnnotationsCount += batchResult.droppedCount || 0
         }
 
         // Final cross-batch safety net: the annotation-range-guard in
@@ -1090,6 +1139,7 @@ Deno.serve(async (req: Request) => {
           extracted_at: new Date().toISOString(),
           entries,
           annotations: allAnnotations,
+          dropped_annotations_count: droppedAnnotationsCount,
         }
         if (originalText !== undefined) finalJson.originalText = originalText
 
@@ -1152,8 +1202,8 @@ Deno.serve(async (req: Request) => {
       const batchEntries = entries.slice(contextStart, batchEnd)
       const rangeGuard = numBatches > 1 ? { min: entries[batchStart].id, max: entries[batchEnd - 1].id } : undefined
 
-      const annotations = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
-      const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations }, null, 2))
+      const { annotations, droppedCount } = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
+      const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations, droppedCount }, null, 2))
       const { error: upErr } = await admin.storage.from('case-files').upload(batchPath, batchBytes, { upsert: true, contentType: 'application/json' })
       if (upErr) throw new Error(`Failed to save annotation batch ${batchIndex} for ${jsonBaseName}: ${upErr.message}`)
 

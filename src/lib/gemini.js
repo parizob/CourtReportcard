@@ -383,26 +383,68 @@ export function applyCorrection(text, original, suggestion) {
   return applyCorrectionDetailed(text, original, suggestion).text
 }
 
+// How far (in entry id, which tracks document order) to look for a
+// mis-tagged annotation's real home before treating it as a document-wide
+// search. Chosen to comfortably cover an off-by-a-few slip within a single
+// proofread batch without being so wide it starts finding coincidental
+// matches from unrelated parts of the document. Mirrored in
+// supabase/functions/analyze-case/index.ts.
+const ANNOTATION_REPAIR_WINDOW = 15
+
 export function fixAnnotationPositions(entries, annotations) {
-  return annotations.map((a) => {
-    if (!a.original) return a
+  const fixed = []
+  let unresolvedCount = 0
+  for (const a of annotations) {
+    if (!a.original) { fixed.push(a); continue }
 
     // Try the referenced entry first
     const entry = entries.find((e) => e.id === a.entry_id)
     if (entry) {
       const m = flexFind(entry.text, a.original)
-      if (m) return { ...a, start: m.start, end: m.end }
+      if (m) { fixed.push({ ...a, start: m.start, end: m.end }); continue }
     }
 
-    // Text not found in referenced entry — search ALL entries and reassign
-    for (const e of entries) {
-      if (e.id === a.entry_id) continue
-      const m = flexFind(e.text, a.original)
-      if (m) return { ...a, entry_id: e.id, start: m.start, end: m.end }
+    // The model occasionally attaches an otherwise-correct annotation to the
+    // wrong entry_id — in practice almost always a small numbering slip
+    // (off by a handful), not a random jump to an unrelated part of the
+    // document. So: look nearby first, since that's the far more likely
+    // real target, and only widen to a full document search if nothing
+    // nearby matches. At every tier, only trust a reassignment when it's
+    // unique — for common short words (the usual offenders: "on", "any",
+    // "same"), a document-wide search alone would happily "confirm" a match
+    // at the very first occurrence (usually the opening appearances/
+    // admonition section), silently relocating a real correction onto an
+    // unrelated sentence with an explanation that no longer matches what's
+    // displayed.
+    const candidates = entries.filter((e) => e.id !== a.entry_id)
+    const nearby = candidates.filter((e) => Math.abs(e.id - a.entry_id) <= ANNOTATION_REPAIR_WINDOW)
+    const nearMatches = nearby.map((e) => ({ entry: e, m: flexFind(e.text, a.original) })).filter((r) => r.m)
+    if (nearMatches.length === 1) {
+      const { entry: e, m } = nearMatches[0]
+      fixed.push({ ...a, entry_id: e.id, start: m.start, end: m.end })
+      continue
     }
-
-    return a
-  })
+    if (nearMatches.length === 0) {
+      const far = candidates.filter((e) => Math.abs(e.id - a.entry_id) > ANNOTATION_REPAIR_WINDOW)
+      const farMatches = far.map((e) => ({ entry: e, m: flexFind(e.text, a.original) })).filter((r) => r.m)
+      if (farMatches.length === 1) {
+        const { entry: e, m } = farMatches[0]
+        fixed.push({ ...a, entry_id: e.id, start: m.start, end: m.end })
+        continue
+      }
+    }
+    // Nothing nearby, or genuinely ambiguous (multiple equally-plausible
+    // matches) even after widening — there's no reliable signal left to
+    // place this correctly, and a wrong guess is worse than no annotation.
+    // Logged (not silent) so we can see how often this residual case
+    // actually happens and revisit if it's more than rare.
+    unresolvedCount++
+    console.warn(`Unplaceable annotation dropped: entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)}`)
+  }
+  if (unresolvedCount > 0) {
+    console.warn(`fixAnnotationPositions: dropped ${unresolvedCount}/${annotations.length} annotation(s) as unplaceable`)
+  }
+  return fixed
 }
 
 /**
@@ -755,6 +797,7 @@ RULES:
 - "context" type annotations where the speaker may have genuinely said that word MUST use severity "warning" and the [sic] suggestion format.
 - The "original" field MUST be the EXACT string from the entry text, character for character. This is how the UI locates the error. If it is not exact, the highlight will fail.
 - The "original" field must be a COMPLETE standalone word or phrase — never a substring of a longer word, and never a bare pronoun extracted from a larger grammatical error (use the full containing phrase instead).
+- UNIQUE LOCATABILITY FOR COMMON WORDS: If the flagged word or phrase is a common word likely to appear more than once in this transcript (an article, preposition, pronoun, conjunction, or other short function word — "on", "any", "same", "the", "it", "that", etc.), the "original" field must include enough surrounding words to make this specific occurrence unique, not just the bare word alone. Example: instead of original "same", use original "give you the same courtesy". This does not apply to rare or distinctive words/phrases that are unlikely to repeat elsewhere in the transcript.
 - Do NOT flag "pled" as an error. "Pled" is a fully accepted U.S. legal past tense of "plead" (alongside "pleaded") and appears routinely in court transcripts. Flagging it as incorrect is a false positive.
 - Do NOT flag "any" as a potential "an" error. "Any" (determiner meaning "some" or "every") and "an" (indefinite article) are completely different words with different grammatical functions. They are not interchangeable and phonetic similarity is not grounds for flagging.
 - Do NOT flag "on" as a potential "an" error. These are different parts of speech. In particular, "on behalf of" is a fixed standard legal phrase meaning "representing" — it is always correct and must never be flagged.
@@ -792,6 +835,7 @@ RULES:
 - Skip entries with speaker labels: "CAPTION", "INDEX", "CERTIFICATE", "EXHIBITS", "HEADING" — proofread testimony only.
 - For entries labeled "APPEARANCES": do NOT annotate anything within the appearances block itself. Instead, read it to extract all proper nouns — attorney names, party names, firm names. Then, if any of those names appear spelled inconsistently anywhere in the testimony entries, flag the testimony entry. Annotate on the testimony entry only, never on the appearances entry itself.
 - Each annotation must reference the entry_id of the entry containing the error.
+- VERIFY ENTRY_ID BEFORE OUTPUT: Before including any annotation, confirm the "original" text is verbatim present in the specific entry cited as "entry_id" — not merely present somewhere else in the transcript. If your explanation references another entry as supporting context (e.g., "based on how the witness answered in an earlier entry"), "entry_id" must still be the entry where the error itself physically appears, never the context entry you're citing for reasoning. If you cannot verify the flagged text is actually in the entry you're citing, correct "entry_id" to the right entry or do not output the annotation.
 - Do NOT return an empty annotations array if there are errors. If you find zero errors, that is acceptable only if the transcript is genuinely clean.
 
 OUTPUT — respond with ONLY a valid JSON object, no prose before or after:
