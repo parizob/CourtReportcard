@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fixAnnotationPositions, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
 import { countByType } from '../../lib/annotationStats'
 import Tooltip from '../../components/Tooltip'
 
@@ -116,7 +116,9 @@ export default function DashboardEditor() {
         const { entries: dedupedEntries, annotations: dedupedAnnotations } =
           deduplicateTranscript(parsed.entries || [], parsed.annotations || [])
 
-        const fixedAnnotations = fixAnnotationPositions(dedupedEntries, dedupedAnnotations)
+        // Filtered at load time too (not just at analysis time) so cases
+        // processed before this fix existed also get cleaned up on open.
+        const fixedAnnotations = filterPhantomFixes(dedupedEntries, fixAnnotationPositions(dedupedEntries, dedupedAnnotations))
         setTitle(parsed.title || '')
         setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)

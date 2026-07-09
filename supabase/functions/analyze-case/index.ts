@@ -373,6 +373,56 @@ function fixAnnotationPositions(entries: any[], annotations: any[]): { annotatio
   return { annotations: fixed, droppedCount: unresolvedCount }
 }
 
+// Catches "phantom" annotations the model occasionally produces where the
+// claimed error doesn't actually exist in the entry text — these are
+// code-detectable bugs (a deterministic string comparison proves them
+// wrong), not proofreading judgment calls, so they're filtered here rather
+// than left to a prompt instruction the model might not reliably follow.
+// Real production case (user: Misty, 2026-07-09): the model flagged a
+// missing "?" on a sentence that already ended in "?" (suggestion was
+// original text + the mark that was already there), and separately
+// suggested "capitalizing" words that were already capitalized (suggestion
+// identical to original). Mirrored in src/lib/gemini.js.
+function filterPhantomFixes(entries: any[], annotations: any[]): { annotations: any[]; droppedCount: number } {
+  const filtered: any[] = []
+  let droppedCount = 0
+  for (const a of annotations) {
+    if (!a.original || !a.suggestion) { filtered.push(a); continue }
+
+    // A real correction can never suggest the exact text that's already there.
+    if (a.suggestion === a.original) {
+      droppedCount++
+      console.warn(`Phantom fix dropped (no-op suggestion): entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)}`)
+      continue
+    }
+
+    // Phantom missing trailing punctuation: suggestion is original + exactly
+    // one trailing mark, but that same mark already immediately follows the
+    // match in the real entry text (only whitespace, if anything, between them).
+    const trailingChar = a.suggestion[a.suggestion.length - 1]
+    const isSingleTrailingMarkAddition =
+      a.suggestion.length === a.original.length + 1 &&
+      a.suggestion.startsWith(a.original) &&
+      /[.,!?;:]/.test(trailingChar)
+    if (isSingleTrailingMarkAddition) {
+      const entry = entries.find((e) => e.id === a.entry_id)
+      const m = entry ? flexFind(entry.text, a.original) : null
+      const next = m ? entry.text.slice(m.end).match(/^\s*(\S)/) : null
+      if (next && next[1] === trailingChar) {
+        droppedCount++
+        console.warn(`Phantom fix dropped (mark already present): entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)} suggestion=${JSON.stringify(a.suggestion)}`)
+        continue
+      }
+    }
+
+    filtered.push(a)
+  }
+  if (droppedCount > 0) {
+    console.warn(`filterPhantomFixes: dropped ${droppedCount}/${annotations.length} phantom annotation(s)`)
+  }
+  return { annotations: filtered, droppedCount }
+}
+
 function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entries: any[]; annotations: any[] } {
   const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
   const entryKeyMap: Record<string, number> = {}
@@ -586,8 +636,10 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     status: 'open',
   }))
 
-  const { annotations: repaired, droppedCount } = fixAnnotationPositions(entries, annots)
-  annots = repaired
+  const { annotations: repaired, droppedCount: unplaceableCount } = fixAnnotationPositions(entries, annots)
+  const { annotations: real, droppedCount: phantomCount } = filterPhantomFixes(entries, repaired)
+  annots = real
+  const droppedCount = unplaceableCount + phantomCount
 
   const entryIds = new Set(entries.map((e: any) => e.id))
   annots = annots.filter((a: any) => entryIds.has(a.entry_id))

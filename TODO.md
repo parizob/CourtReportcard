@@ -21,6 +21,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page offering a legal/medical homophone & commonly-confused-word reference sheet (not a "how to proofread" checklist — Zoe's feedback is reporters won't use that, they already know how to edit), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Send NCRA cold emails — add `?ref=email1` to the URL and ensure telemetry captures it in the `referrer` column of `telemetry_events`
+- [ ] Let users know that if they submit a bug report or enhancement request that we actually implement, we'll give them 100 tokens — need a way to collect submissions and track which ones shipped so we know who to credit
 
 ## Backlog
 

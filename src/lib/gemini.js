@@ -455,6 +455,56 @@ export function fixAnnotationPositions(entries, annotations) {
   return fixed
 }
 
+// Catches "phantom" annotations the model occasionally produces where the
+// claimed error doesn't actually exist in the entry text — these are
+// code-detectable bugs (a deterministic string comparison proves them
+// wrong), not proofreading judgment calls, so they're filtered here rather
+// than left to a prompt instruction the model might not reliably follow.
+// Real production case (user: Misty, 2026-07-09): the model flagged a
+// missing "?" on a sentence that already ended in "?" (suggestion was
+// original text + the mark that was already there), and separately
+// suggested "capitalizing" words that were already capitalized (suggestion
+// identical to original). Mirrored in supabase/functions/analyze-case/index.ts.
+export function filterPhantomFixes(entries, annotations) {
+  const filtered = []
+  let droppedCount = 0
+  for (const a of annotations) {
+    if (!a.original || !a.suggestion) { filtered.push(a); continue }
+
+    // A real correction can never suggest the exact text that's already there.
+    if (a.suggestion === a.original) {
+      droppedCount++
+      console.warn(`Phantom fix dropped (no-op suggestion): entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)}`)
+      continue
+    }
+
+    // Phantom missing trailing punctuation: suggestion is original + exactly
+    // one trailing mark, but that same mark already immediately follows the
+    // match in the real entry text (only whitespace, if anything, between them).
+    const trailingChar = a.suggestion[a.suggestion.length - 1]
+    const isSingleTrailingMarkAddition =
+      a.suggestion.length === a.original.length + 1 &&
+      a.suggestion.startsWith(a.original) &&
+      /[.,!?;:]/.test(trailingChar)
+    if (isSingleTrailingMarkAddition) {
+      const entry = entries.find((e) => e.id === a.entry_id)
+      const m = entry ? flexFind(entry.text, a.original) : null
+      const next = m ? entry.text.slice(m.end).match(/^\s*(\S)/) : null
+      if (next && next[1] === trailingChar) {
+        droppedCount++
+        console.warn(`Phantom fix dropped (mark already present): entry_id=${a.entry_id} type=${a.type} original=${JSON.stringify(a.original)} suggestion=${JSON.stringify(a.suggestion)}`)
+        continue
+      }
+    }
+
+    filtered.push(a)
+  }
+  if (droppedCount > 0) {
+    console.warn(`filterPhantomFixes: dropped ${droppedCount}/${annotations.length} phantom annotation(s)`)
+  }
+  return filtered
+}
+
 /**
  * Deduplicates entries by normalized speaker+text.
  * Remaps all annotations from removed duplicates to the surviving entry.
@@ -942,6 +992,7 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
 
   // Fix entry_ids by searching for original text across all entries BEFORE filtering
   annots = fixAnnotationPositions(entries, annots)
+  annots = filterPhantomFixes(entries, annots)
 
   // Now filter to valid entries and dedup annotations
   const entryIds = new Set(entries.map((e) => e.id))

@@ -17,6 +17,93 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-07-09 — Verify punctuation/capitalization is actually wrong before flagging — PART 1 APPLIED
+
+**Not from a test-harness run — from a real production case.** A user
+(Misty) reported: "It sometimes didn't pick up on my punctuation. It would
+suggest a question mark and there already was a question mark there. A
+couple other times it suggested capitalization and it already was
+capitalized." Confirmed against the actual extracted JSON for her case
+("Kluge MTS 11 18 25") — two distinct, reproducible bugs, not reviewer
+pickiness:
+
+**Bug 1 — phantom missing question mark.** Two annotations
+(`entry_id` 113, 117) flagged text as missing a "?" when the full entry text
+already ends in one:
+- `original: "Number 1"` → `suggestion: "Number 1?"`, but entry 113's actual
+  text is `...offered into evidence as State's Exhibit Number 1?`
+- `original: "rights"` → `suggestion: "rights?"`, but entry 117's actual text
+  is `...advise her of her Miranda rights?`
+
+Both explanations correctly identify the sentence as a question — the model
+isn't confused about grammar, it's just not checking whether the mark it
+thinks is missing is actually sitting one character past the text span it
+chose to flag.
+
+**Bug 2 — no-op capitalization "fix."** Two annotations (`entry_id` 346)
+suggest a capitalization change where `suggestion` is character-for-character
+identical to `original`, on words already capitalized in the source:
+- `original: "Investigation"` → `suggestion: "Investigation"` (source:
+  `...Southern Police Institute Homicide Investigation.`)
+- `original: "School"` → `suggestion: "School"` (source: `Crime Scene
+  School.`)
+
+**Root cause (both bugs):** nothing in the prompt currently requires the
+model to verify, right before output, that (a) a punctuation mark it's about
+to claim is missing doesn't already immediately follow the flagged text, or
+(b) a capitalization suggestion actually differs from the original text. The
+existing "VERIFY ENTRY_ID BEFORE OUTPUT" rule (added 2026-07-08) only checks
+*location*, not whether the claimed error is real.
+
+**Proposed fix — two parts:**
+
+1. **Code-level guard (structural, not a prompt/judgment issue — same class
+   of fix as `fixAnnotationPositions`'s position repair).** Filter out any
+   annotation where `suggestion === original` (exact string match) before
+   it's ever shown to the user. This is a deterministic, zero-risk backstop
+   for Bug 2 specifically — it can't reject a legitimate correction, since a
+   legitimate correction by definition changes the text. Applies to both
+   `supabase/functions/analyze-case/index.ts` and `src/lib/gemini.js`
+   (mirrored, same convention as `fixAnnotationPositions`).
+2. **Prompt addition (needs sign-off) — extends the existing "VERIFY
+   ENTRY_ID BEFORE OUTPUT" rule with a sibling rule:**
+   ```
+   - VERIFY THE ERROR IS REAL BEFORE OUTPUT: Before including any annotation, confirm the error you are flagging actually exists in the entry text as written. For a "missing punctuation mark" claim specifically, check whether that exact mark already appears immediately after the flagged text in the entry — if it does, the mark is not missing and no annotation should be output. For any claim, if your "suggestion" would be identical to "original", the error is not real and no annotation should be output.
+   ```
+   (The second sentence overlaps with the code-level guard above by design —
+   redundant defense in depth, catching the case at the source rather than
+   relying solely on post-processing.)
+
+**Validation plan:** baseline full 5-transcript set, 3 runs, before editing
+(the existing hard-tier transcripts don't currently include a
+"question already correctly punctuated" or "word already correctly
+capitalized" false-positive trap — worth adding one of each as a permanent
+regression check regardless of the prompt change, since this bug could
+recur silently otherwise). Apply the code-level guard first (independent,
+no sign-off needed, ships regardless). Apply the prompt addition to
+`prompts.ts` and `gemini.js` identically only after sign-off, then re-run
+the full set 3x and compare recall/false-positives before/after.
+
+Status: **Part 1 (code-level guard, `filterPhantomFixes`) applied 2026-07-09** in
+`supabase/functions/analyze-case/index.ts`, `src/lib/gemini.js`, and
+`src/pages/dashboard/DashboardEditor.jsx` (the editor re-runs the same
+post-processing on every case load, so this also retroactively cleans up
+already-stored cases — including Misty's — without needing to re-run
+Gemini). Verified directly against the exact patterns from Misty's case
+(reproduced both bugs from her real `entry_id`/`original`/`suggestion`
+values and confirmed all four are dropped while a genuine missing-period
+annotation on an unrelated entry is kept). Ran the full 5-transcript harness
+once after the change: 32/35 (91%) recall, 2 false positives — both
+legitimate, non-seeded suggestions unrelated to this bug (not a regression;
+consistent with prior baseline runs).
+
+Part 2 (prompt addition) **not applied** — user opted for the code-level
+guard alone rather than adding prompt-side self-verification on top of it,
+since the guard already catches these patterns deterministically with no
+risk of rejecting a real correction.
+
+---
+
 ### Rule: 2026-07-08 — Unique locatability + entry_id self-verification — PROPOSED, awaiting sign-off
 
 **Not from a test-harness run — from a real production case.** A user
