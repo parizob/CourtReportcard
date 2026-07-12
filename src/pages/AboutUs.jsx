@@ -8,7 +8,7 @@ const stats = [
   { value: '98%', label: 'Avg. accuracy on first pass' },
   { value: '100×', label: 'Faster than manual review' },
   { value: '80%', label: 'Reduction in correction costs' },
-  { value: '< 2 min', label: 'Average time to first results' },
+  { value: '< 5 min', label: 'Average time to first results' },
 ]
 
 const pillars = [
@@ -31,7 +31,7 @@ const pillars = [
     title: 'Everything in One Place',
     color: 'bg-primary-fixed/30 text-primary',
     accent: 'border-primary-fixed-dim',
-    body: 'Upload transcripts and audio, review flagged errors, accept corrections, and export certified-ready documents — all inside a single dashboard. No more juggling email threads, shared drives, and third-party tools. Your case history is searchable and always accessible.',
+    body: 'Upload transcripts, review flagged errors, accept corrections, and export certified-ready documents — all inside a single dashboard. No more juggling email threads, shared drives, and third-party tools. Your case history is searchable and always accessible.',
   },
 ]
 
@@ -105,7 +105,7 @@ export default function AboutUs() {
               deserve better
             </h1>
             <p className="text-base sm:text-xl text-on-surface-variant leading-relaxed max-w-2xl">
-              My wife is a veteran stenographer. Watching her spend as many hours reviewing a transcript as she did recording it — under deadline, alone — made one thing clear: the work was consequential and the tools hadn't kept up. We couldn't walk away from that.
+              Court reporters can spend just as many hours reviewing a transcript under deadline as they did recording it. This made one thing clear: the work is consequential, but the technology hasn't kept up. We decided to fix that.
             </p>
           </div>
 
@@ -155,7 +155,7 @@ export default function AboutUs() {
                   <div className="w-0.5 h-3 bg-primary/60" />
                   {[
                     { icon: 'upload_file',  label: 'Upload transcript', sub: '30 seconds' },
-                    { icon: 'auto_fix_high', label: 'Errors detected',   sub: '< 2 minutes' },
+                    { icon: 'auto_fix_high', label: 'Errors detected',   sub: '< 5 minutes' },
                     { icon: 'task_alt',     label: 'Accept & export',    sub: 'Cents per page' },
                   ].map((step) => (
                     <div key={step.label} className="w-full">
@@ -227,13 +227,16 @@ export default function AboutUs() {
               Why we built this
             </h2>
             <p className="text-base text-on-surface-variant leading-relaxed mb-5">
-              Court reporting is one of the last skilled professions that the modern software industry largely ignored. These reporters sit in high-pressure rooms — depositions, trials, grand juries — capturing every spoken word verbatim. A single missed phrase can affect a case outcome.
+              Court reporting is one of the last skilled professions that the modern software industry has largely ignored. Reporters sit in high-pressure rooms, including depositions, trials, and grand juries, capturing every spoken word verbatim. A single missed phrase can alter the outcome of a case.
             </p>
             <p className="text-base text-on-surface-variant leading-relaxed mb-5">
-              After watching how long post-session review actually takes, and hearing the anxiety around certification deadlines, we became convinced: this problem is solvable with the right technology.
+              After watching how long post-session review actually takes and hearing the anxiety around certification deadlines, we became convinced that this problem is solvable with the right technology.
+            </p>
+            <p className="text-base text-on-surface-variant leading-relaxed mb-5">
+              Court Reportcard was built with deep respect for the craft. We do not try to replace the reporter. Instead, we remove the tedious bottleneck of proofreading so they can focus on what only a skilled human can do: guarantee absolute accuracy under oath.
             </p>
             <p className="text-base text-on-surface-variant leading-relaxed">
-              Court Reportcard was built with deep respect for the craft. We don't try to replace the reporter — we remove the tedium so they can focus on what only a skilled human can do: guarantee accuracy under oath.
+              We believe that providing better technology does not mean changing the art of stenography; it means protecting the reporter's time. By streamlining the backend editing process, we are helping professionals scale their businesses, hit impossible deadlines with confidence, and finally reclaim their weekends.
             </p>
 
             <div className="mt-10 flex flex-wrap gap-4">

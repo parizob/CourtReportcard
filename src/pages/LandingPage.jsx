@@ -46,8 +46,8 @@ export default function LandingPage() {
                 </div>
                 <span className="text-outline-variant/30 text-xs select-none">|</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">credit_card_off</span>
-                  <span className="text-xs text-on-surface-variant/60">No credit card</span>
+                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">money_off</span>
+                  <span className="text-xs text-on-surface-variant/60">Free during beta</span>
                 </div>
                 <span className="text-outline-variant/30 text-xs select-none">|</span>
                 <div className="flex items-center gap-1.5">
@@ -134,7 +134,7 @@ export default function LandingPage() {
         {/* Testimonials — scrolling marquee */}
         <section className="py-14 sm:py-20 bg-primary/5 overflow-hidden">
           <div className="text-center mb-10 sm:mb-12 px-6">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">From working reporters</span>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Early feedback from real reporters</span>
           </div>
           {(() => {
             const reviews = [
@@ -163,6 +163,30 @@ export default function LandingPage() {
               </div>
             )
           })()}
+        </section>
+
+        {/* Founder Story Section */}
+        <section className="py-14 sm:py-20 px-6 sm:px-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 sm:p-12">
+              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
+                <div className="shrink-0 w-16 sm:w-20 flex justify-center sm:justify-start">
+                  <span className="font-headline font-black text-7xl sm:text-8xl text-primary/15 leading-none select-none">&ldquo;</span>
+                </div>
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3 block">Why We Built This</span>
+                  <p className="text-lg sm:text-xl text-on-surface leading-relaxed mb-4">
+                    My wife is a veteran stenographer. I watched her spend as many hours proofreading a transcript as she did recording it — alone, under deadline, with no second set of eyes available. That's the problem Court Reportcard was built to solve.
+                  </p>
+                  <p className="text-sm font-bold text-on-surface-variant mb-5">— Brandon, Founder</p>
+                  <Link to="/aboutus" className="group text-primary font-bold text-sm inline-flex items-center gap-1">
+                    <span className="group-hover:underline">Read our full story</span>
+                    <span className="material-symbols-outlined text-base transition-transform group-hover:translate-x-1">arrow_forward</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* How It Works Section */}

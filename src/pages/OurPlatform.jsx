@@ -20,8 +20,8 @@ const callouts = [
   },
   {
     n: 4,
-    title: 'Confidence Score Per Page',
-    body: 'Each page is scored by the model\'s certainty across every word it processed. Pages below 95% surface first. You know immediately where the risk is.',
+    title: 'Confidence Score Per Item',
+    body: 'Each item is scored by the model\'s certainty across every word it processed. You know immediately where the risk is.',
   },
   {
     n: 5,
@@ -33,7 +33,7 @@ const callouts = [
 const stats = [
   {
     metric: '< 5 min',
-    label: 'to analyze a 200-page deposition',
+    label: 'to analyze a 100-page deposition',
     sub: 'A human scopist averages 6–8 hours for the same file.',
   },
   {
@@ -68,7 +68,7 @@ export default function OurPlatform() {
               The fastest way to proofread<br className="hidden sm:block"/>a court transcript. By far.
             </h1>
             <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              A 200-page deposition that takes an experienced scopist six hours takes Court Reportcard just minutes — at a fraction of the cost, with nothing missed.
+              A 100-page deposition that takes an experienced scopist six hours takes Court Reportcard just minutes — at a fraction of the cost, with nothing missed.
             </p>
           </div>
         </section>
@@ -232,7 +232,7 @@ export default function OurPlatform() {
                 <h3 className="font-headline font-bold text-lg text-on-primary mb-3">After Court Reportcard</h3>
                 <ul className="space-y-2.5 text-sm text-on-primary-container/90">
                   {[
-                    'Minutes, not hours, to surface every issue in a transcript',
+                    'Minutes to surface every issue in a transcript',
                     'Every word evaluated — no fatigue, no off days',
                     'Full audit trail exported with every transcript',
                     'Turnaround measured in minutes',
