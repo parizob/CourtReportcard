@@ -256,6 +256,13 @@ export default function LandingPage() {
                     <p className="text-on-primary-container text-sm">Every flagged item gets a confidence score so you know exactly where to focus your review.</p>
                   </div>
                 </div>
+                <div className="flex gap-4">
+                  <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
+                  <div>
+                    <h4 className="text-on-primary font-bold">Same-Day Ready</h4>
+                    <p className="text-on-primary-container text-sm">Fast enough to check a same-day rough draft before it ships, something a scopist rarely has time for.</p>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="lg:w-1/2 bg-surface-container-high relative min-h-[400px]">
@@ -282,7 +289,7 @@ export default function LandingPage() {
               Designed for stenographers, scopists, and voice writers.
             </h2>
             <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
-              Upload a .txt or .rtf transcript from any CAT software and receive a full annotation report — covering steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes — in under five minutes. Trusted by court reporters reviewing depositions, hearings, and trials.
+              Tuned to the errors that actually show up in legal transcripts: steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes. Trusted by court reporters reviewing depositions, hearings, and trials.
             </p>
           </div>
         </section>
