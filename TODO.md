@@ -25,8 +25,6 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 ### Marketing / Growth (CMO review, 2026-07-11)
 
 - [ ] Get real, attributable testimonials for the landing page marquee (full name + title/firm, ideally photo) — current quotes (Christina C., Zoe Z., etc.) read as unverifiable placeholder copy, which hurts trust more than it helps with a legal-adjacent, risk-averse audience
-- [ ] Publish a pricing page/section — site says "token-based, 1 token = 1 page, no monthly subscription" but never states what a token costs after the 100 free signup tokens run out; hiding price past the free tier is a common self-serve signup killer
-- [ ] Surface the founder story on the homepage — the "wife is a veteran stenographer" narrative (currently only on About Us) is the strongest differentiator/trust signal on the site, and most visitors never click through to see it
 - [ ] Link the orphaned `marketing/guides/transcript-proofing-checklist` guide from the site — it's not referenced anywhere in nav/footer/pages currently, so it's driving zero traffic despite being built
 - [ ] Add a lower-commitment conversion path for visitors not ready to create an account — e.g. a demo video or an interactive sample annotation report — since every current CTA requires signup
 - [ ] Revisit the "Early Access — Now Open" hero badge once there's real social proof/traction to replace it with — fine for now, but reads as "still not launched" as traffic grows
@@ -35,12 +33,14 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Backlog
 
+- [ ] Publish a pricing page/section — site says "token-based, 1 token = 1 page, no monthly subscription" but never states what a token costs after the 100 free signup tokens run out; hiding price past the free tier is a common self-serve signup killer. Deferred until there's a real paid product to price (no billing infra yet — see Parizo Labs LLC item)
 - [ ] Identify addresses in documents and hook up a tool to look up/verify they're correct
 - [ ] Allow stenographers to upload their dictionaries so we can extract proper nouns/party names/technical jargon as a per-user glossary — no steno/stroke data available to us, so this can't verify translation accuracy, but it can (1) suppress false-positive spelling flags on legit unusual terms and (2) catch real inconsistent-spelling errors of those terms across a transcript. Will need to filter dictionary exports down to "interesting" entries (proper nouns, rare/technical words) rather than ingest the whole file, since most entries are just common briefs
 - [ ] Completeness checklist: flag if standard sections (certificate page, appearances, index) or notations (recess, off-the-record) seem to be missing from an upload — raised by Veronica
 
 ## Done
 
+- [x] Surfaced the founder story on the homepage — added a "Why We Built This" section to `LandingPage.jsx` between the testimonials marquee and "How It Works," with a short pull-quote ("My wife is a veteran stenographer...") linking through to the full story on About Us, so the site's strongest trust signal no longer requires a second click to see
 - [x] Decided the "no AI wording" policy extends to hidden schema/meta content, not just visible copy — `index.html`'s Organization/SoftwareApplication/WebSite schema descriptions and its FAQPage JSON-LD answers get surfaced verbatim in Google rich snippets and AI Overviews, so they function as reporter-facing copy even though they're never rendered on the page itself. `<meta name="keywords">` is exempt (invisible, algorithmic-only matching)
 - [x] Applied the AI-wording fix in `index.html`'s hidden JSON-LD — rewrote the Organization, SoftwareApplication, and WebSite schema `description` fields, the featureList item (now "Steno error detection"), and the FAQPage answers to Q1, Q2, Q5, and Q7 to drop "AI-powered"/"AI" language, matching the site's existing voice. FAQ *question* text was kept as-is on Q2/Q5 (matches real search queries) — only the answers changed. `<meta name="keywords">` was left untouched. `src/pages/Support.jsx`'s real visible FAQ was already compliant
 - [x] Manually validated chunking end-to-end on a 150+ page document — a real user uploaded a 212-page transcript in production and it completed successfully, confirming Phase 1 chunking works at scale beyond the earlier 50-page synthetic test

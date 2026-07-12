@@ -253,7 +253,7 @@ export default function LandingPage() {
                   <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
                   <div>
                     <h4 className="text-on-primary font-bold">Confidence Scoring</h4>
-                    <p className="text-on-primary-container text-sm">Every page gets a confidence score so you know exactly where to focus your review.</p>
+                    <p className="text-on-primary-container text-sm">Every flagged item gets a confidence score so you know exactly where to focus your review.</p>
                   </div>
                 </div>
               </div>
