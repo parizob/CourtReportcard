@@ -7,6 +7,7 @@ import SiteFooter from '../components/SiteFooter'
 const categories = [
   { value: 'general', label: 'General Question' },
   { value: 'billing', label: 'Billing & Plans' },
+  { value: 'tokens', label: 'Request More Tokens' },
   { value: 'technical', label: 'Technical Issue' },
   { value: 'transcript', label: 'Transcript / Upload Problem' },
   { value: 'export', label: 'Export or Formatting Issue' },
