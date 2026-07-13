@@ -278,23 +278,23 @@ export default function DashboardExport() {
   }
 
   return (
-    <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-start justify-center px-6 py-7">
+    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex items-start justify-center px-6 py-7">
       <div className="w-full max-w-2xl flex flex-col gap-4">
 
         {/* Header */}
-        <div className="shrink-0 flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        <div className="shrink-0 flex flex-col-reverse sm:flex-row items-start sm:justify-between gap-3 sm:gap-4">
+          <div className="min-w-0 w-full sm:w-auto">
             <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight truncate">{caseData.name}</h1>
             <p className="text-xs text-on-surface-variant mt-0.5">Download your reviewed transcript</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-1.5 border border-outline-variant/40 text-on-surface px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container transition-colors">
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 shrink-0">
+            <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-1.5 border border-outline-variant/40 text-on-surface px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container transition-colors sm:mr-1">
               <span className="material-symbols-outlined text-sm">edit_note</span>
               Editor
             </Link>
-            <Link to="/dashboard" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-              <span className="material-symbols-outlined text-sm">arrow_back</span>
-              Dashboard
+            <Link to="/dashboard" className="group flex items-center gap-1.5 text-xs font-bold text-primary">
+              <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">arrow_back</span>
+              <span className="group-hover:underline">Dashboard</span>
             </Link>
           </div>
         </div>
@@ -309,7 +309,7 @@ export default function DashboardExport() {
 
         {/* Review summary */}
         <div className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow p-4">
-          <div className="grid grid-cols-5 gap-3 mb-3">
+          <div className="grid grid-cols-5 gap-1 sm:gap-3 mb-3">
             {[
               { value: totalCount, label: 'Flagged', color: 'text-on-surface' },
               { value: acceptedCount, label: 'Accepted', color: 'text-green-600' },
@@ -319,7 +319,7 @@ export default function DashboardExport() {
             ].map((s) => (
               <div key={s.label} className="text-center">
                 <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
-                <p className="text-[9px] uppercase tracking-widest text-on-surface-variant mt-0.5">{s.label}</p>
+                <p className="text-[9px] uppercase tracking-wide sm:tracking-widest text-on-surface-variant mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
@@ -345,7 +345,7 @@ export default function DashboardExport() {
           {/* With line numbers */}
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">With Line Numbers</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">With Line<br className="sm:hidden" /> Numbers</p>
             </div>
             {[
               { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
@@ -363,7 +363,7 @@ export default function DashboardExport() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                  <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                  <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
                 </div>
                 <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   {exporting === format ? 'check_circle' : 'download'}
@@ -375,7 +375,7 @@ export default function DashboardExport() {
           {/* Without line numbers */}
           <div className="flex flex-col gap-2">
             <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Without Line Numbers</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Without Line<br className="sm:hidden" /> Numbers</p>
             </div>
             {[
               { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
@@ -393,7 +393,7 @@ export default function DashboardExport() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                  <p className="text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                  <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
                 </div>
                 <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   {exporting === format ? 'check_circle' : 'download'}
@@ -445,7 +445,7 @@ export default function DashboardExport() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-headline font-bold text-on-surface text-sm">Annotated Export <span className="text-on-surface-variant font-normal">(.json)</span></p>
-            <p className="text-[11px] text-on-surface-variant leading-snug">Full transcript with all annotations, corrections, and audit trail.</p>
+            <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug">Full transcript with all annotations, corrections, and audit trail.</p>
           </div>
           <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
             {exporting === 'json' ? 'check_circle' : 'download'}

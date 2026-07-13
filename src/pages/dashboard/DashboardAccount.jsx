@@ -60,11 +60,11 @@ export default function DashboardAccount() {
         )}
 
         {/* ─── Profile Card ─── */}
-        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 mb-8 relative">
-          {/* Token badge — top right */}
+        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 mb-8 sm:relative">
+          {/* Token badge — stacked above the name on mobile so it never overlaps it; top right on desktop */}
           <Link
             to="/dashboard/billing"
-            className="absolute top-6 right-6 flex items-center gap-2 bg-surface-container hover:bg-surface-container-high rounded-xl px-4 py-2.5 transition-colors group"
+            className="flex items-center gap-2 bg-surface-container hover:bg-surface-container-high rounded-xl px-4 py-2.5 transition-colors group w-fit mb-4 sm:mb-0 sm:absolute sm:top-6 sm:right-6"
           >
             <span className="material-symbols-outlined text-tertiary-fixed-dim text-lg">toll</span>
             <span className="text-xl font-extrabold text-on-surface">{tokenBalance ?? '—'}</span>
