@@ -24,6 +24,7 @@ export default function DashboardEditor() {
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
   const [legendOpen, setLegendOpen] = useState(false)
+  const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false)
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
@@ -697,11 +698,222 @@ export default function DashboardEditor() {
   }
 
   // ─── Editor view ───
+  // Shared between the desktop in-flow sidebar and the mobile portal-rendered
+  // drawer below, so both stay in sync without duplicating this JSX by hand.
+  const insightsPanel = (
+    <>
+      {/* Insights header */}
+      <div className="p-4 border-b border-outline-variant/10 bg-surface-container-low">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-headline font-bold text-on-surface flex items-center gap-2 text-base">
+            <span className="material-symbols-outlined text-tertiary-fixed-dim">auto_awesome</span>
+            Insights
+          </h2>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
+              {openAnnotations.length} TO REVIEW
+            </span>
+            <button
+              onClick={() => setMobileInsightsOpen(false)}
+              className="md:hidden w-6 h-6 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-on-surface-variant mt-1">Accept or ignore each suggestion below.</p>
+      </div>
+
+      {/* Annotation cards */}
+      <div className="p-4 space-y-4">
+        {openAnnotations.length === 0 && annotations.length > 0 && (
+          <div className="text-center py-6">
+            <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
+            <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>
+            <p className="text-xs text-on-surface-variant mb-4">Your transcript is ready. Save your changes and export.</p>
+            <Link to={`/dashboard/export?case=${caseId}`} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors">
+              Export Now
+            </Link>
+          </div>
+        )}
+
+        {openAnnotations.length === 0 && annotations.length === 0 && (
+          <div className="text-center py-6">
+            <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">verified</span>
+            <p className="font-bold text-on-surface mb-1">No Issues Found</p>
+            <p className="text-xs text-on-surface-variant">No errors found in this transcript.</p>
+          </div>
+        )}
+
+        {openAnnotations.map((ann) => (
+          <div key={ann.id} id={`ann-card-${ann.id}`} className={`relative p-4 rounded-lg ${severityCardBorder(ann.severity)}`}>
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              <Tooltip text="Jump to in transcript" placement="left">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById(`ann-highlight-${ann.id}`)
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xs">my_location</span>
+                </button>
+              </Tooltip>
+              <Tooltip text="Ignore suggestion" placement="left">
+                <button
+                  onClick={() => ignoreAnnotation(ann.id)}
+                  className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
+                >
+                  &times;
+                </button>
+              </Tooltip>
+            </div>
+            <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
+              <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
+              {typeLabel(ann.type)} &middot; {ann.severity}
+            </span>
+            <p className="text-sm font-medium mb-1">
+              Found <strong>&quot;{ann.original}&quot;</strong>
+            </p>
+            <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
+            {ann.confidence && (
+              <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
+            )}
+            <button
+              onClick={() => acceptAnnotation(ann.id)}
+              className={`w-full text-xs font-bold py-2 rounded transition-colors ${
+                ann.severity === 'critical'
+                  ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
+                  : 'bg-surface-container-lowest text-on-surface hover:shadow-sm'
+              }`}
+            >
+              Accept: &quot;{ann.suggestion}&quot;
+            </button>
+            <div className="mt-2 relative">
+              <input
+                type="text"
+                value={customTexts[ann.id] || ''}
+                onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                    acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                    setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                  }
+                }}
+                placeholder="Or enter your own correction…"
+                className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
+              />
+              {customTexts[ann.id]?.trim() && (
+                <button
+                  onClick={() => {
+                    acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                    setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                  title="Apply custom correction"
+                >
+                  <span className="material-symbols-outlined text-[11px]">check</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Resolved annotations */}
+      {resolvedAnnotations.length > 0 && (
+        <div className="border-t border-outline-variant/10">
+          <p className="px-4 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Resolved ({resolvedAnnotations.length})
+          </p>
+          <div className="px-4 pb-4 space-y-2">
+            {resolvedAnnotations.map((ann) => (
+              <button
+                key={ann.id}
+                id={`ann-card-${ann.id}`}
+                onClick={() => {
+                  const el = document.getElementById(`ann-highlight-${ann.id}`)
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+                className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-container group ${
+                  ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
+                }`}
+              >
+                <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
+                  {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {ann.status === 'accepted' ? (
+                    <p className="text-xs truncate">
+                      <span className="text-on-surface-variant line-through">{ann.original}</span>
+                      <span className="text-on-surface-variant mx-1">→</span>
+                      <span className="text-green-700 font-semibold">{ann.suggestion}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
+                  )}
+                </div>
+                <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">open_in_new</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Case details */}
+      <div className="px-4 py-4 border-t border-outline-variant/10">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Case Details</p>
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-on-surface-variant">Status</span>
+            <span className="font-semibold text-on-surface">{statusLabel(displayStatus)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-on-surface-variant">Uploaded</span>
+            <span className="font-semibold text-on-surface">
+              {caseData?.created_at && new Date(caseData.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-on-surface-variant shrink-0">Transcript</span>
+            <span className="font-semibold text-on-surface truncate min-w-0" title={transcriptFile?.file_name || ''}>{transcriptFile?.file_name || '—'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="px-4 pb-5 pt-4 border-t border-outline-variant/10 space-y-3">
+        <button
+          onClick={handleSave}
+          disabled={!hasChanges || saving}
+          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined text-base">save</span>
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+        <Link
+          to={`/dashboard/export?case=${caseId}`}
+          className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
+        >
+          <span className="material-symbols-outlined text-base">cloud_download</span>
+          Export This Case
+        </Link>
+        <Link
+          to="/dashboard"
+          className="w-full flex items-center justify-center gap-2 text-on-surface-variant text-sm font-medium hover:text-primary transition-colors py-2"
+        >
+          <span className="material-symbols-outlined text-base">arrow_back</span>
+          Back to Dashboard
+        </Link>
+      </div>
+    </>
+  )
+
   return (
     <main className="min-h-screen bg-background">
       {/* Header */}
       <div className="px-8 lg:px-12 pt-8 pb-6 max-w-6xl mx-auto">
-        <div className="flex items-end justify-between gap-6">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
               <span className="material-symbols-outlined text-sm text-primary">edit_note</span>
@@ -714,7 +926,7 @@ export default function DashboardEditor() {
               Review flagged issues, accept or ignore suggestions, and edit text directly. Save when you're done.
             </p>
           </div>
-          <div className="flex flex-col items-end gap-4 shrink-0">
+          <div className="flex flex-col items-start md:items-end gap-4 shrink-0">
             <div className="flex items-center gap-3">
               {hasChanges && (
                 <button onClick={handleRevert} className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-error transition-colors">
@@ -751,8 +963,8 @@ export default function DashboardEditor() {
               {legendOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setLegendOpen(false)} />
-                  <div className="absolute right-0 top-full mt-3 z-50 w-80 bg-surface-container-lowest border border-outline-variant/25 rounded-xl editorial-shadow">
-                    <div className="absolute -top-2 right-4 w-4 h-4 bg-surface-container-lowest border-l border-t border-outline-variant/25 rotate-45" />
+                  <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-0 top-full mt-3 z-50 w-[min(20rem,calc(100vw-2rem))] md:w-80 bg-surface-container-lowest border border-outline-variant/25 rounded-xl editorial-shadow">
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-4 w-4 h-4 bg-surface-container-lowest border-l border-t border-outline-variant/25 rotate-45" />
                     <div className="p-4">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">How to read this transcript</p>
 
@@ -1150,207 +1362,46 @@ export default function DashboardEditor() {
           )}
         </section>
 
-        {/* Sidebar */}
-        <aside className="w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
-
-          {/* Insights header */}
-          <div className="p-4 border-b border-outline-variant/10 bg-surface-container-low">
-            <div className="flex items-center justify-between">
-              <h2 className="font-headline font-bold text-on-surface flex items-center gap-2 text-base">
-                <span className="material-symbols-outlined text-tertiary-fixed-dim">auto_awesome</span>
-                Insights
-              </h2>
-              <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-                {openAnnotations.length} TO REVIEW
-              </span>
-            </div>
-            <p className="text-xs text-on-surface-variant mt-1">Accept or ignore each suggestion below.</p>
-          </div>
-
-          {/* Annotation cards */}
-          <div className="p-4 space-y-4">
-            {openAnnotations.length === 0 && annotations.length > 0 && (
-              <div className="text-center py-6">
-                <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
-                <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>
-                <p className="text-xs text-on-surface-variant mb-4">Your transcript is ready. Save your changes and export.</p>
-                <Link to={`/dashboard/export?case=${caseId}`} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors">
-                  Export Now
-                </Link>
-              </div>
-            )}
-
-            {openAnnotations.length === 0 && annotations.length === 0 && (
-              <div className="text-center py-6">
-                <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">verified</span>
-                <p className="font-bold text-on-surface mb-1">No Issues Found</p>
-                <p className="text-xs text-on-surface-variant">No errors found in this transcript.</p>
-              </div>
-            )}
-
-            {openAnnotations.map((ann) => (
-              <div key={ann.id} id={`ann-card-${ann.id}`} className={`relative p-4 rounded-lg ${severityCardBorder(ann.severity)}`}>
-                <div className="absolute top-2 right-2 flex items-center gap-1">
-                  <Tooltip text="Jump to in transcript" placement="left">
-                    <button
-                      onClick={() => {
-                        const el = document.getElementById(`ann-highlight-${ann.id}`)
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      }}
-                      className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-xs">my_location</span>
-                    </button>
-                  </Tooltip>
-                  <Tooltip text="Ignore suggestion" placement="left">
-                    <button
-                      onClick={() => ignoreAnnotation(ann.id)}
-                      className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
-                    >
-                      &times;
-                    </button>
-                  </Tooltip>
-                </div>
-                <span className={`text-[10px] font-bold uppercase flex items-center gap-1 mb-2 ${severityLabelClass(ann.severity)}`}>
-                  <span className="material-symbols-outlined text-xs">{severityIcon(ann.severity)}</span>
-                  {typeLabel(ann.type)} &middot; {ann.severity}
-                </span>
-                <p className="text-sm font-medium mb-1">
-                  Found <strong>&quot;{ann.original}&quot;</strong>
-                </p>
-                <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
-                {ann.confidence && (
-                  <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
-                )}
-                <button
-                  onClick={() => acceptAnnotation(ann.id)}
-                  className={`w-full text-xs font-bold py-2 rounded transition-colors ${
-                    ann.severity === 'critical'
-                      ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
-                      : 'bg-surface-container-lowest text-on-surface hover:shadow-sm'
-                  }`}
-                >
-                  Accept: &quot;{ann.suggestion}&quot;
-                </button>
-                <div className="mt-2 relative">
-                  <input
-                    type="text"
-                    value={customTexts[ann.id] || ''}
-                    onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
-                        acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                        setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                      }
-                    }}
-                    placeholder="Or enter your own correction…"
-                    className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
-                  />
-                  {customTexts[ann.id]?.trim() && (
-                    <button
-                      onClick={() => {
-                        acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                        setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                      }}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
-                      title="Apply custom correction"
-                    >
-                      <span className="material-symbols-outlined text-[11px]">check</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Resolved annotations */}
-          {resolvedAnnotations.length > 0 && (
-            <div className="border-t border-outline-variant/10">
-              <p className="px-4 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                Resolved ({resolvedAnnotations.length})
-              </p>
-              <div className="px-4 pb-4 space-y-2">
-                {resolvedAnnotations.map((ann) => (
-                  <button
-                    key={ann.id}
-                    id={`ann-card-${ann.id}`}
-                    onClick={() => {
-                      const el = document.getElementById(`ann-highlight-${ann.id}`)
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    }}
-                    className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-container group ${
-                      ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
-                    }`}
-                  >
-                    <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
-                      {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      {ann.status === 'accepted' ? (
-                        <p className="text-xs truncate">
-                          <span className="text-on-surface-variant line-through">{ann.original}</span>
-                          <span className="text-on-surface-variant mx-1">→</span>
-                          <span className="text-green-700 font-semibold">{ann.suggestion}</span>
-                        </p>
-                      ) : (
-                        <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
-                      )}
-                    </div>
-                    <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">open_in_new</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Case details */}
-          <div className="px-4 py-4 border-t border-outline-variant/10">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Case Details</p>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-on-surface-variant">Status</span>
-                <span className="font-semibold text-on-surface">{statusLabel(displayStatus)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-on-surface-variant">Uploaded</span>
-                <span className="font-semibold text-on-surface">
-                  {caseData?.created_at && new Date(caseData.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-on-surface-variant shrink-0">Transcript</span>
-                <span className="font-semibold text-on-surface truncate min-w-0" title={transcriptFile?.file_name || ''}>{transcriptFile?.file_name || '—'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="px-4 pb-5 pt-4 border-t border-outline-variant/10 space-y-3">
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-base">save</span>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-            <Link
-              to={`/dashboard/export?case=${caseId}`}
-              className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">cloud_download</span>
-              Export This Case
-            </Link>
-            <Link
-              to="/dashboard"
-              className="w-full flex items-center justify-center gap-2 text-on-surface-variant text-sm font-medium hover:text-primary transition-colors py-2"
-            >
-              <span className="material-symbols-outlined text-base">arrow_back</span>
-              Back to Dashboard
-            </Link>
-          </div>
+        {/* Sidebar (desktop) — stays in the flex flow so the transcript column sizes correctly */}
+        <aside className="hidden md:block w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+          {insightsPanel}
         </aside>
       </div>
+
+      {/* Mobile Insights drawer — rendered via a portal straight into <body>.
+          This page is wrapped in a "page-rise" animation (see index.css) that uses
+          animation-fill-mode: both, which leaves a non-"none" transform on that
+          ancestor permanently. Per the CSS spec, that makes the ancestor the
+          containing block for any `fixed`-positioned descendant, so without the
+          portal this drawer would be "fixed" relative to that (very tall) page
+          wrapper instead of the viewport, and would scroll with the page instead
+          of overlaying it. Portaling to document.body escapes that entirely. */}
+      {createPortal(
+        <>
+          {mobileInsightsOpen && (
+            <div className="md:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setMobileInsightsOpen(false)} />
+          )}
+
+          {!mobileInsightsOpen && (
+            <button
+              onClick={() => setMobileInsightsOpen(true)}
+              className="md:hidden fixed right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1 bg-primary text-on-primary rounded-l-xl pl-2 pr-1.5 py-3 editorial-shadow"
+            >
+              <span className="material-symbols-outlined text-lg">auto_awesome</span>
+              {openAnnotations.length > 0 && (
+                <span className="text-[10px] font-bold leading-none">{openAnnotations.length}</span>
+              )}
+            </button>
+          )}
+
+          <aside
+            className={`md:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm shadow-2xl transition-transform duration-300 ease-out bg-surface border-l border-outline-variant/15 overflow-y-auto ${mobileInsightsOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          >
+            {insightsPanel}
+          </aside>
+        </>,
+        document.body
+      )}
 
       {/* Inline annotation popover — anchored to clicked highlight */}
       {inlinePopover && (() => {
