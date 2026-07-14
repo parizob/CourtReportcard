@@ -38,6 +38,46 @@ reasoning from code alone.
   confidently placed is dropped and counted rather than guessed at — see
   `monitoring.md` → `case_metrics.dropped_annotations_count` for how to
   check whether this is happening and how often.
+- **2026-07-14 incident (Zoe, "Babu" case):** annotation data itself was
+  correct (right `entry_id`, right `explanation`) but the highlight rendered
+  on a completely unrelated, earlier sentence that happened to contain the
+  same short phrase (e.g. an annotation about `entry_id=60` — "send it do
+  you" → "to you" — visually highlighted on `entry_id=6`'s "Doctor, do you
+  consent..." instead; a `[sic]` annotation about "2026" in testimony
+  highlighted on the caption page's "DATE TAKEN: ... 2026" instead).
+  Root cause: `DashboardEditor.jsx`'s **original-formatting page view**
+  (`originalText` branch, used whenever a case has `originalText` — this is
+  the *default* editor view for most uploads, distinct from the entries-based
+  fallback view) computed each annotation's highlight position with
+  `flexFind(cleanContent, searchWord)` — a document-wide search from position
+  0, with no `entry_id` awareness at all. This is a *third*, independent copy
+  of the "grab the first document-wide match" antipattern already fixed twice
+  elsewhere (`fixAnnotationPositions`, `annotationsByEntry`) but missed here
+  because this code path is specific to the page-formatted view. Any
+  annotation whose `original`/`suggestion` text repeats elsewhere in the
+  document (a repeated phrase, a repeated year, a repeated exhibit number)
+  was at risk — confirmed on this case that all 4 `"Exhibit 1 [sic]"`
+  annotations (same `original` text, 4 different real locations) collapsed
+  onto the same single wrong position. Fixed by anchoring the search to the
+  annotation's own entry first — reusing (and hardening) the
+  entry-text-as-anchor pattern that `acceptAnnotation` already used correctly
+  a few hundred lines above it in the same file. The anchor is a ~60-char
+  prefix of `entry.text` trimmed to the last complete word: a raw
+  fixed-length substring cutoff (the original `acceptAnnotation` code used
+  50 chars, untrimmed) can land mid-word, which makes `flexFind`'s
+  word-boundary check reject an otherwise-valid anchor match and silently
+  fall back to `searchFrom = 0` — reintroducing the exact bug being fixed.
+  Both anchor call sites (`acceptAnnotation` and the highlight-builder in the
+  `originalText` render branch) now use the word-boundary-trimmed version.
+  If a similar report comes in: reproduce by downloading the case's
+  `extracted/*.json` from Supabase Storage (service role key via
+  `supabase projects api-keys --project-ref <ref>`, then
+  `GET /storage/v1/object/case-files/<storage_path>`), and run the actual
+  `deduplicateTranscript` → `fixAnnotationPositions` → `filterPhantomFixes`
+  pipeline from `src/lib/gemini.js` against it in a throwaway Node script —
+  this proves whether the *stored* annotation data is correct (server-side
+  bug) or only the *rendering* is wrong (client-side bug) before touching
+  any code.
 
 ## "Applying a correction broke the line numbers / column formatting"
 

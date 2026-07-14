@@ -275,7 +275,9 @@ export default function DashboardEditor() {
       const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
       let searchFrom = 0
       if (annotationEntry) {
-        const anchor = annotationEntry.text.trim().substring(0, 50)
+        // Trim to the last complete word — a mid-word cutoff makes flexFind's
+        // word-boundary check reject an otherwise-valid match.
+        const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
         if (anchor) {
           const em = flexFind(cc, anchor)
           if (em) searchFrom = em.start
@@ -1084,9 +1086,27 @@ export default function DashboardEditor() {
               }
               const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
               if (!searchWord) continue
-              const m = flexFind(cleanContent, searchWord)
+              // Anchor the search to the annotation's own entry first — searching
+              // cleanContent from the start of the document grabs the FIRST
+              // occurrence of the flagged text anywhere in the transcript, which
+              // is wrong whenever that text repeats elsewhere (e.g. "do you",
+              // "2026" as a year). Mirrors the anchor pattern in acceptAnnotation.
+              const annotationEntry = entries.find((e) => e.id === ann.entry_id)
+              let searchFrom = 0
+              if (annotationEntry) {
+                // Trim to the last complete word — a mid-word cutoff (e.g. landing
+                // inside "presentation") makes flexFind's word-boundary check
+                // reject an otherwise-valid match, silently falling back to
+                // searchFrom=0 and re-introducing the whole-document bug above.
+                const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
+                if (anchor) {
+                  const em = flexFind(cleanContent, anchor)
+                  if (em) searchFrom = em.start
+                }
+              }
+              const m = flexFind(cleanContent.substring(searchFrom), searchWord)
               if (!m) continue
-              highlights.push({ ...ann, cleanStart: m.start, cleanEnd: m.end })
+              highlights.push({ ...ann, cleanStart: searchFrom + m.start, cleanEnd: searchFrom + m.end })
             }
             highlights.sort((a, b) => a.cleanStart - b.cleanStart)
             const cleanHighlights = []
