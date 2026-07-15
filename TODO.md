@@ -5,10 +5,10 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 ## Open
 
 - [ ] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
-    - [ ] File Parizo Labs LLC with state Secretary of State
-    - [ ] File DBA for Court Reportcard (state or county, depending on location)
-    - [ ] Get EIN from IRS
-    - [ ] Open business bank account under Parizo Labs LLC
+    - [x] File Parizo Labs LLC with state Secretary of State — filed with Florida Division of Corporations (Sunbiz), confirmation/tracking number 700478240197, pending approval
+    - [ ] File DBA (Fictitious Name registration) for Court Reportcard under Parizo Labs LLC, once the LLC itself is approved
+    - [ ] Get EIN from IRS, once the LLC is approved
+    - [ ] Open business bank account under Parizo Labs LLC, once LLC + EIN are in hand
     - [ ] Set up Stripe (or similar) business account once LLC/EIN/bank account are in place
 - [ ] Celebrate when a user uploads a perfect transcript (something fun + bonus tokens) — needs a UID per uploaded document to prevent duplicate claims, or a monthly cap on free celebration tokens
 - [ ] Survey popup to collect feedback after a key action (e.g. after downloading a transcript)
@@ -17,7 +17,6 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Parallelize chunk/batch processing to cut total wall-clock time on large documents — confirmed there's no real data dependency between chunks (extraction's trailing-context comes from the previous chunk's raw text, computed upfront by `splitIntoChunks`, not its Gemini output) or between proofread batches (leading-context entries are sliced from the already-extracted entries array, not the previous batch's annotations), so today's one-at-a-time self-fetch chain is sequential purely as an artifact of the simple "next index" idempotency pattern, not a technical requirement. Fanning out to N parallel self-fetch invocations instead could plausibly cut a large document's total time by 3-5x, but needs a real race-safe "last one out" join (today only one invocation can ever reach the merge step, arriving there sequentially; parallel completions could hit "all done" simultaneously and double-merge) plus careful handling of partial failures across workers. Proofread batches specifically should be parallelized as separate invocations (each keeping its own 135s budget), not bundled via `Promise.all` inside one invocation — batch duration is unpredictable (content-density driven, 20s-279s in testing), so one dense batch sharing a clock with others risks a shared timeout that loses everyone's work, not just the slow one's. **Not worth building speculatively** — no real upload has approached the scale where this matters yet (largest production run is 50 pages); the trigger to actually build it is either (a) the 150+ page validation above revealing a reliability problem, not just slowness, or (b) a real user needing 150+ pages regularly. Until then this is pure engineering investment with no confirmed pain behind it
 - [ ] Phase 2 fast-follow — glossary support: extraction emits notable terms, proofread batches receive the merged glossary as context (drafted in `scripts/test-transcripts/PROMPT_IMPROVEMENTS.md`, deferred until Phase 1 chunking is proven solid in production)
 - [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages) — it renders all pages/lines at once with no virtualization, and re-derives highlights/pagination from scratch on every render (not memoized); flagged during chunking work as a likely performance bottleneck once large documents start flowing through, not yet fixed
-- [ ] Fix the authenticated/case page on mobile so court reporters can edit on mobile as they go
 - [ ] Build a resources/guide landing page offering a legal/medical homophone & commonly-confused-word reference sheet (not a "how to proofread" checklist — Zoe's feedback is reporters won't use that, they already know how to edit), gated behind an email capture form (no download until email is submitted) — content should get an accuracy pass from someone with real court-reporting expertise (Brandon/Zoe/Veronica) first
 - [ ] Let users know that if they submit a bug report or enhancement request that we actually implement, we'll give them 100 tokens — need a way to collect submissions and track which ones shipped so we know who to credit
 
@@ -39,6 +38,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Done
 
+- [x] Fixed the authenticated case/editor page on mobile so court reporters can edit on the go — added a mobile-specific slide-out insights/annotations drawer with a floating toggle button, and made the header and layout responsive throughout (`DashboardEditor.jsx`)
 - [x] Confirmed `?ref=email1` tracking works for the NCRA cold email campaign — verified via a real `telemetry_events` row with `path = "/?ref=email1"`. Note: it lands in the `path` column (`pathname + search`), not a dedicated `referrer` column as the original task assumed — `referrer` is a separate field populated from `document.referrer`. Query `path LIKE '%ref=email1%'` to pull this campaign's traffic
 - [x] Surfaced the founder story on the homepage — added a "Why We Built This" section to `LandingPage.jsx` between the testimonials marquee and "How It Works," with a short pull-quote ("My wife is a veteran stenographer...") linking through to the full story on About Us, so the site's strongest trust signal no longer requires a second click to see
 - [x] Decided the "no AI wording" policy extends to hidden schema/meta content, not just visible copy — `index.html`'s Organization/SoftwareApplication/WebSite schema descriptions and its FAQPage JSON-LD answers get surfaced verbatim in Google rich snippets and AI Overviews, so they function as reporter-facing copy even though they're never rendered on the page itself. `<meta name="keywords">` is exempt (invisible, algorithmic-only matching)

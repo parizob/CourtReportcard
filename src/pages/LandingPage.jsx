@@ -176,7 +176,7 @@ export default function LandingPage() {
                 <div>
                   <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3 block">Why We Built This</span>
                   <p className="text-lg sm:text-xl text-on-surface leading-relaxed mb-4">
-                    My wife is a veteran stenographer. I watched her spend as many hours proofreading a transcript as she did recording it — alone, under deadline, with no second set of eyes available. That's the problem Court Reportcard was built to solve.
+                    My wife is an experienced stenographer. I watched her spend as many hours proofreading a transcript as she did recording it — alone, under deadline, with no second set of eyes available. That's the problem Court Reportcard was built to solve.
                   </p>
                   <p className="text-sm font-bold text-on-surface-variant mb-5">— Brandon, Founder</p>
                   <Link to="/aboutus" className="group text-primary font-bold text-sm inline-flex items-center gap-1">

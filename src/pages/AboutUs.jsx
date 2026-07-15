@@ -39,7 +39,7 @@ const timeline = [
   {
     year: '2022',
     heading: 'Where it started',
-    detail: 'My wife — a veteran stenographer — would wrap a long deposition and need a second set of eyes before it went out. Her proofer was booked, on vacation, or just unavailable. The deadline never moved. I watched that happen enough times that I couldn\'t ignore it anymore.',
+    detail: 'My wife — an experienced stenographer — would wrap a long deposition and need a second set of eyes before it went out. Her proofer was booked, on vacation, or just unavailable. The deadline never moved. I watched that happen enough times that I couldn\'t ignore it anymore.',
   },
   {
     year: '2024',
