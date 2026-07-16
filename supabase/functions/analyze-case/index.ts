@@ -44,13 +44,20 @@ const PAGES_PER_CHUNK = 15
 const CHUNK_THRESHOLD_PAGES = 20
 // Proofread batches are sized by entry count (not re-split from raw text) —
 // roughly matches 15 pages' worth of entries at observed density (~22-24
-// entries/page in calibration).
-const ENTRIES_PER_PROOFREAD_BATCH = 300
-// 1 initial attempt + 2 retries per chunk/batch before falling through to the
+// entries/page in calibration). Trimmed from 300 on 2026-07-16 after a real
+// case's middle batch (a full 300-entry batch, Pro's uncapped thinking) took
+// anywhere from ~87s to >135s across repeated attempts on identical content —
+// ANALYSIS_DEADLINE_MS can't be raised on the free tier (already near the
+// 150s hard kill), so this is the only lever left to pull typical per-batch
+// latency down from that timeout-prone range without changing the deadline.
+const ENTRIES_PER_PROOFREAD_BATCH = 250
+// 1 initial attempt + 3 retries per chunk/batch before falling through to the
 // full refund+delete path — see handleFailure. Helps transient failures
 // (timeout, momentary 5xx); won't help a chunk whose content deterministically
-// confuses the model at temperature:0.
-const MAX_CHUNK_ATTEMPTS = 3
+// confuses the model at temperature:0. Raised from 3 to 4 on 2026-07-16
+// alongside the ENTRIES_PER_PROOFREAD_BATCH trim above — same incident, an
+// extra shot at the timeout coin-flip for a batch that's already borderline.
+const MAX_CHUNK_ATTEMPTS = 4
 
 /** Mirrors src/lib/pageCount.js's countPages. */
 function countPages(text: string): number {
