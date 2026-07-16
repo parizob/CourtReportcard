@@ -140,7 +140,6 @@ export default function LandingPage() {
             const reviews = [
               { quote: 'This will save me SO much time editing.', name: 'Christina C.', initial: 'CC' },
               { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'ZZ' },
-              { quote: 'I found the program extremely helpful.', name: 'Brijanne B.', initial: 'BB' },
               { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'FS' },
               { quote: 'I love the system.', name: 'James T.', initial: 'JT' },
             ]
