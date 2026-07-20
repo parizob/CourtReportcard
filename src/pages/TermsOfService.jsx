@@ -26,12 +26,12 @@ const sections = [
   {
     num: '4.',
     title: 'Limitation of Liability',
-    body: `To the maximum extent permitted by applicable law, Court Reportcard and its individual operator shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind — including but not limited to loss of profits, revenue, data, goodwill, or business — arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Because the Service is currently offered free of charge, and in recognition that you have paid no fees for access, our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed zero dollars ($0.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
+    body: `To the maximum extent permitted by applicable law, Court Reportcard shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind — including but not limited to loss of profits, revenue, data, goodwill, or business — arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Because the Service is currently offered free of charge, and in recognition that you have paid no fees for access, our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed zero dollars ($0.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
   },
   {
     num: '5.',
     title: 'Indemnification',
-    body: `You agree to defend, indemnify, and hold harmless Court Reportcard and its individual operator from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to:`,
+    body: `You agree to defend, indemnify, and hold harmless Court Reportcard from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to:`,
     bullets: [
       'Your use of or access to the Service.',
       'Your violation of these Terms.',
@@ -46,7 +46,7 @@ const sections = [
     body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA).`,
     bullets: [
       'By uploading a file to the Service, you affirmatively represent and warrant that the document contains no PHI or other regulated health data.',
-      'You agree to fully indemnify and hold harmless Court Reportcard and its operator against any legal action, regulatory fines, or damages resulting from your upload of HIPAA-regulated or otherwise prohibited data.',
+      'You agree to fully indemnify and hold harmless Court Reportcard against any legal action, regulatory fines, or damages resulting from your upload of HIPAA-regulated or otherwise prohibited data.',
     ],
   },
   {
@@ -76,7 +76,7 @@ const sections = [
   {
     num: '10.',
     title: 'Termination',
-    body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, the operator, or third parties. Upon termination, your right to use the Service ceases immediately.`,
+    body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, Court Reportcard, or third parties. Upon termination, your right to use the Service ceases immediately.`,
   },
   {
     num: '11.',
@@ -107,13 +107,13 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: June 11, 2026
+            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: July 20, 2026
           </p>
         </div>
 
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 mb-8">
           <p className="text-sm text-on-surface leading-relaxed">
-            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). <strong>Court Reportcard is currently a free beta product operated by an individual and is not a registered legal entity.</strong> By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety. If you do not agree, do not use the Service.
+            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). <strong>Court Reportcard is currently a free beta product.</strong> In these Terms, &ldquo;Court Reportcard&rdquo; means the Service and the company that operates it (Parizo Labs LLC, doing business as Court Reportcard). By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety. If you do not agree, do not use the Service.
           </p>
         </div>
 
