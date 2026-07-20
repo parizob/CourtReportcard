@@ -815,20 +815,50 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
   }
 }
 
+// Storage/object-key segment derived from an uploaded file name. Must stay in
+// sync with safeStorageFileName in DashboardUpload.jsx — CAT exports often
+// include `#` in job numbers, which becomes a URL fragment if left raw.
+function safeJsonBaseName(fileName: string): string {
+  const base = (fileName || '').split(/[/\\]/).pop() || 'transcript'
+  const withoutExt = base.replace(/\.(rtf|cre|pdf|txt)$/i, '')
+  const cleaned = withoutExt.replace(/[^\w.\-() +]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+  return cleaned || 'transcript'
+}
+
 // Fires the next unit of work (next chunk, next batch, next file, or the
 // pass transition) with its own fresh ANALYSIS_DEADLINE_MS budget. Always
 // marked `internal` so the receiving invocation skips the client JWT check.
+// Retries transient 5xx / network failures — production incident 2026-07-20
+// (Bregar): proofread batch 0 succeeded, then the continuation self-fetch
+// returned HTTP 500 twice in <1s and the case was refunded without ever
+// reaching merge. One or two retries would have absorbed that class of glitch.
 async function selfFetchContinue(SUPABASE_URL: string, SERVICE_ROLE_KEY: string, body: Record<string, unknown>): Promise<void> {
-  const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-      'apikey': SERVICE_ROLE_KEY,
-    },
-    body: JSON.stringify({ ...body, internal: true }),
-  })
-  if (!resp.ok) throw new Error(`Failed to invoke continuation (${JSON.stringify(body)}): ${resp.status}`)
+  const maxAttempts = 3
+  let lastErr: Error | null = null
+  for (let i = 0; i < maxAttempts; i++) {
+    let resp: Response
+    try {
+      resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          'apikey': SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify({ ...body, internal: true }),
+      })
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err))
+      if (i < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)))
+      continue
+    }
+    if (resp.ok) return
+    lastErr = new Error(`Failed to invoke continuation (${JSON.stringify(body)}): ${resp.status}`)
+    // 4xx (except 429) won't get better on retry — fail fast.
+    if (resp.status < 500 && resp.status !== 429) throw lastErr
+    if (i < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)))
+  }
+  throw lastErr || new Error(`Failed to invoke continuation (${JSON.stringify(body)})`)
 }
 
 function runInBackground(work: Promise<void>): void {
@@ -952,7 +982,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const dbFile = transcriptFiles[fileIndex]
-    const jsonBaseName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '')
+    const jsonBaseName = safeJsonBaseName(dbFile.file_name)
     const extractingDir = `${caseRow.user_id}/${caseId}/extracting`
     const finalEntriesName = `${jsonBaseName}_entries.json`
     const finalEntriesPath = `${extractingDir}/${finalEntriesName}`
@@ -1132,7 +1162,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const dbFile = transcriptFiles[fileIndex]
-  const jsonBaseName = dbFile.file_name.replace(/\.(rtf|cre|pdf|txt)$/i, '')
+  const jsonBaseName = safeJsonBaseName(dbFile.file_name)
   const extractingDir = `${caseRow.user_id}/${caseId}/extracting`
   const extractedDir = `${caseRow.user_id}/${caseId}/extracted`
   const entriesPath = `${extractingDir}/${jsonBaseName}_entries.json`
@@ -1157,7 +1187,20 @@ Deno.serve(async (req: Request) => {
   if (entriesErr || !entriesBlob) {
     return json({ error: `Entries file not found for ${dbFile.file_name} — extract pass may not have completed.` }, 400)
   }
-  const { title, entries, originalText } = JSON.parse(await entriesBlob.text())
+  let title: string
+  let entries: any[]
+  let originalText: string | undefined
+  try {
+    const parsed = JSON.parse(await entriesBlob.text())
+    if (!Array.isArray(parsed?.entries)) {
+      return json({ error: `Entries file for ${dbFile.file_name} is missing an entries array.` }, 400)
+    }
+    title = parsed.title || ''
+    entries = parsed.entries
+    originalText = parsed.originalText
+  } catch {
+    return json({ error: `Entries file for ${dbFile.file_name} is corrupt or unreadable.` }, 400)
+  }
   const numBatches = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PROOFREAD_BATCH))
   const batchName = `${jsonBaseName}_annotations_batch${batchIndex}.json`
   const batchPath = `${extractingDir}/${batchName}`

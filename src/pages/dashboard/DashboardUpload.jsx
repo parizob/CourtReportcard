@@ -29,6 +29,18 @@ function processingTimeEstimate(pages) {
   return 'This can take 30 minutes or more for very large documents.'
 }
 
+// Storage object keys are used in HTTP URLs. Characters like `#` and `?` become
+// fragments/query strings if any client forgets to encode; `/` nests folders.
+// Court reporter CAT exports often include `#` in job numbers (e.g.
+// EH.TRAN.JOB#129107.txt). Keep the original name in case_files.file_name for
+// display; only the storage key is sanitized. Mirrored for intermediate
+// extracting/ paths in supabase/functions/analyze-case/index.ts (safeJsonBaseName).
+function safeStorageFileName(name) {
+  const base = (name || '').split(/[/\\]/).pop() || 'transcript'
+  const cleaned = base.replace(/[^\w.\-() +]/g, '_').replace(/_+/g, '_')
+  return cleaned || 'transcript.txt'
+}
+
 function validateFile(file) {
   const ext = '.' + file.name.split('.').pop().toLowerCase()
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
@@ -116,7 +128,7 @@ export default function DashboardUpload() {
       setUploadPhase('Uploading files...')
 
       for (const file of transcriptFiles) {
-        const storagePath = `${user.id}/${caseRow.id}/transcript/${file.name}`
+        const storagePath = `${user.id}/${caseRow.id}/transcript/${safeStorageFileName(file.name)}`
 
         const { error: storageErr } = await supabase.storage
           .from('case-files')
@@ -129,6 +141,7 @@ export default function DashboardUpload() {
           .insert({
             case_id: caseRow.id,
             file_type: 'transcript',
+            // Original name for UI; storage_path uses the sanitized key above.
             file_name: file.name,
             file_size: file.size,
             storage_path: storagePath,
