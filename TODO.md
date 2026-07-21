@@ -4,12 +4,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Open
 
-- [ ] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
-    - [x] File Parizo Labs LLC with state Secretary of State — filed with Florida Division of Corporations (Sunbiz), confirmation/tracking number 700478240197, approved
-    - [x] File DBA (Fictitious Name registration) for Court Reportcard under Parizo Labs LLC — filed with Florida Division of Corporations (Sunbiz), confirmation/tracking number 200478627822, $50 charge
-    - [x] Get EIN from IRS, once the LLC is approved
-    - [ ] Open business bank account under Parizo Labs LLC, once LLC + EIN are in hand
-    - [ ] Set up Stripe (or similar) business account once LLC/EIN/bank account are in place
+- [ ] Connect Stripe and turn on payments
 - [ ] Parallelize chunk/batch processing to cut total wall-clock time on large documents — confirmed there's no real data dependency between chunks (extraction's trailing-context comes from the previous chunk's raw text, computed upfront by `splitIntoChunks`, not its Gemini output) or between proofread batches (leading-context entries are sliced from the already-extracted entries array, not the previous batch's annotations), so today's one-at-a-time self-fetch chain is sequential purely as an artifact of the simple "next index" idempotency pattern, not a technical requirement. Fanning out to N parallel self-fetch invocations instead could plausibly cut a large document's total time by 3-5x, but needs a real race-safe "last one out" join (today only one invocation can ever reach the merge step, arriving there sequentially; parallel completions could hit "all done" simultaneously and double-merge) plus careful handling of partial failures across workers. Proofread batches specifically should be parallelized as separate invocations (each keeping its own 135s budget), not bundled via `Promise.all` inside one invocation — batch duration is unpredictable (content-density driven, 20s-279s in testing), so one dense batch sharing a clock with others risks a shared timeout that loses everyone's work, not just the slow one's. **Not worth building speculatively** — no real upload has approached the scale where this matters yet (largest production run is 50 pages); the trigger to actually build it is either (a) the 150+ page validation above revealing a reliability problem, not just slowness, or (b) a real user needing 150+ pages regularly. Until then this is pure engineering investment with no confirmed pain behind it
 - [ ] Phase 2 fast-follow — glossary support: extraction emits notable terms, proofread batches receive the merged glossary as context (drafted in `scripts/test-transcripts/PROMPT_IMPROVEMENTS.md`, deferred until Phase 1 chunking is proven solid in production)
 - [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages) — it renders all pages/lines at once with no virtualization, and re-derives highlights/pagination from scratch on every render (not memoized); flagged during chunking work as a likely performance bottleneck once large documents start flowing through, not yet fixed
@@ -37,6 +32,12 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Done
 
+- [x] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
+    - File Parizo Labs LLC with state Secretary of State — filed with Florida Division of Corporations (Sunbiz), confirmation/tracking number 700478240197, approved
+    - File DBA (Fictitious Name registration) for Court Reportcard under Parizo Labs LLC — filed with Florida Division of Corporations (Sunbiz), confirmation/tracking number 200478627822, $50 charge
+    - Get EIN from IRS
+    - Open business bank account under Parizo Labs LLC — opened Mercury business checking
+    - Set up Stripe business account
 - [x] Investigated real per-page COGS and used it to inform token pricing — landed on rough estimate of ~$0.014-0.017/token (from the ~$0.70/50 pages and ~$2.50-3.50/200 pages measurements, likely lower now post extraction-model-swap but not re-measured precisely) and used that to price the initial token packs ($20/300, $30/500, $50/1000 — roughly 3-4x markup over cost, well under human scopist rates)
 - [x] Fixed the authenticated case/editor page on mobile so court reporters can edit on the go — added a mobile-specific slide-out insights/annotations drawer with a floating toggle button, and made the header and layout responsive throughout (`DashboardEditor.jsx`)
 - [x] Confirmed `?ref=email1` tracking works for the NCRA cold email campaign — verified via a real `telemetry_events` row with `path = "/?ref=email1"`. Note: it lands in the `path` column (`pathname + search`), not a dedicated `referrer` column as the original task assumed — `referrer` is a separate field populated from `document.referrer`. Query `path LIKE '%ref=email1%'` to pull this campaign's traffic

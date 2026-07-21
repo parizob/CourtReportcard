@@ -123,6 +123,11 @@ ERROR TYPES — flag every occurrence:
   • "had ran" (correct: "had run")       • "had did" (correct: "had done")
   • "should have took" (correct: "should have taken") — and equivalent constructions with other irregular verbs
   The "original" field for these must be the full auxiliary + past participle phrase (e.g., "had went"), never just the participle alone.
+  Tense shift, subject-verb agreement, and double negatives, when they reflect how the speaker naturally talked rather than a mishearing, are speaker-level features of natural speech, not reporter errors — flag as "grammar", severity "warning", suggestion "<phrase> [sic]", never a corrected rewrite. A verbatim record preserves what was actually said, even when it's grammatically nonstandard.
+  • "He don't know what happened." (subject-verb agreement — flag "don't know" as "don't know [sic]", do not suggest "doesn't know")
+  • "I walk over to the car and then I said hello." (tense shift — flag "walk" as "walk [sic]", do not suggest "walked")
+  • "I don't know nothing about that." (double negative — flag "don't know nothing" as "don't know nothing [sic]", do not suggest "know anything")
+  The "original" field for these must be the specific word or short phrase carrying the tense/agreement/negation issue, not the entire surrounding sentence.
 
 "legal_term" — Misspelled or incorrect legal term, wrong statute number, wrong citation format, incorrect case name formatting, or an impossible motion name.
   Examples: "habeous" (habeas), "voir dire" misspellings, statute numbers that don't match context.
