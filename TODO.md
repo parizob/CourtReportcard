@@ -14,11 +14,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 ### Marketing / Growth (CMO review, 2026-07-11)
 
 - [ ] Get real, attributable testimonials for the landing page marquee (full name + title/firm, ideally photo) — current quotes (Christina C., Zoe Z., etc.) read as unverifiable placeholder copy, which hurts trust more than it helps with a legal-adjacent, risk-averse audience
-- [ ] Link the orphaned `marketing/guides/transcript-proofing-checklist` guide from the site — it's not referenced anywhere in nav/footer/pages currently, so it's driving zero traffic despite being built
 - [ ] Add a lower-commitment conversion path for visitors not ready to create an account — e.g. a demo video or an interactive sample annotation report — since every current CTA requires signup
-- [ ] Revisit the "Early Access — Now Open" hero badge once there's real social proof/traction to replace it with — fine for now, but reads as "still not launched" as traffic grows
 - [ ] Build out an SEO/content hub (blog) for long-tail organic acquisition (e.g. homophone error guides, scopist-vs-software comparisons, style-guide cheat sheets) — site currently has 4 real pages plus one orphaned guide, thin for search discovery beyond branded queries
-- [ ] Add Pricing/Reviews (or similar) to the header nav once those exist, so returning/interested visitors have an obvious next step beyond Sign Up
 
 ## Backlog
 
@@ -32,6 +29,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Done
 
+- [x] Revisit the "Early Access — Now Open" hero badge once there's real social proof/traction to replace it with — badge removed from `LandingPage.jsx`
+- [x] Add Pricing/Reviews (or similar) to the header nav once those exist, so returning/interested visitors have an obvious next step beyond Sign Up — added a "Pricing" link to `SiteHeader.jsx` pointing at the new `Pricing.jsx` page
 - [x] Update ToS liability clause (currently $0 cap justified by being free — needs lawyer review once paid) and revisit the "beta" label, once payments are enabled — liability now capped at the greater of amounts paid in the last 12 months or $50, and all "beta"/"individual operator" language removed from `TermsOfService.jsx`
 - [x] Turn on receipts in Stripe
 - [x] Set up Parizo Labs LLC, with DBA as Court Reportcard, so we can charge customers
