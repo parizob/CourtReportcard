@@ -250,14 +250,14 @@ export default function SiteHeader() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-on-surface leading-snug mb-1">You're running low on tokens</p>
-                        <p className="text-xs text-on-surface-variant leading-relaxed">We noticed your balance is getting low. Submit a support ticket and we'd love to help get you more tokens.</p>
+                        <p className="text-xs text-on-surface-variant leading-relaxed">We noticed your balance is getting low. Purchase more tokens anytime from the billing page.</p>
                         <Link
-                          to="/support"
+                          to="/dashboard/billing"
                           onClick={dismissLowTokenNotif}
-                          data-track-id="header_low_token_notif_support"
+                          data-track-id="header_low_token_notif_billing"
                           className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
                         >
-                          Submit a Support Ticket →
+                          Purchase Tokens →
                         </Link>
                       </div>
                     </div>
