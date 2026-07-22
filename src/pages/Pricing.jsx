@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
@@ -24,8 +25,35 @@ const HOW_IT_WORKS = [
   },
 ]
 
+const DELAY_CLASSES = ['landing-reveal-delay-1', 'landing-reveal-delay-2', 'landing-reveal-delay-3']
+
 export default function Pricing() {
   const { isAuthenticated, openModal } = useAuth()
+  const revealRefs = useRef([])
+
+  useEffect(() => {
+    const items = revealRefs.current.filter(Boolean)
+    if (!items.length) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    )
+
+    items.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
+  const setRevealRef = (index) => (el) => {
+    revealRefs.current[index] = el
+  }
 
   return (
     <div className="bg-background text-on-surface font-body min-h-screen flex flex-col">
@@ -39,7 +67,7 @@ export default function Pricing() {
       </Helmet>
 
       <main className="flex-1 px-6 sm:px-8 py-10 sm:py-14 max-w-[1440px] mx-auto w-full">
-        <div className="mb-10 sm:mb-14 max-w-2xl">
+        <div className="mb-10 sm:mb-14 max-w-2xl page-rise">
           <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3">
             Pricing
           </span>
@@ -53,14 +81,15 @@ export default function Pricing() {
 
         {/* How tokens work */}
         <section className="mb-12 sm:mb-16">
-          <h2 className="font-headline text-xl sm:text-2xl font-bold text-on-surface mb-6">
+          <h2 ref={setRevealRef(0)} className="landing-reveal font-headline text-xl sm:text-2xl font-bold text-on-surface mb-6">
             How tokens work
           </h2>
           <div className="grid md:grid-cols-3 gap-5">
-            {HOW_IT_WORKS.map((item) => (
+            {HOW_IT_WORKS.map((item, idx) => (
               <div
                 key={item.title}
-                className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6"
+                ref={setRevealRef(1 + idx)}
+                className={`landing-reveal ${DELAY_CLASSES[idx]} bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6 transition-all hover:translate-y-[-2px]`}
               >
                 <div className="w-11 h-11 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center mb-4">
                   <span className="material-symbols-outlined text-on-tertiary-container text-2xl">{item.icon}</span>
@@ -74,7 +103,7 @@ export default function Pricing() {
 
         {/* Token packs */}
         <section className="mb-12 sm:mb-16">
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 sm:p-8 border border-outline-variant/15">
+          <div ref={setRevealRef(4)} className="landing-reveal bg-surface-container-lowest rounded-2xl editorial-shadow p-6 sm:p-8 border border-outline-variant/15">
             <div className="flex items-start gap-4 mb-8">
               <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-on-tertiary-container text-2xl">token</span>
@@ -100,7 +129,7 @@ export default function Pricing() {
                 return (
                   <div
                     key={pack.id}
-                    className={`relative rounded-xl border p-5 text-center ${
+                    className={`relative rounded-xl border p-5 text-center transition-all hover:translate-y-[-2px] ${
                       isPopular
                         ? 'border-primary/30 bg-primary/[0.03]'
                         : 'border-outline-variant/20 bg-surface-container/30'
@@ -153,7 +182,7 @@ export default function Pricing() {
 
         {/* Earn tokens via feedback */}
         <section className="mb-8">
-          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-start gap-5">
+          <div ref={setRevealRef(5)} className="landing-reveal bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-start gap-5">
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-primary text-2xl">rate_review</span>
             </div>
