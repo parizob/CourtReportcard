@@ -126,6 +126,12 @@ reasoning from code alone.
   `refreshTokens`. Check `user_profiles.balance` and `token_ledger` directly
   in Supabase if the UI seems stale — `refreshTokens` may just need to be
   called after an action.
+- If this is specifically **"I paid but tokens never showed up"** (a Stripe
+  purchase, not a spend), go straight to `billing-stripe.md` — this is a
+  different path (`credit_tokens` RPC via the `stripe-webhook` Edge
+  Function, not `spendTokens`) with its own documented incident and a fast
+  way to reproduce webhook failures directly without waiting on a real
+  payment.
 
 ## "Local dev can't reach Gemini" / `GEMINI_API_KEY not configured`
 

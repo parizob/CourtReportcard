@@ -30,35 +30,40 @@ Deno.serve(async (req: Request) => {
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const STRIPE_MODE = (Deno.env.get('STRIPE_MODE') || 'test').trim()
-  const STRIPE_SECRET_KEY =
-    STRIPE_MODE === 'live'
-      ? Deno.env.get('STRIPE_SECRET_KEY_LIVE')
-      : Deno.env.get('STRIPE_SECRET_KEY_TEST')
-  const STRIPE_WEBHOOK_SECRET =
-    STRIPE_MODE === 'live'
-      ? Deno.env.get('STRIPE_WEBHOOK_SECRET_LIVE')
-      : Deno.env.get('STRIPE_WEBHOOK_SECRET_TEST')
+  const STRIPE_WEBHOOK_SECRET_TEST = Deno.env.get('STRIPE_WEBHOOK_SECRET_TEST')
+  const STRIPE_WEBHOOK_SECRET_LIVE = Deno.env.get('STRIPE_WEBHOOK_SECRET_LIVE')
 
-  if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET) {
-    console.error(`Stripe keys not configured for STRIPE_MODE=${STRIPE_MODE}.`)
+  if (!STRIPE_WEBHOOK_SECRET_TEST && !STRIPE_WEBHOOK_SECRET_LIVE) {
+    console.error('No Stripe webhook secrets configured (test or live).')
     return text('Webhook not configured.', 500)
   }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  // Stripe calls this same URL for both test-mode and live-mode webhook
+  // endpoints — there's no request origin to key off of like there is in
+  // create-checkout-session. So instead we just try whichever signing
+  // secrets are configured; only the one matching this event's actual mode
+  // will verify. constructEventAsync only checks the signature locally, so
+  // the API key passed to Stripe() here doesn't need to match the mode.
+  const signature = req.headers.get('Stripe-Signature') || ''
+  const rawBody = await req.text()
+  const stripe = new Stripe('sk_dummy_not_used_for_signature_verification', {
     httpClient: Stripe.createFetchHttpClient(),
   })
 
-  const signature = req.headers.get('Stripe-Signature') || ''
-  const rawBody = await req.text()
-
-  let event: Stripe.Event
-  try {
-    // Async variant required outside Node — Deno has no Node crypto module,
-    // constructEvent's sync signature check would throw here.
-    event = await stripe.webhooks.constructEventAsync(rawBody, signature, STRIPE_WEBHOOK_SECRET)
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err)
+  let event: Stripe.Event | undefined
+  for (const secret of [STRIPE_WEBHOOK_SECRET_TEST, STRIPE_WEBHOOK_SECRET_LIVE]) {
+    if (!secret) continue
+    try {
+      // Async variant required outside Node — Deno has no Node crypto module,
+      // constructEvent's sync signature check would throw here.
+      event = await stripe.webhooks.constructEventAsync(rawBody, signature, secret)
+      break
+    } catch {
+      // Try the next configured secret — could just be the other mode.
+    }
+  }
+  if (!event) {
+    console.error('Webhook signature verification failed against all configured secrets.')
     return text('Invalid signature.', 400)
   }
 

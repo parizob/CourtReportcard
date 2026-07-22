@@ -128,6 +128,9 @@ core rule on this).
   refunded by either the client (handoff failure) or the Edge Function
   (`handleFailure`, analysis failure) if things don't complete.
 - `refreshTokens()` — re-fetches balance from Supabase.
+- Tokens can also be *added* via a Stripe purchase (`credit_tokens` RPC,
+  called from the `stripe-webhook` Edge Function) — separate path from
+  everything above, see `references/billing-stripe.md`.
 
 ## Production health signals
 

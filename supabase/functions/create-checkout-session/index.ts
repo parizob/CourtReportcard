@@ -17,12 +17,12 @@ const TOKEN_PACKS: Record<string, { tokens: number; priceUsd: number }> = {
 }
 
 // Only these origins are allowed as Checkout return targets — the client
-// picks one of these via window.location.origin, but we still validate
-// server-side so this endpoint can never be used as an open redirect.
-const ALLOWED_ORIGINS = new Set([
-  'https://courtreportcard.com',
-  'http://localhost:3000', // matches the fixed dev server port in vite.config.js
-])
+// picks one via window.location.origin, but we still validate server-side
+// so this endpoint can never be used as an open redirect. Any localhost port
+// is allowed since local dev servers vary; it's also how we detect "this is
+// local dev" to force test-mode keys below, regardless of STRIPE_MODE.
+const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/
+const isAllowedOrigin = (origin: string) => origin === 'https://courtreportcard.com' || LOCALHOST_ORIGIN.test(origin)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,15 +43,6 @@ Deno.serve(async (req: Request) => {
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
-  const STRIPE_MODE = (Deno.env.get('STRIPE_MODE') || 'test').trim()
-  const STRIPE_SECRET_KEY =
-    STRIPE_MODE === 'live'
-      ? Deno.env.get('STRIPE_SECRET_KEY_LIVE')
-      : Deno.env.get('STRIPE_SECRET_KEY_TEST')
-
-  if (!STRIPE_SECRET_KEY) {
-    return json({ error: `Stripe secret key not configured for STRIPE_MODE=${STRIPE_MODE}.` }, 500)
-  }
 
   let packId: string
   let origin: string
@@ -65,7 +56,20 @@ Deno.serve(async (req: Request) => {
 
   const pack = packId ? TOKEN_PACKS[packId] : undefined
   if (!pack) return json({ error: 'Unknown token pack.' }, 400)
-  if (!ALLOWED_ORIGINS.has(origin)) return json({ error: 'Invalid origin.' }, 400)
+  if (!isAllowedOrigin(origin)) return json({ error: 'Invalid origin.' }, 400)
+
+  // Local dev always uses test keys, no matter what STRIPE_MODE is set to —
+  // that way flipping STRIPE_MODE to "live" for production can never cause a
+  // real charge from someone's laptop.
+  const STRIPE_MODE = LOCALHOST_ORIGIN.test(origin) ? 'test' : (Deno.env.get('STRIPE_MODE') || 'test').trim()
+  const STRIPE_SECRET_KEY =
+    STRIPE_MODE === 'live'
+      ? Deno.env.get('STRIPE_SECRET_KEY_LIVE')
+      : Deno.env.get('STRIPE_SECRET_KEY_TEST')
+
+  if (!STRIPE_SECRET_KEY) {
+    return json({ error: `Stripe secret key not configured for STRIPE_MODE=${STRIPE_MODE}.` }, 500)
+  }
 
   const authHeader = req.headers.get('Authorization') || ''
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {

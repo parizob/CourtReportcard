@@ -78,6 +78,7 @@ See `references/architecture.md` for the full picture. Quick orientation:
 | Test-only API proxy | `api/gemini.js` (Vercel function) | Thin proxy to Gemini for the harness only, no auth required, file-size/type guards |
 | Stuck-case safety net | `src/lib/backgroundAnalysis.js` | Re-invokes `analyze-case` for cases stuck `processing` 3+ min with no result |
 | Auth + tokens | `src/context/AuthContext.jsx` | Supabase auth, `user_profiles.balance`, `token_ledger` |
+| Billing / payments | `supabase/functions/create-checkout-session/`, `supabase/functions/stripe-webhook/` | One-time Stripe Checkout purchases, currently beta-gated to one test account. See `references/billing-stripe.md`. |
 | Data | Supabase (Postgres + Storage) | `supabase/migrations/` |
 | Design system | `.agents/skills/design/` | Use this skill for any UI work |
 
@@ -125,3 +126,5 @@ something — the whole point is catching what users don't report.
 - `references/debugging.md` — bug triage map by symptom
 - `references/monitoring.md` — production health signals (case failures,
   dropped annotations), queries, and what's worth acting on
+- `references/billing-stripe.md` — Stripe Checkout/webhook architecture,
+  test-vs-live mode handling, beta purchase gating, going-live checklist
