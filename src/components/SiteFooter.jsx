@@ -10,12 +10,9 @@ export default function SiteFooter() {
             <Link to="/" className="hover:opacity-80 transition-opacity">
               <BrandLogo size={22} className="text-xl" />
             </Link>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <p className="text-on-surface-variant text-[10px] font-body uppercase tracking-widest">
-                © 2026 Court Reportcard. All Rights Reserved.
-              </p>
-              <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Beta</span>
-            </div>
+            <p className="text-on-surface-variant text-[10px] font-body uppercase tracking-widest mt-2">
+              © 2026 Court Reportcard. All Rights Reserved.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 md:gap-8 md:ml-auto">
             <Link to="/terms" className="text-on-surface-variant font-body text-xs uppercase tracking-widest hover:text-primary-container transition-opacity opacity-80 hover:opacity-100">

@@ -15,7 +15,7 @@ export default function LandingPage() {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-10 sm:pt-16 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
+        <section className="relative pt-8 sm:pt-12 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
@@ -35,25 +35,6 @@ export default function LandingPage() {
                 <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10">
                   Platform Demo
                 </Link>
-              </div>
-              <div className="mt-10 sm:mt-12 flex flex-wrap items-center gap-x-5 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                  </span>
-                  <span className="text-xs font-bold uppercase tracking-widest text-amber-700">Early Access — Now Open</span>
-                </div>
-                <span className="text-outline-variant/30 text-xs select-none">|</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">money_off</span>
-                  <span className="text-xs text-on-surface-variant/60">Free during beta</span>
-                </div>
-                <span className="text-outline-variant/30 text-xs select-none">|</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-on-surface-variant/40">timer</span>
-                  <span className="text-xs text-on-surface-variant/60">Results in minutes</span>
-                </div>
               </div>
             </div>
 

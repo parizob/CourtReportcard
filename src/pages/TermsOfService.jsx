@@ -4,13 +4,13 @@ import SiteFooter from '../components/SiteFooter'
 const sections = [
   {
     num: '1.',
-    title: 'Beta Service — Provided As-Is',
-    body: `Court Reportcard is currently offered as a free, pre-release beta product. The Service is experimental, under active development, and provided strictly "AS-IS" and "AS-AVAILABLE" without warranty of any kind — express, implied, or statutory. This includes, without limitation, any implied warranties of merchantability, fitness for a particular purpose, accuracy, reliability, or non-infringement. Features may change, be removed, or be unavailable without notice. Your use of the Service during this beta period is entirely at your own risk.`,
+    title: 'Service Provided As-Is',
+    body: `The Service is provided strictly "AS-IS" and "AS-AVAILABLE" without warranty of any kind, express, implied, or statutory. This includes, without limitation, any implied warranties of merchantability, fitness for a particular purpose, accuracy, reliability, or non-infringement. Features may change, be removed, or be unavailable without notice. Your use of the Service is at your own risk.`,
   },
   {
     num: '2.',
     title: 'Acceptance of Terms & Professional Responsibility',
-    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms. The Service is an artificial intelligence-assisted proofreading tool designed to assist — not replace — professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
+    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms. The Service is an automated proofreading tool designed to assist, not replace, professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
   },
   {
     num: '3.',
@@ -26,7 +26,7 @@ const sections = [
   {
     num: '4.',
     title: 'Limitation of Liability',
-    body: `To the maximum extent permitted by applicable law, Court Reportcard shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind — including but not limited to loss of profits, revenue, data, goodwill, or business — arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Because the Service is currently offered free of charge, and in recognition that you have paid no fees for access, our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed zero dollars ($0.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
+    body: `To the maximum extent permitted by applicable law, Court Reportcard shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind, including but not limited to loss of profits, revenue, data, goodwill, or business, arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed the greater of (a) the amounts you paid to Court Reportcard for the Service in the twelve (12) months preceding the claim, or (b) fifty dollars ($50.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
   },
   {
     num: '5.',
@@ -51,21 +51,23 @@ const sections = [
   },
   {
     num: '7.',
-    title: 'Data Privacy, AI Processing, and Retention',
+    title: 'Data Privacy, Processing, and Retention',
     body: `We take the confidentiality of your legal transcripts seriously.`,
     bullets: [
-      'No Model Training: Text uploaded to Court Reportcard is processed using enterprise-grade AI APIs. Your uploaded documents, text, and corrections are never used to train, fine-tune, or improve any AI models.',
+      'No Model Training: Text uploaded to Court Reportcard is processed using enterprise-grade APIs. Your uploaded documents, text, and corrections are never used to train, fine-tune, or improve any models.',
       'Data Retention: Uploaded files and generated suggestions are temporarily stored on secure, certified cloud infrastructure solely to facilitate your editing session. Files and their associated data will be permanently deleted from our servers upon your manual deletion or automatically after 90 days, whichever occurs first.',
     ],
   },
   {
     num: '8.',
-    title: 'Billing, Subscriptions, and Page Credits',
-    body: `Where paid features are made available, the Service operates on a "Page Credit" system.`,
+    title: 'Billing and Tokens',
+    body: `The Service operates on a token system. One (1) token equals one (1) transcript page processed through the Service.`,
     bullets: [
-      'Credit Usage: Processing documents consumes Page Credits based on the volume of text uploaded.',
-      'Renewals and Expiration: Subscription tiers grant a specific allotment of Page Credits per billing cycle. Unused credits do not roll over to the next billing cycle.',
-      'Refunds: Due to the computational costs associated with AI processing, all purchases and subscriptions are non-refundable once credits have been consumed.',
+      'Token purchases: Tokens may be purchased in packs as one-time payments through our payment processor (Stripe). Prices and pack sizes are shown on the billing page at the time of purchase.',
+      'Token usage: Processing a transcript consumes tokens based on the number of pages in the uploaded document. You must have a sufficient token balance to start processing.',
+      'No subscription required: Access to paid processing is through token purchases. If subscription plans are offered in the future, additional terms for those plans will be disclosed at the time they are made available.',
+      'Refunds: Due to the computational costs of processing, token purchases are non-refundable once tokens have been consumed. Unused purchased tokens remain in your account balance unless we terminate your account for a violation of these Terms.',
+      'Promotional or bonus tokens: We may, at our sole discretion, credit complimentary tokens to your account. Complimentary tokens have no cash value and are not refundable.',
     ],
   },
   {
@@ -76,7 +78,7 @@ const sections = [
   {
     num: '10.',
     title: 'Termination',
-    body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, Court Reportcard, or third parties. Upon termination, your right to use the Service ceases immediately.`,
+    body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, Court Reportcard, or third parties. Upon termination, your right to use the Service ceases immediately. Unused purchased tokens are not redeemable for cash upon termination.`,
   },
   {
     num: '11.',
@@ -107,13 +109,13 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: July 20, 2026
+            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: July 22, 2026
           </p>
         </div>
 
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 mb-8">
           <p className="text-sm text-on-surface leading-relaxed">
-            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). <strong>Court Reportcard is currently a free beta product.</strong> In these Terms, &ldquo;Court Reportcard&rdquo; means the Service and the company that operates it (Parizo Labs LLC, doing business as Court Reportcard). By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety. If you do not agree, do not use the Service.
+            Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). In these Terms, &ldquo;Court Reportcard&rdquo; means the Service and the company that operates it (Parizo Labs LLC, doing business as Court Reportcard). By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety. If you do not agree, do not use the Service.
           </p>
         </div>
 
