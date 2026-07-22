@@ -5,8 +5,9 @@ import BrandLogo from './BrandLogo'
 
 // A single AudioContext shared across chimes. Browsers require it to be
 // created (or resumed) in response to a user gesture. We create it lazily
-// on the first click and reuse it for every subsequent chime.
+// on the first interaction and reuse it for every subsequent chime.
 let _audioCtx = null
+let _pendingChime = false
 
 function getAudioCtx() {
   if (!_audioCtx) {
@@ -15,34 +16,69 @@ function getAudioCtx() {
   return _audioCtx
 }
 
-// Call once on any user interaction to unlock the context.
-function unlockAudio() {
-  const ctx = getAudioCtx()
-  if (ctx && ctx.state === 'suspended') ctx.resume()
+function scheduleChime(ctx) {
+  const play = (freq, startTime, duration) => {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0, startTime)
+    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+    osc.start(startTime)
+    osc.stop(startTime + duration)
+  }
+  play(523, ctx.currentTime, 0.5)        // C5
+  play(659, ctx.currentTime + 0.18, 0.5) // E5
+  play(784, ctx.currentTime + 0.36, 0.7) // G5
 }
 
+// Plays immediately once the context is running. If still blocked by the
+// browser, queues so the next unlock plays it the same instant.
 function playChime() {
   try {
     const ctx = getAudioCtx()
     if (!ctx) return
-    if (ctx.state === 'suspended') ctx.resume()
-    const play = (freq, startTime, duration) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0, startTime)
-      gain.gain.linearRampToValueAtTime(0.25, startTime + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
-      osc.start(startTime)
-      osc.stop(startTime + duration)
+
+    const start = () => {
+      if (ctx.state !== 'running') {
+        _pendingChime = true
+        return
+      }
+      _pendingChime = false
+      scheduleChime(ctx)
     }
-    play(523, ctx.currentTime, 0.5)        // C5
-    play(659, ctx.currentTime + 0.18, 0.5) // E5
-    play(784, ctx.currentTime + 0.36, 0.7) // G5
+
+    if (ctx.state === 'suspended') {
+      _pendingChime = true
+      ctx.resume().then(start).catch(() => { _pendingChime = true })
+      return
+    }
+
+    start()
   } catch (_) { /* silent fail */ }
+}
+
+// Call on user interaction to unlock the context (and flush a queued chime).
+function unlockAudio() {
+  const ctx = getAudioCtx()
+  if (!ctx) return
+  const flush = () => {
+    if (_pendingChime) playChime()
+  }
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(flush).catch(() => {})
+  } else {
+    flush()
+  }
+}
+
+// Show notification UI, then chime on the next frame so sound lands with the badge/panel.
+function announceNotification(updateUi) {
+  updateUi()
+  requestAnimationFrame(() => playChime())
 }
 
 const publicNavClass = ({ isActive }) =>
@@ -79,13 +115,15 @@ export default function SiteHeader() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Unauthenticated sign-up nudge
+  // Unauthenticated sign-up nudge — waits so the hero "residance" pulse can finish first
   useEffect(() => {
     if (isAuthenticated) return
     const timer = setTimeout(() => {
-      setHasNotification(true)
-      setBellRinging(true)
-    }, 5000)
+      announceNotification(() => {
+        setHasNotification(true)
+        setBellRinging(true)
+      })
+    }, 10000)
     return () => clearTimeout(timer)
   }, [isAuthenticated])
 
@@ -115,9 +153,11 @@ export default function SiteHeader() {
     // Mark shown immediately so tokenBalance changes don't queue a second timer.
     lowTokenShownRef.current = true
     const timer = setTimeout(() => {
-      setHasLowTokenNotif(true)
-      setAuthBellRinging(true)
-      playChime()
+      announceNotification(() => {
+        setHasLowTokenNotif(true)
+        setAuthBellRinging(true)
+        setLowTokenOpen(true)
+      })
     }, 5000)
     return () => clearTimeout(timer)
   }, [isAuthenticated, tokenBalance, user])
@@ -132,22 +172,27 @@ export default function SiteHeader() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Unlock the shared AudioContext on the user's first click so chimes can
-  // play from timers later (browsers block audio until a gesture has occurred).
+  // Unlock the shared AudioContext on the first gesture so the 10s nudge
+  // chime can fire the same instant the notification appears.
   useEffect(() => {
-    const unlock = () => { unlockAudio(); document.removeEventListener('click', unlock) }
-    document.addEventListener('click', unlock)
-    return () => document.removeEventListener('click', unlock)
+    const events = ['pointerdown', 'keydown', 'touchstart']
+    const unlock = () => {
+      unlockAudio()
+      events.forEach((type) => document.removeEventListener(type, unlock))
+    }
+    events.forEach((type) => document.addEventListener(type, unlock, { passive: true }))
+    return () => events.forEach((type) => document.removeEventListener(type, unlock))
   }, [])
 
   useEffect(() => {
     const onReady = (e) => {
       const { caseId, caseName } = e.detail || {}
       if (!caseId) return
-      setReadyNotifs((prev) => [...prev, { id: Date.now(), caseId, caseName }])
-      setAuthBellRinging(true)
-      setLowTokenOpen(true)
-      playChime()
+      announceNotification(() => {
+        setReadyNotifs((prev) => [...prev, { id: Date.now(), caseId, caseName }])
+        setAuthBellRinging(true)
+        setLowTokenOpen(true)
+      })
     }
     window.addEventListener('transcript-ready', onReady)
     return () => window.removeEventListener('transcript-ready', onReady)
@@ -402,14 +447,14 @@ export default function SiteHeader() {
                     <span className="material-symbols-outlined text-tertiary-fixed-dim text-base">card_giftcard</span>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today — get 100 free tokens</p>
+                    <p className="text-sm font-semibold text-on-surface leading-snug mb-1">Sign up today and get 100 free tokens</p>
                     <p className="text-xs text-on-surface-variant leading-relaxed">Create an account today and receive 100 tokens to start reviewing transcripts through our full proofreading platform. <br /> <i>1 token = 1 page.</i></p>
                     <button
                       onClick={() => { dismissNotification(); openModal('signup') }}
                       data-track-id="header_notification_claim_tokens"
                       className="mt-3 inline-block bg-primary text-on-primary text-xs font-bold px-4 py-1.5 rounded-md hover:bg-primary-container transition-colors"
                     >
-                      Claim 100 Free Tokens →
+                      Claim Your Free Tokens
                     </button>
                   </div>
                 </div>

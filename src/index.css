@@ -155,7 +155,7 @@
 }
 
 .hero-error-pulse {
-  animation: heroErrorPulse 2.2s ease-in-out 0.9s 2;
+  animation: heroErrorPulse 2.8s ease-in-out 1s 2;
 }
 
 @media (prefers-reduced-motion: reduce) {
