@@ -28,6 +28,14 @@
     <priority>0.7</priority>
   </url>
 
+  <!-- Pricing -->
+  <url>
+    <loc>https://www.courtreportcard.com/pricing</loc>
+    <lastmod>2026-07-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
   <!-- Support / FAQ — high AEO value -->
   <url>
     <loc>https://www.courtreportcard.com/support</loc>

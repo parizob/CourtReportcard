@@ -358,6 +358,7 @@ export default function SiteHeader() {
             <NavLink to="/" end className={publicNavClass}>Home</NavLink>
             <NavLink to="/ourplatform" className={publicNavClass}>Our Platform</NavLink>
             <NavLink to="/aboutus" className={publicNavClass}>About Us</NavLink>
+            <NavLink to="/pricing" className={publicNavClass}>Pricing</NavLink>
             <NavLink to="/support" className={publicNavClass}>Support</NavLink>
           </div>
         </div>
@@ -470,6 +471,15 @@ export default function SiteHeader() {
               }
             >
               About Us
+            </NavLink>
+            <NavLink
+              to="/pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              Pricing
             </NavLink>
             <NavLink
               to="/support"

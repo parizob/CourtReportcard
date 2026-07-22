@@ -5,6 +5,7 @@ import AboutUs from './pages/AboutUs'
 import TermsOfService from './pages/TermsOfService'
 import Privacy from './pages/Privacy'
 import Support from './pages/Support'
+import Pricing from './pages/Pricing'
 import PageTransition from './components/PageTransition'
 import SiteHeader from './components/SiteHeader'
 import SignInModal from './components/SignInModal'
@@ -32,6 +33,7 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/aboutus" element={<AboutUs />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<Support />} />
           <Route path="/ourplatform" element={<OurPlatform />} />
           <Route path="/terms" element={<TermsOfService />} />

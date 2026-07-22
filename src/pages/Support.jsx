@@ -104,10 +104,13 @@ export default function Support() {
             <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
               We're here to help
             </span>
-            <Link to={isAuthenticated ? '/dashboard' : '/'} className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-primary transition-colors shrink-0">
-              <span className="material-symbols-outlined text-sm">arrow_back</span>
-              <span className="hidden sm:inline">{isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}</span>
-              <span className="sm:hidden">Back</span>
+            <Link
+              to={isAuthenticated ? '/dashboard' : '/'}
+              className="group inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-primary transition-colors shrink-0"
+            >
+              <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">arrow_back</span>
+              <span className="hidden sm:inline group-hover:underline">{isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}</span>
+              <span className="sm:hidden group-hover:underline">Back</span>
             </Link>
           </div>
           <h1 className="font-headline font-extrabold text-3xl sm:text-5xl text-on-surface tracking-tight mb-3">
