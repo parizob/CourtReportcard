@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
             currency: 'usd',
             unit_amount: pack.priceUsd * 100,
             product_data: {
-              name: `${pack.tokens} Tokens — Court Reportcard`,
+              name: `${pack.tokens.toLocaleString()} Tokens`,
             },
           },
         },

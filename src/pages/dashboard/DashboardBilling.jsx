@@ -61,6 +61,7 @@ export default function DashboardBilling() {
   const [purchasingId, setPurchasingId] = useState(null)
   const [purchaseError, setPurchaseError] = useState(null)
   const [checkoutBanner, setCheckoutBanner] = useState(null) // 'success' | 'canceled'
+  const [bannerExiting, setBannerExiting] = useState(false)
   const [purchases, setPurchases] = useState([])
   const [purchasesLoading, setPurchasesLoading] = useState(true)
   const [purchasePage, setPurchasePage] = useState(0)
@@ -124,8 +125,17 @@ export default function DashboardBilling() {
 
   useEffect(() => {
     if (!checkoutBanner) return
-    const timer = setTimeout(() => setCheckoutBanner(null), 5000)
-    return () => clearTimeout(timer)
+    setBannerExiting(false)
+    // Hold visible, then fade/collapse, then unmount so content below slides up.
+    const exitTimer = setTimeout(() => setBannerExiting(true), 5000)
+    const removeTimer = setTimeout(() => {
+      setCheckoutBanner(null)
+      setBannerExiting(false)
+    }, 5340)
+    return () => {
+      clearTimeout(exitTimer)
+      clearTimeout(removeTimer)
+    }
   }, [checkoutBanner])
 
   const handleBuy = async (pack) => {
@@ -161,27 +171,36 @@ export default function DashboardBilling() {
         </header>
 
         {/* ─── Checkout return banner ─── */}
-        {checkoutBanner === 'success' && (
-          <section className="bg-primary/10 border border-primary/20 rounded-2xl p-5 mb-8 flex items-start gap-4">
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">check_circle</span>
-            <div>
-              <p className="text-sm font-bold text-on-surface mb-1">Payment successful.</p>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                Your tokens are on their way to your balance below — it can take a few seconds to update.
-              </p>
+        {checkoutBanner && (
+          <div
+            className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
+              bannerExiting ? 'grid-rows-[0fr] opacity-0 mb-0' : 'grid-rows-[1fr] opacity-100 mb-8'
+            }`}
+          >
+            <div className="overflow-hidden min-h-0">
+              {checkoutBanner === 'success' ? (
+                <section className="bg-primary/10 border border-primary/20 rounded-2xl p-5 flex items-start gap-4">
+                  <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">check_circle</span>
+                  <div>
+                    <p className="text-sm font-bold text-on-surface mb-1">Payment successful.</p>
+                    <p className="text-sm text-on-surface-variant leading-relaxed">
+                      Your tokens are on their way to your balance below. It can take a few seconds to update.
+                    </p>
+                  </div>
+                </section>
+              ) : (
+                <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 flex items-start gap-4">
+                  <span className="material-symbols-outlined text-on-surface-variant text-2xl shrink-0 mt-0.5">info</span>
+                  <div>
+                    <p className="text-sm font-bold text-on-surface mb-1">Checkout canceled.</p>
+                    <p className="text-sm text-on-surface-variant leading-relaxed">
+                      No charge was made. You can start a new purchase any time below.
+                    </p>
+                  </div>
+                </section>
+              )}
             </div>
-          </section>
-        )}
-        {checkoutBanner === 'canceled' && (
-          <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 mb-8 flex items-start gap-4">
-            <span className="material-symbols-outlined text-on-surface-variant text-2xl shrink-0 mt-0.5">info</span>
-            <div>
-              <p className="text-sm font-bold text-on-surface mb-1">Checkout canceled.</p>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                No charge was made. You can start a new purchase any time below.
-              </p>
-            </div>
-          </section>
+          </div>
         )}
 
         {/* ─── Beta notice ─── */}
@@ -202,9 +221,9 @@ export default function DashboardBilling() {
         )}
 
         {/* ─── Current Balance ─── */}
-        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 mb-8 flex items-center justify-between">
+        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-on-tertiary-container text-2xl">toll</span>
             </div>
             <div>
