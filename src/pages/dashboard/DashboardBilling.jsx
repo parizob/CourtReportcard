@@ -110,7 +110,7 @@ export default function DashboardBilling() {
             Billing
           </p>
           <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">
-            Plans &amp; Billing
+            Tokens &amp; Billing
           </h1>
           <p className="text-on-surface-variant mt-2 text-sm max-w-xl">
           Purchase transcript tokens — no subscription required.
