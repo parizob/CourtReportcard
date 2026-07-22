@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
@@ -5,6 +6,32 @@ import SiteFooter from '../components/SiteFooter'
 
 export default function LandingPage() {
   const { openModal } = useAuth()
+  const revealRefs = useRef([])
+
+  useEffect(() => {
+    const items = revealRefs.current.filter(Boolean)
+    if (!items.length) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    )
+
+    items.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
+  const setRevealRef = (index) => (el) => {
+    revealRefs.current[index] = el
+  }
+
   return (
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
       <Helmet>
@@ -17,7 +44,7 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
-            <div className="lg:col-span-6 z-10">
+            <div className="lg:col-span-6 z-10 page-rise">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
                 Precision Proofreading for <span className="text-primary italic">Court Reporters</span>
               </h1>
@@ -28,18 +55,18 @@ export default function LandingPage() {
                 <button
                   onClick={() => openModal('signup')}
                   data-track-id="landing_hero_try_now"
-                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px]"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
                 >
                   Try Now
                 </button>
-                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10">
+                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10 hover:translate-y-[-1px]">
                   Platform Demo
                 </Link>
               </div>
             </div>
 
             {/* Visual Representation of Transcript */}
-            <div className="lg:col-span-6 relative">
+            <div className="lg:col-span-6 relative page-rise-delay">
               <div className="bg-surface-container-lowest editorial-shadow rounded-xl p-5 sm:p-8 border border-outline-variant/15 relative overflow-hidden">
                 {/* Editor Mockup */}
                 <div className="space-y-6">
@@ -71,7 +98,7 @@ export default function LandingPage() {
                     <div className="pl-8 border-l-2 border-surface-container-low">
                       <div className="inline-block px-3 py-1 bg-surface-container-highest text-on-surface-variant rounded-full text-xs font-bold mb-2">A. THE WITNESS</div>
                       <p>My name is Julian Vane. I was at the <span className="relative inline-block group cursor-pointer">
-                        <span className="text-error border border-error rounded-sm px-1 italic">residance</span>
+                        <span className="text-error border border-error rounded-sm px-1 italic hero-error-pulse">residance</span>
                         <span className="hidden sm:block absolute -top-5 left-0 bg-error text-white text-[10px] px-1 rounded">SP?</span>
                         {/* Hover tooltip */}
                         <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
@@ -101,7 +128,7 @@ export default function LandingPage() {
                         <span className="hidden sm:block text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Confidence Score</span>
                         <span className="text-lg font-headline font-black text-primary leading-none">98.4%</span>
                       </div>
-                      <button className="bg-primary text-on-primary p-2 rounded-lg">
+                      <button type="button" className="bg-primary text-on-primary p-2 rounded-lg transition-transform hover:scale-105 active:scale-95" aria-hidden="true" tabIndex={-1}>
                         <span className="material-symbols-outlined text-lg">auto_fix_high</span>
                       </button>
                     </div>
@@ -114,8 +141,8 @@ export default function LandingPage() {
 
         {/* Testimonials — scrolling marquee */}
         <section className="py-14 sm:py-20 bg-primary/5 overflow-hidden">
-          <div className="text-center mb-10 sm:mb-12 px-6">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Early feedback from real reporters</span>
+          <div ref={setRevealRef(0)} className="landing-reveal text-center mb-10 sm:mb-12 px-6">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Feedback from real reporters</span>
           </div>
           {(() => {
             const reviews = [
@@ -125,7 +152,7 @@ export default function LandingPage() {
               { quote: 'I love the system.', name: 'James T.', initial: 'JT' },
             ]
             const Card = ({ quote, name, initial }) => (
-              <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0">
+              <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0 transition-transform hover:translate-y-[-2px]">
                 <div className="p-7 flex flex-col flex-1">
                   <p className="text-on-surface text-base leading-relaxed flex-1">{quote}</p>
                   <div className="mt-7 pt-5 border-t border-outline-variant/20 flex items-center gap-3">
@@ -138,8 +165,10 @@ export default function LandingPage() {
               </div>
             )
             return (
-              <div className="flex animate-marquee gap-6 w-max">
-                {[...reviews, ...reviews].map((r, i) => <Card key={i} {...r} />)}
+              <div ref={setRevealRef(1)} className="landing-reveal">
+                <div className="flex animate-marquee gap-6 w-max">
+                  {[...reviews, ...reviews].map((r, i) => <Card key={i} {...r} />)}
+                </div>
               </div>
             )
           })()}
@@ -147,7 +176,7 @@ export default function LandingPage() {
 
         {/* Founder Story Section */}
         <section className="py-14 sm:py-20 px-6 sm:px-8">
-          <div className="max-w-4xl mx-auto">
+          <div ref={setRevealRef(2)} className="landing-reveal max-w-4xl mx-auto">
             <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 sm:p-12">
               <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
                 <div className="shrink-0 w-16 sm:w-20 flex justify-center sm:justify-start">
@@ -172,13 +201,13 @@ export default function LandingPage() {
         {/* How It Works Section */}
         <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
           <div className="max-w-[1440px] mx-auto">
-            <div className="mb-10 sm:mb-16 text-center">
+            <div ref={setRevealRef(3)} className="landing-reveal mb-10 sm:mb-16 text-center">
               <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">How Court Reportcard Works</h2>
               <div className="w-16 h-1 bg-primary mx-auto"></div>
             </div>
             <div className="grid md:grid-cols-3 gap-6 sm:gap-12">
               {/* Step 1 */}
-              <div className="group relative bg-surface-container-lowest p-8 rounded-xl transition-all hover:translate-y-[-4px]">
+              <div ref={setRevealRef(4)} className="landing-reveal landing-reveal-delay-1 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
                 <div className="w-14 h-14 bg-primary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-primary transition-colors">
                   <span className="material-symbols-outlined text-primary group-hover:text-on-primary">cloud_upload</span>
                 </div>
@@ -187,7 +216,7 @@ export default function LandingPage() {
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">01</div>
               </div>
               {/* Step 2 */}
-              <div className="group relative bg-surface-container-lowest p-8 rounded-xl transition-all hover:translate-y-[-4px]">
+              <div ref={setRevealRef(5)} className="landing-reveal landing-reveal-delay-2 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
                 <div className="w-14 h-14 bg-tertiary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-tertiary-fixed-dim transition-colors">
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
@@ -196,7 +225,7 @@ export default function LandingPage() {
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
               </div>
               {/* Step 3 */}
-              <div className="group relative bg-surface-container-lowest p-8 rounded-xl transition-all hover:translate-y-[-4px]">
+              <div ref={setRevealRef(6)} className="landing-reveal landing-reveal-delay-3 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
                 <div className="w-14 h-14 bg-secondary-container rounded-lg flex items-center justify-center mb-6 group-hover:bg-secondary transition-colors">
                   <span className="material-symbols-outlined text-on-secondary-container group-hover:text-on-secondary">download_done</span>
                 </div>
@@ -210,7 +239,7 @@ export default function LandingPage() {
 
         {/* Advanced Diagnostics Section */}
         <section className="py-16 sm:py-24 px-6 sm:px-8 max-w-[1440px] mx-auto">
-          <div className="bg-primary rounded-2xl overflow-hidden flex flex-col lg:flex-row">
+          <div ref={setRevealRef(7)} className="landing-reveal bg-primary rounded-2xl overflow-hidden flex flex-col lg:flex-row">
             <div className="lg:w-1/2 p-8 sm:p-12 lg:p-20 flex flex-col justify-center">
               <span className="text-primary-fixed-dim uppercase font-bold tracking-[0.2em] text-xs mb-4">Advanced Diagnostics</span>
               <h2 className="text-on-primary font-headline font-bold text-3xl sm:text-4xl mb-6">Beyond Spellcheck.</h2>
@@ -263,7 +292,7 @@ export default function LandingPage() {
         </section>
         {/* Built for section */}
         <section className="py-14 sm:py-20 px-6 sm:px-8 bg-surface-container-low">
-          <div className="max-w-3xl mx-auto text-center">
+          <div ref={setRevealRef(8)} className="landing-reveal max-w-3xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 inline-block">Built for legal professionals</span>
             <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface mb-5 tracking-tight">
               Designed for stenographers, scopists, and voice writers.
