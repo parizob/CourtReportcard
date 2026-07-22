@@ -97,3 +97,20 @@
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+@keyframes blogSpark {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.blog-spark {
+  animation: blogSpark 2.8s ease-in-out infinite;
+}
+
+.blog-spark-delay {
+  animation-delay: 0.7s;
+}
+
+.blog-spark-delay-2 {
+  animation-delay: 1.4s;
+}

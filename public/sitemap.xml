@@ -12,20 +12,12 @@
     <priority>1.0</priority>
   </url>
 
-  <!-- Our Platform — product walkthrough, high commercial intent -->
+  <!-- Our Platform -->
   <url>
     <loc>https://www.courtreportcard.com/ourplatform</loc>
     <lastmod>2026-07-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
-  </url>
-
-  <!-- About Us -->
-  <url>
-    <loc>https://www.courtreportcard.com/aboutus</loc>
-    <lastmod>2026-07-22</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
   </url>
 
   <!-- Pricing -->
@@ -34,6 +26,38 @@
     <lastmod>2026-07-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+
+  <!-- Blog -->
+  <url>
+    <loc>https://www.courtreportcard.com/blog</loc>
+    <lastmod>2026-07-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Blog: Out of beta launch -->
+  <url>
+    <loc>https://www.courtreportcard.com/blog/court-reportcard-out-of-beta</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Blog: Common homophone errors -->
+  <url>
+    <loc>https://www.courtreportcard.com/blog/common-homophone-errors-in-transcripts</loc>
+    <lastmod>2026-07-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- About Us -->
+  <url>
+    <loc>https://www.courtreportcard.com/aboutus</loc>
+    <lastmod>2026-07-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
 
   <!-- Support / FAQ -->

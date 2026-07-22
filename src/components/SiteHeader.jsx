@@ -357,8 +357,9 @@ export default function SiteHeader() {
           <div className="hidden md:flex gap-6 items-center">
             <NavLink to="/" end className={publicNavClass}>Home</NavLink>
             <NavLink to="/ourplatform" className={publicNavClass}>Our Platform</NavLink>
-            <NavLink to="/aboutus" className={publicNavClass}>About Us</NavLink>
             <NavLink to="/pricing" className={publicNavClass}>Pricing</NavLink>
+            <NavLink to="/blog" className={publicNavClass}>Blog</NavLink>
+            <NavLink to="/aboutus" className={publicNavClass}>About Us</NavLink>
             <NavLink to="/support" className={publicNavClass}>Support</NavLink>
           </div>
         </div>
@@ -464,15 +465,6 @@ export default function SiteHeader() {
               Our Platform
             </NavLink>
             <NavLink
-              to="/aboutus"
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
-              }
-            >
-              About Us
-            </NavLink>
-            <NavLink
               to="/pricing"
               onClick={() => setMobileMenuOpen(false)}
               className={({ isActive }) =>
@@ -480,6 +472,24 @@ export default function SiteHeader() {
               }
             >
               Pricing
+            </NavLink>
+            <NavLink
+              to="/blog"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              Blog
+            </NavLink>
+            <NavLink
+              to="/aboutus"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `py-3 px-3 rounded-lg font-headline font-bold tracking-tight ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-container'}`
+              }
+            >
+              About Us
             </NavLink>
             <NavLink
               to="/support"

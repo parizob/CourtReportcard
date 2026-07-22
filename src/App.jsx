@@ -6,6 +6,8 @@ import TermsOfService from './pages/TermsOfService'
 import Privacy from './pages/Privacy'
 import Support from './pages/Support'
 import Pricing from './pages/Pricing'
+import Blog from './pages/Blog'
+import BlogPost from './pages/BlogPost'
 import PageTransition from './components/PageTransition'
 import SiteHeader from './components/SiteHeader'
 import SignInModal from './components/SignInModal'
@@ -34,6 +36,8 @@ function AppShell() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/aboutus" element={<AboutUs />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/support" element={<Support />} />
           <Route path="/ourplatform" element={<OurPlatform />} />
           <Route path="/terms" element={<TermsOfService />} />
