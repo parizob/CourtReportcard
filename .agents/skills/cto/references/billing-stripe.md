@@ -13,6 +13,7 @@ One-time token purchases via Stripe Checkout. Subscriptions are not built —
 | Checkout session creation | `supabase/functions/create-checkout-session/index.ts` | `verify_jwt: true`. Takes `{ pack_id, origin }` from the client, looks up price server-side (client never sends an amount), builds the session with **inline `price_data`** — see "No Stripe catalog" below. |
 | Fulfillment | `supabase/functions/stripe-webhook/index.ts` | `verify_jwt: false` (Stripe has no Supabase JWT — its own signature is the only auth). Listens for `checkout.session.completed` / `checkout.session.async_payment_succeeded`; on `payment_status === 'paid'`, calls the `credit_tokens` RPC. |
 | Idempotent credit | `credit_tokens` RPC (`supabase/migrations/20260721230000_add_stripe_token_credits.sql`, fixed in `20260722010000_fix_credit_tokens_on_conflict.sql`) | `security definer`, `service_role`-only. Keyed on `token_ledger.stripe_checkout_session_id` (partial unique index) so a webhook retry/duplicate delivery can never double-credit. |
+| Fulfillment failure alerting | `supabase/functions/stripe-webhook/index.ts` (`sendFulfillmentAlert`) | Emails `courtreportcard@gmail.com` via Resend whenever a paid session doesn't end in a credit — see "Fulfillment failure alerts" below. |
 | Purchase UI | `src/pages/dashboard/DashboardBilling.jsx` | Gated by `canPurchase` — see "Beta gating" below. |
 
 ## No Stripe catalog — pricing is 100% code-driven
@@ -85,6 +86,39 @@ Only that one account sees the real Buy UI; everyone else sees a static
 "we'll top you up for free, email us" notice. This is intentional and
 temporary — remove or replace with real rollout logic before public launch
 (see checklist above, item 5).
+
+## Fulfillment failure alerts
+
+Stripe's own retry backoff (~3 days) covers *transient* fulfillment failures,
+but there was no signal at all if retries ever exhausted — a customer could
+be charged with tokens never credited and nobody would know without manually
+checking logs. `stripe-webhook`'s `fulfill()` now emails
+`courtreportcard@gmail.com` (via the Resend HTTP API, same account/domain as
+`api/contact.js`) the moment either failure path happens — it does not wait
+for retries to exhaust, so the same incident can generate more than one email
+if Stripe redelivers before it's fixed:
+
+- Missing/invalid `session.metadata` (`user_id`/`tokens`) — previously just a
+  silent `console.error`.
+- `credit_tokens` RPC throwing (the 2026-07-21 incident below would have
+  emailed on the very first failed purchase instead of going unnoticed).
+- `credit_tokens` returning no balance (no matching `user_profiles` row).
+
+The email includes the checkout session ID, customer email, `user_id`/pack/
+tokens from metadata, amount paid, payment status, live vs. test mode, and
+the specific error message when there is one — enough to look up the session
+in the Stripe Dashboard and the `token_ledger` table without digging through
+logs first.
+
+**Requires the `RESEND_API_KEY` Supabase secret** (same key already used by
+the Vercel `api/contact.js` support-form endpoint works fine — it's just a
+Resend API key, not tied to Vercel). If unset, `sendFulfillmentAlert` no-ops
+with a `console.error` rather than failing the webhook response — a missing
+alert key must never turn a successful credit into a `500` for Stripe to
+retry forever.
+
+Sending is wrapped in its own try/catch so a Resend outage can never affect
+the webhook's actual response code to Stripe.
 
 ## Debugging
 

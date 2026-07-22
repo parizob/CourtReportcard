@@ -79,6 +79,12 @@ export default function DashboardBilling() {
     return () => timers.forEach(clearTimeout)
   }, [])
 
+  useEffect(() => {
+    if (!checkoutBanner) return
+    const timer = setTimeout(() => setCheckoutBanner(null), 5000)
+    return () => clearTimeout(timer)
+  }, [checkoutBanner])
+
   const handleBuy = async (pack) => {
     setPurchaseError(null)
     setPurchasingId(pack.id)
