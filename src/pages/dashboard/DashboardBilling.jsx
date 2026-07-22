@@ -107,7 +107,7 @@ export default function DashboardBilling() {
             Plans &amp; Billing
           </h1>
           <p className="text-on-surface-variant mt-2 text-sm max-w-xl">
-            Choose a subscription plan or purchase upload tokens individually.
+          Purchase transcript tokens — no subscription required.
           </p>
         </header>
 
@@ -185,10 +185,7 @@ export default function DashboardBilling() {
                     Transcript Tokens
                   </h2>
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
-                    Purchase tokens individually — no subscription required.
-                  </p>
-                  <p className="text-sm italic font-semibold text-on-surface max-w-md leading-relaxed">
-                    1 token = 1 transcript page.
+                    Buy in bulk to save more per token.
                   </p>
                 </div>
               </div>
@@ -197,7 +194,7 @@ export default function DashboardBilling() {
                 <p className="text-sm text-red-600 mb-4">{purchaseError}</p>
               )}
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {TOKEN_PACKS.map((pack, idx) => {
                   const pileImage = PILE_IMAGES[idx] ?? PILE_IMAGES[PILE_IMAGES.length - 1]
                   const isPopular = idx === 1
