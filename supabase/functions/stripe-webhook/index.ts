@@ -156,6 +156,9 @@ Deno.serve(async (req: Request) => {
       p_amount: tokens,
       p_description: 'Purchase',
       p_stripe_session_id: session.id,
+      // What Stripe actually charged — stored so billing history can show
+      // dollars later without reconstructing from pack tables that can change.
+      p_price_cents: session.amount_total ?? null,
     })
 
     if (error) {

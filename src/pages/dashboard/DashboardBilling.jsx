@@ -7,6 +7,8 @@ import { TOKEN_PACKS } from '../../lib/tokenPacks'
 // three cards visually read as "small → medium → large" at a glance.
 const PILE_IMAGES = ['/coin-pile-small.png', '/coin-pile-medium.png', '/coin-pile-large.png']
 
+const PURCHASE_PAGE_SIZE = 5
+
 const PLAN_LABELS = {
   starter: 'Starter',
   professional: 'Professional',
@@ -59,6 +61,43 @@ export default function DashboardBilling() {
   const [purchasingId, setPurchasingId] = useState(null)
   const [purchaseError, setPurchaseError] = useState(null)
   const [checkoutBanner, setCheckoutBanner] = useState(null) // 'success' | 'canceled'
+  const [purchases, setPurchases] = useState([])
+  const [purchasesLoading, setPurchasesLoading] = useState(true)
+  const [purchasePage, setPurchasePage] = useState(0)
+
+  const loadPurchases = async () => {
+    // Purchases + admin top-ups (shown as "Bonus"). Pull both types, then
+    // drop "Admin grant refund" / other credit rows client-side.
+    const { data, error } = await supabase
+      .from('token_ledger')
+      .select('id, amount, description, created_at, price_cents, type')
+      .in('type', ['purchase', 'credit'])
+      .order('created_at', { ascending: false })
+    if (!error) {
+      const rows = (data ?? []).filter(
+        (row) => row.type === 'purchase' || row.description === 'Admin grant',
+      )
+      setPurchases(rows)
+      setPurchasePage(0)
+    }
+    setPurchasesLoading(false)
+  }
+
+  const historyLabel = (row) => {
+    if (row.description === 'Admin grant') return 'Bonus'
+    return row.description || 'Purchase'
+  }
+
+  const purchasePageCount = Math.max(1, Math.ceil(purchases.length / PURCHASE_PAGE_SIZE))
+  const purchasePageRows = purchases.slice(
+    purchasePage * PURCHASE_PAGE_SIZE,
+    purchasePage * PURCHASE_PAGE_SIZE + PURCHASE_PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    if (!user) return
+    loadPurchases()
+  }, [user?.id])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -73,9 +112,13 @@ export default function DashboardBilling() {
     if (checkout !== 'success') return
     // The webhook fulfills the purchase asynchronously and can lag a couple
     // seconds behind this redirect — re-poll instead of a single refresh so
-    // the balance shown here doesn't look stale right after paying.
+    // the balance / history shown here don't look stale right after paying.
     refreshTokens()
-    const timers = [setTimeout(refreshTokens, 2000), setTimeout(refreshTokens, 5000)]
+    loadPurchases()
+    const timers = [
+      setTimeout(() => { refreshTokens(); loadPurchases() }, 2000),
+      setTimeout(() => { refreshTokens(); loadPurchases() }, 5000),
+    ]
     return () => timers.forEach(clearTimeout)
   }, [])
 
@@ -254,6 +297,83 @@ export default function DashboardBilling() {
             </div>
           </section>
         )}
+
+        {/* ─── History: purchases + admin bonuses (token_ledger) ─── */}
+        <section className="mb-10">
+          <h2 className="font-headline text-xl font-bold text-on-surface mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">receipt_long</span>
+            History
+          </h2>
+          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-3 sm:gap-4">
+              <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex-1">Date</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant w-24 sm:w-36">Description</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant w-16 sm:w-20 text-right">Tokens</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant w-16 sm:w-20 text-right">Amount</span>
+            </div>
+            {purchasesLoading ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-on-surface-variant">Loading…</p>
+              </div>
+            ) : purchases.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <span className="material-symbols-outlined text-on-surface-variant/30 text-3xl mb-2 block">receipt</span>
+                <p className="text-sm text-on-surface-variant">No history yet.</p>
+              </div>
+            ) : (
+              <>
+                <ul>
+                  {purchasePageRows.map((row) => (
+                    <li
+                      key={row.id}
+                      className="px-6 py-4 border-b border-outline-variant/10 last:border-b-0 flex items-center gap-3 sm:gap-4"
+                    >
+                      <span className="text-sm text-on-surface flex-1">
+                        {new Date(row.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                      <span className="text-sm text-on-surface-variant w-24 sm:w-36 truncate">
+                        {historyLabel(row)}
+                      </span>
+                      <span className="text-sm font-bold text-on-surface w-16 sm:w-20 text-right">
+                        +{row.amount.toLocaleString()}
+                      </span>
+                      <span className="text-sm font-bold text-on-surface w-16 sm:w-20 text-right">
+                        {row.price_cents != null ? `$${(row.price_cents / 100).toFixed(2)}` : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {purchases.length > PURCHASE_PAGE_SIZE && (
+                  <div className="px-6 py-3 border-t border-outline-variant/10 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setPurchasePage((p) => Math.max(0, p - 1))}
+                      disabled={purchasePage === 0}
+                      className="text-xs font-bold text-primary hover:underline disabled:text-on-surface-variant/40 disabled:no-underline disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-xs text-on-surface-variant">
+                      Page {purchasePage + 1} of {purchasePageCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPurchasePage((p) => Math.min(purchasePageCount - 1, p + 1))}
+                      disabled={purchasePage >= purchasePageCount - 1}
+                      className="text-xs font-bold text-primary hover:underline disabled:text-on-surface-variant/40 disabled:no-underline disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
 
         {/*
         ─── HIDDEN UNTIL LAUNCH ─── Subscription Plans, Token Packs, Payment Method, Billing History ───
