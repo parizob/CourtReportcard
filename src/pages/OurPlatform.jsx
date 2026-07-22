@@ -42,7 +42,7 @@ const stats = [
     sub: 'No line skipped. No page rushed. No homophone missed.',
   },
   {
-    metric: '~97%',
+    metric: '~98%',
     label: 'cost reduction vs. manual review',
     sub: 'Cents per page instead of dollars per hour.',
   },

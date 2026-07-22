@@ -15,7 +15,7 @@ export default function LandingPage() {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-8 sm:pt-12 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
+        <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
