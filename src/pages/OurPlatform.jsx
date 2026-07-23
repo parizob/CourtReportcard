@@ -256,13 +256,13 @@ export default function OurPlatform() {
               Your next deposition review starts in minutes.
             </h3>
             <p className="text-primary/80 text-base mb-8 max-w-lg mx-auto leading-relaxed">
-              100 free tokens — one per page — the moment you sign up. No credit card. No onboarding call. Just upload and go.
+              Get 100 free tokens when you sign up. No credit card required. Buy more anytime you need them.
             </p>
             <button
               onClick={() => openModal('signup')}
               className="inline-flex items-center gap-2 bg-primary text-on-primary px-8 py-3.5 rounded-lg font-bold text-sm uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all"
             >
-              Get Early Access
+              Create Free Account
               <span className="material-symbols-outlined text-base">arrow_forward</span>
             </button>
           </div>
