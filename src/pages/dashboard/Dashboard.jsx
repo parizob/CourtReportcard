@@ -139,18 +139,18 @@ export default function Dashboard() {
     return c.status // 'analyzed' or 'uploaded' etc.
   }
 
-  const totalIssuesAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.total_issues || 0) }, 0)
   const totalAcceptedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.accepted || 0) }, 0)
   const totalChangedAll = cases.reduce((sum, c) => { const m = getMetrics(c); return sum + (m?.custom_changed || 0) }, 0)
+  const pagesReviewedAll = cases.reduce((sum, c) => sum + (c.tokens_charged || 0), 0)
 
   const activeCasesAll = cases.filter((c) => { const s = getDisplayStatus(c); return s === 'uploaded' || s === 'processing' || s === 'analyzed' || s === 'in_progress' })
   const completedCasesAll = cases.filter((c) => { const s = getDisplayStatus(c); return s === 'reviewed' || s === 'exported' })
 
   const stats = [
-    { value: String(activeCasesAll.length), label: 'Active Cases', icon: 'folder_open' },
-    { value: String(completedCasesAll.length), label: 'Completed Reviews', icon: 'check_circle' },
-    { value: String(totalAcceptedAll + totalChangedAll), label: 'Accepted & Changed', icon: 'spellcheck' },
-    { value: String(totalIssuesAll), label: 'Total Suggestions', icon: 'auto_awesome' },
+    { value: activeCasesAll.length, label: 'Active Cases', icon: 'folder_open' },
+    { value: completedCasesAll.length, label: 'Completed Reviews', icon: 'check_circle' },
+    { value: totalAcceptedAll + totalChangedAll, label: 'Accepted & Changed', icon: 'spellcheck' },
+    { value: pagesReviewedAll, label: 'Pages Reviewed', icon: 'description' },
   ]
 
   const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', in_progress: 'Editing', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
@@ -244,7 +244,7 @@ export default function Dashboard() {
                   <span className="material-symbols-outlined text-on-secondary-container">{s.icon}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-2xl font-headline font-black text-primary leading-none">{s.value}</p>
+                  <p className="text-2xl font-headline font-black text-primary leading-none">{Number(s.value).toLocaleString()}</p>
                   <p className="text-[10px] uppercase tracking-wide sm:tracking-widest font-bold text-on-surface-variant mt-1 break-words">
                     {words.length === 2 ? <>{words[0]} <br className="sm:hidden" />{words[1]}</> : s.label}
                   </p>
