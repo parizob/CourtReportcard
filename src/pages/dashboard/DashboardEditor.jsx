@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent } from '../../lib/gemini'
 import { countByType } from '../../lib/annotationStats'
 import Tooltip from '../../components/Tooltip'
 
@@ -19,7 +19,9 @@ export default function DashboardEditor() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [jumpNotice, setJumpNotice] = useState('')
   const [title, setTitle] = useState('')
+  const jumpNoticeTimerRef = useRef(null)
   const [originalText, setOriginalText] = useState(null)
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
@@ -227,6 +229,14 @@ export default function DashboardEditor() {
 
   useEffect(() => () => clearTimeout(syncTimerRef.current), [])
 
+  const showJumpNotice = useCallback((message) => {
+    setJumpNotice(message)
+    clearTimeout(jumpNoticeTimerRef.current)
+    jumpNoticeTimerRef.current = setTimeout(() => setJumpNotice(''), 4000)
+  }, [])
+
+  useEffect(() => () => clearTimeout(jumpNoticeTimerRef.current), [])
+
   const acceptAnnotation = useCallback((annotationId, customSuggestion) => {
     const curAnnotations = annotationsRef.current
     const curEntries = entriesRef.current
@@ -255,6 +265,16 @@ export default function DashboardEditor() {
       return { ...e, text: e.text.substring(0, m.start) + finalSuggestion + e.text.substring(m.end) }
     })
 
+    // Entry apply is required — otherwise the visible edit and (when there is
+    // no originalText) the export source would not include the fix.
+    if (appliedEntryId == null) {
+      console.warn(
+        `Accept blocked: could not apply to entry — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)}`
+      )
+      showJumpNotice('Could not apply this change in the transcript. The suggestion was left open.')
+      return
+    }
+
     let updatedOriginalText = curOriginalText
     // Cache the clean-content position of this annotation BEFORE applying the
     // correction, while the original word still exists at its unique location.
@@ -270,31 +290,33 @@ export default function DashboardEditor() {
     let _appliedOriginalEnd = null
     let _appliedOriginalMatchedText = null
     if (curOriginalText) {
+      // Same locator as underlines — then apply at that exact range so export
+      // gets "the cat" when they accepted "the cat".
       const { cleanContent: cc } = buildCleanContentMap(curOriginalText)
-      // Use the entry text as a location anchor to find the right occurrence.
       const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
-      let searchFrom = 0
-      if (annotationEntry) {
-        // Trim to the last complete word — a mid-word cutoff makes flexFind's
-        // word-boundary check reject an otherwise-valid match.
-        const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
-        if (anchor) {
-          const em = flexFind(cc, anchor)
-          if (em) searchFrom = em.start
-        }
+      const located = locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original)
+      const detail = located
+        ? applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion, {
+            cleanStart: located.cleanStart,
+            cleanEnd: located.cleanEnd,
+          })
+        : { text: curOriginalText, start: -1, end: -1, matchedText: null }
+
+      if (detail.start === -1) {
+        // Fail closed: do not mark accepted if the export source cannot be updated.
+        console.warn(
+          `Accept blocked: entry ok but originalText apply failed — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} suggestion=${JSON.stringify(finalSuggestion)} located=${!!located}`
+        )
+        showJumpNotice('Could not apply this change to the export transcript. The suggestion was left open so nothing is missing from download.')
+        return
       }
-      const wordM = flexFind(cc.substring(searchFrom), ann.original)
-      if (wordM) {
-        _cleanStart = searchFrom + wordM.start
-        _cleanEnd = _cleanStart + finalSuggestion.length
-      }
-      const detail = applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion)
+
       updatedOriginalText = detail.text
-      if (detail.start !== -1) {
-        _appliedOriginalStart = detail.start
-        _appliedOriginalEnd = detail.end
-        _appliedOriginalMatchedText = detail.matchedText
-      }
+      _cleanStart = located.cleanStart
+      _cleanEnd = located.cleanStart + finalSuggestion.length
+      _appliedOriginalStart = detail.start
+      _appliedOriginalEnd = detail.end
+      _appliedOriginalMatchedText = detail.matchedText
 
       // Recompute _cleanEnd from the post-acceptance clean content. For
       // cross-line annotations the cleanContent span includes newlines
@@ -326,7 +348,7 @@ export default function DashboardEditor() {
     setInlinePopover(null)
 
     debouncedSync()
-  }, [debouncedSync])
+  }, [debouncedSync, showJumpNotice])
 
   const ignoreAnnotation = useCallback((annotationId) => {
     const curAnnotations = annotationsRef.current
@@ -340,6 +362,68 @@ export default function DashboardEditor() {
 
     debouncedSync()
   }, [debouncedSync])
+
+  // Jump-to: prefer the exact highlight span; if the cleanContent highlight
+  // pass never created one, fall back to the entry / nearest transcript line
+  // so the button never dead-ends on long docs with repeated phrases.
+  const jumpToAnnotation = useCallback((ann) => {
+    const highlight = document.getElementById(`ann-highlight-${ann.id}`)
+    if (highlight) {
+      highlight.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    const entryEl = document.getElementById(`entry-anchor-${ann.entry_id}`)
+    if (entryEl) {
+      entryEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      console.warn(
+        `Jump fallback (entry): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)}`
+      )
+      showJumpNotice('Could not highlight the exact text; jumped to the nearby passage.')
+      return
+    }
+
+    const curOriginalText = originalTextRef.current
+    const curEntries = entriesRef.current
+    if (curOriginalText) {
+      const { cleanContent, parsedLines } = buildCleanContentMap(curOriginalText)
+      const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
+      const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
+      const located = locateAnnotationInCleanContent(cleanContent, annotationEntry, ann, searchWord)
+      // If the exact span still can't be underlined, at least land on the
+      // entry's region when the locator found something — or on an entry-
+      // prefix hit via a second locate using a wider context.
+      let targetPos = located?.cleanStart
+      if (targetPos == null && annotationEntry?.text) {
+        const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
+        if (anchor) {
+          const em = flexFind(cleanContent, anchor)
+          if (em) targetPos = em.start
+        }
+      }
+      if (targetPos != null) {
+        const lineIdx = parsedLines.findIndex(
+          (pl) => pl.cleanStart <= targetPos && targetPos < pl.cleanEnd
+        )
+        if (lineIdx >= 0) {
+          const lineEl = document.getElementById(`transcript-line-${lineIdx}`)
+          if (lineEl) {
+            lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            console.warn(
+              `Jump fallback (line): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} lineIdx=${lineIdx} located=${!!located}`
+            )
+            showJumpNotice('Could not highlight the exact text; jumped to the nearby passage.')
+            return
+          }
+        }
+      }
+    }
+
+    console.warn(
+      `Jump failed: no highlight, entry, or line — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)}`
+    )
+    showJumpNotice('Could not locate this flag in the transcript view.')
+  }, [showJumpNotice])
 
   const reopenAnnotation = useCallback((annotationId) => {
     const curAnnotations = annotationsRef.current
@@ -584,6 +668,7 @@ export default function DashboardEditor() {
       parts.push(
         <span
           key={`a-${ann.id}`}
+          id={`ann-highlight-${ann.id}`}
           className={cls}
           title={ann.status === 'accepted' ? `Accepted: "${ann.original}" → "${ann.suggestion}"` : `${ann.type}: ${ann.explanation}`}
           onClick={ann.status === 'open' ? () => {
@@ -752,10 +837,7 @@ export default function DashboardEditor() {
             <div className="absolute top-2 right-2 flex items-center gap-1">
               <Tooltip text="Jump to in transcript" placement="left">
                 <button
-                  onClick={() => {
-                    const el = document.getElementById(`ann-highlight-${ann.id}`)
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                  }}
+                  onClick={() => jumpToAnnotation(ann)}
                   className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
                 >
                   <span className="material-symbols-outlined text-xs">my_location</span>
@@ -833,10 +915,7 @@ export default function DashboardEditor() {
               <button
                 key={ann.id}
                 id={`ann-card-${ann.id}`}
-                onClick={() => {
-                  const el = document.getElementById(`ann-highlight-${ann.id}`)
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                }}
+                onClick={() => jumpToAnnotation(ann)}
                 className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-container group ${
                   ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
                 }`}
@@ -1061,6 +1140,13 @@ export default function DashboardEditor() {
         </div>
       )}
 
+      {jumpNotice && (
+        <div className="mx-8 lg:mx-12 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 font-medium flex items-start gap-2 max-w-6xl" role="status">
+          <span className="material-symbols-outlined text-base mt-0.5 shrink-0">info</span>
+          {jumpNotice}
+        </div>
+      )}
+
       {/* Editor + Sidebar */}
       <div className="flex items-start bg-surface border-t border-outline-variant/10">
 
@@ -1086,33 +1172,28 @@ export default function DashboardEditor() {
               }
               const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
               if (!searchWord) continue
-              // Anchor the search to the annotation's own entry first — searching
-              // cleanContent from the start of the document grabs the FIRST
-              // occurrence of the flagged text anywhere in the transcript, which
-              // is wrong whenever that text repeats elsewhere (e.g. "do you",
-              // "2026" as a year). Mirrors the anchor pattern in acceptAnnotation.
+              // Reuse the panel's already-resolved entry offsets when placing
+              // the underline — do not re-derive from a separate whole-doc search.
               const annotationEntry = entries.find((e) => e.id === ann.entry_id)
-              let searchFrom = 0
-              if (annotationEntry) {
-                // Trim to the last complete word — a mid-word cutoff (e.g. landing
-                // inside "presentation") makes flexFind's word-boundary check
-                // reject an otherwise-valid match, silently falling back to
-                // searchFrom=0 and re-introducing the whole-document bug above.
-                const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
-                if (anchor) {
-                  const em = flexFind(cleanContent, anchor)
-                  if (em) searchFrom = em.start
-                }
+              const located = locateAnnotationInCleanContent(cleanContent, annotationEntry, ann, searchWord)
+              if (!located) {
+                console.warn(
+                  `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} searchWord=${JSON.stringify(searchWord)} hasEntry=${!!annotationEntry} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
+                )
+                continue
               }
-              const m = flexFind(cleanContent.substring(searchFrom), searchWord)
-              if (!m) continue
-              highlights.push({ ...ann, cleanStart: searchFrom + m.start, cleanEnd: searchFrom + m.end })
+              highlights.push({ ...ann, cleanStart: located.cleanStart, cleanEnd: located.cleanEnd })
             }
             highlights.sort((a, b) => a.cleanStart - b.cleanStart)
             const cleanHighlights = []
             let lastCleanEnd = 0
             for (const h of highlights) {
-              if (h.cleanStart < lastCleanEnd) continue
+              if (h.cleanStart < lastCleanEnd) {
+                console.warn(
+                  `Transcript highlight skipped (overlap): id=${h.id} entry_id=${h.entry_id} type=${h.type} original=${JSON.stringify(h.original)} cleanStart=${h.cleanStart}`
+                )
+                continue
+              }
               cleanHighlights.push(h)
               lastCleanEnd = h.cleanEnd
             }
@@ -1148,7 +1229,7 @@ export default function DashboardEditor() {
               const isPageBreakLine = /^\s*\d{1,4}\s*$/.test(content)
               if (isPageBreakLine) {
                 return (
-                  <div key={lineKey} className="min-h-[1.5rem]">
+                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
                     <span className="whitespace-pre">{fullLine}</span>
                   </div>
                 )
@@ -1166,7 +1247,7 @@ export default function DashboardEditor() {
 
               if (lineHighlights.length === 0) {
                 return (
-                  <div key={lineKey} className="min-h-[1.5rem]">
+                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
                     <span className="whitespace-pre">{fullLine}</span>
                   </div>
                 )
@@ -1232,7 +1313,7 @@ export default function DashboardEditor() {
               }
 
               return (
-                <div key={lineKey} className="min-h-[1.5rem]">
+                <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
                   {parts}
                 </div>
               )
@@ -1287,6 +1368,7 @@ export default function DashboardEditor() {
               pages.push(allLines.slice(i, i + LINES_PER_PAGE))
             }
 
+            const seenEntryAnchors = new Set()
             return (
               <div className="space-y-8">
                 {pages.map((page, pageIdx) => (
@@ -1298,9 +1380,13 @@ export default function DashboardEditor() {
                     <div className="px-4 pb-8 pt-2">
                       {page.map((line, lineIdx) => {
                         const lineNum = lineIdx + 1
+                        // One DOM anchor per entry (first rendered line) for jump fallback.
+                        const isFirstForEntry = line.entryId != null && !seenEntryAnchors.has(line.entryId)
+                        if (isFirstForEntry) seenEntryAnchors.add(line.entryId)
+                        const entryAnchorProps = isFirstForEntry ? { id: `entry-anchor-${line.entryId}` } : {}
                         if (line.type === 'blank') {
                           return (
-                            <div key={`${pageIdx}-${lineIdx}`} className="flex h-7">
+                            <div key={`${pageIdx}-${lineIdx}`} {...entryAnchorProps} className="flex h-7">
                               <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
                               <div className="flex-1" />
                             </div>
@@ -1308,7 +1394,7 @@ export default function DashboardEditor() {
                         }
                         if (line.type === 'speaker') {
                           return (
-                            <div key={`${pageIdx}-${lineIdx}`} className="flex h-7 items-center">
+                            <div key={`${pageIdx}-${lineIdx}`} {...entryAnchorProps} className="flex h-7 items-center">
                               <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
                               <input
                                 type="text"
@@ -1322,7 +1408,7 @@ export default function DashboardEditor() {
                         }
                         if (line.type === 'annotated-block') {
                           return (
-                            <div key={`${pageIdx}-${lineIdx}`} className="flex min-h-[1.75rem] group/line">
+                            <div key={`${pageIdx}-${lineIdx}`} {...entryAnchorProps} className="flex min-h-[1.75rem] group/line">
                               <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
                               <div className="flex-1 font-mono text-[13px] leading-7 text-on-surface" style={{ maxWidth: '42.25em' }}>
                                 {renderHighlightedText(line.entry)}
@@ -1331,7 +1417,7 @@ export default function DashboardEditor() {
                           )
                         }
                         return (
-                          <div key={`${pageIdx}-${lineIdx}`} className="flex min-h-[1.75rem] group/line">
+                          <div key={`${pageIdx}-${lineIdx}`} {...entryAnchorProps} className="flex min-h-[1.75rem] group/line">
                             <span className="w-12 shrink-0 text-right pr-4 text-xs text-on-surface-variant/40 font-mono leading-7 select-none">{lineNum}</span>
                             <div className="flex-1 font-mono text-[13px] leading-7 text-on-surface">
                               <span

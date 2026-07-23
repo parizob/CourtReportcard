@@ -211,6 +211,81 @@ export function buildCleanContentMap(text) {
   return { cleanContent, parsedLines, cleanToOrig }
 }
 
+/**
+ * Place an annotation in cleanContent using the panel-resolved entry
+ * offsets (start/end) when available, instead of an independent
+ * whole-document search for the short flagged phrase.
+ *
+ * Strategy (tight → never relocates onto an earlier repeat):
+ * 1. Take a context window around the panel's start/end in the entry,
+ *    find that window in cleanContent, then find the flagged span inside it.
+ * 2. Else: entry-prefix anchor + search for the panel-matched text / searchWord
+ *    from that point only (no unanchored whole-doc fallback for short words).
+ *
+ * Returns { cleanStart, cleanEnd } or null.
+ */
+export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchWord) {
+  if (!cleanContent || !searchWord) return null
+
+  const tryNeedlesInRange = (from, needles) => {
+    for (const needle of needles) {
+      if (!needle) continue
+      const m = flexFind(cleanContent.substring(from), needle)
+      if (m) return { cleanStart: from + m.start, cleanEnd: from + m.end }
+    }
+    return null
+  }
+
+  if (entry?.text && Number.isFinite(ann.start) && Number.isFinite(ann.end) && ann.start < ann.end) {
+    const matchedInEntry = entry.text.substring(ann.start, ann.end)
+    const needles = matchedInEntry && matchedInEntry !== searchWord
+      ? [matchedInEntry, searchWord]
+      : [searchWord, matchedInEntry]
+
+    // 1) Context window around the panel-resolved span — unique enough to
+    // avoid latching onto an earlier repeat of a short flagged word.
+    const pad = 48
+    const rawCtxStart = Math.max(0, ann.start - pad)
+    const rawCtxEnd = Math.min(entry.text.length, ann.end + pad)
+    let context = entry.text.substring(rawCtxStart, rawCtxEnd)
+    if (rawCtxStart > 0) context = context.replace(/^\S*\s+/, '')
+    if (rawCtxEnd < entry.text.length) context = context.replace(/\s+\S*$/, '')
+    context = context.trim()
+
+    if (context.length >= Math.min(searchWord.length, 3)) {
+      const ctxMatch = flexFind(cleanContent, context)
+      if (ctxMatch) {
+        const region = cleanContent.substring(ctxMatch.start, ctxMatch.end)
+        for (const needle of needles) {
+          if (!needle) continue
+          const inner = flexFind(region, needle)
+          if (inner) {
+            return {
+              cleanStart: ctxMatch.start + inner.start,
+              cleanEnd: ctxMatch.start + inner.end,
+            }
+          }
+        }
+      }
+    }
+
+    // 2) Entry opening as anchor, then search forward only.
+    const anchor = entry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
+    if (anchor) {
+      const em = flexFind(cleanContent, anchor)
+      if (em) {
+        const hit = tryNeedlesInRange(em.start, needles)
+        if (hit) return hit
+      }
+    }
+
+    return null
+  }
+
+  // No panel offsets — last resort whole-doc search (legacy / incomplete anns).
+  return tryNeedlesInRange(0, [searchWord])
+}
+
 const _tokenize = (s) => {
   const tokens = []
   let i = 0
@@ -316,7 +391,17 @@ export function _reflowLines(text, colWidth) {
  * Returns { text, start: -1, end: -1, matchedText: null } if `original`
  * isn't found.
  */
-export function applyCorrectionDetailed(text, original, suggestion) {
+/**
+ * @param {object} [options]
+ * @param {number} [options.searchFromClean] - When set, search only in
+ *   cleanContent starting at this offset (entry-anchored). Does NOT fall
+ *   back to a whole-document first match — that would silently relocate a
+ *   correction onto the wrong occurrence of a repeated phrase.
+ * @param {number} [options.cleanStart]
+ * @param {number} [options.cleanEnd] - When both set, apply at this exact
+ *   cleanContent range (from locateAnnotationInCleanContent). No re-search.
+ */
+export function applyCorrectionDetailed(text, original, suggestion, options = {}) {
   if (!text || !original || !suggestion) return { text, start: -1, end: -1, matchedText: null }
 
   const buildReplacement = (matchStart, matchEnd, skipLineNums) => {
@@ -369,6 +454,38 @@ export function applyCorrectionDetailed(text, original, suggestion) {
     }
   }
 
+  const applyFromClean = (cleanContent, cleanToOrig, searchFrom) => {
+    const cm = flexFind(cleanContent.substring(searchFrom), original)
+    if (!cm) return null
+    const cleanStart = searchFrom + cm.start
+    const cleanEnd = searchFrom + cm.end
+    const origStart = cleanToOrig[cleanStart]
+    const origEnd = cleanToOrig[Math.min(cleanEnd - 1, cleanToOrig.length - 1)] + 1
+    return apply(origStart, origEnd)
+  }
+
+  // Exact clean range from the underline locator — preferred accept path.
+  if (options.cleanStart != null && options.cleanEnd != null) {
+    const { cleanToOrig } = buildCleanContentMap(text)
+    if (
+      options.cleanStart < 0 ||
+      options.cleanEnd > cleanToOrig.length ||
+      options.cleanStart >= options.cleanEnd
+    ) {
+      return { text, start: -1, end: -1, matchedText: null }
+    }
+    const origStart = cleanToOrig[options.cleanStart]
+    const origEnd = cleanToOrig[Math.min(options.cleanEnd - 1, cleanToOrig.length - 1)] + 1
+    return apply(origStart, origEnd)
+  }
+
+  // Entry-anchored path (editor accept): never fall back to whole-doc first match.
+  if (options.searchFromClean != null) {
+    const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
+    return applyFromClean(cleanContent, cleanToOrig, options.searchFromClean)
+      ?? { text, start: -1, end: -1, matchedText: null }
+  }
+
   // Fast path: direct match in text.
   // Always skip line numbers — whitespace-flexible matches can span newlines and
   // include transcript line numbers (e.g. "as\n 16        identified") which must
@@ -378,17 +495,91 @@ export function applyCorrectionDetailed(text, original, suggestion) {
 
   // Fallback: search in clean content (strips line numbers from .txt transcripts)
   const { cleanContent, cleanToOrig } = buildCleanContentMap(text)
-  const cm = flexFind(cleanContent, original)
-  if (!cm) return { text, start: -1, end: -1, matchedText: null }
-
-  const origStart = cleanToOrig[cm.start]
-  const origEnd = cleanToOrig[Math.min(cm.end - 1, cleanToOrig.length - 1)] + 1
-  return apply(origStart, origEnd)
+  return applyFromClean(cleanContent, cleanToOrig, 0)
+    ?? { text, start: -1, end: -1, matchedText: null }
 }
 
 export function applyCorrection(text, original, suggestion) {
   if (!text || !original || !suggestion) return text
   return applyCorrectionDetailed(text, original, suggestion).text
+}
+
+/**
+ * Ensures every accepted annotation's correction is present in originalText
+ * (the export source). Repairs any that still contain the original flagged
+ * text; reports any that can neither be confirmed fixed nor repaired.
+ *
+ * Returns { text, failed: Annotation[] }.
+ */
+export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, annotations) {
+  if (!originalText) return { text: originalText, failed: [] }
+
+  const accepted = (annotations || [])
+    .filter((a) => a.status === 'accepted' && a.original && a.suggestion)
+    .slice()
+    .sort((a, b) => {
+      const ea = a.entry_id ?? 0
+      const eb = b.entry_id ?? 0
+      if (ea !== eb) return ea - eb
+      return (a.start ?? 0) - (b.start ?? 0)
+    })
+
+  let text = originalText
+  const failed = []
+
+  for (const ann of accepted) {
+    const entry = (entries || []).find((e) => e.id === ann.entry_id) || null
+    const { cleanContent } = buildCleanContentMap(text)
+
+    // Rebuild a pre-accept entry snapshot when we have apply metadata so
+    // locate can use the same context window as underline/accept.
+    let locateEntry = entry
+    let locateAnn = ann
+    if (entry && ann._appliedAt != null && ann._appliedMatchedText != null && ann._appliedEnd != null) {
+      locateEntry = {
+        ...entry,
+        text:
+          entry.text.substring(0, ann._appliedAt) +
+          ann._appliedMatchedText +
+          entry.text.substring(ann._appliedEnd),
+      }
+      locateAnn = {
+        ...ann,
+        start: ann._appliedAt,
+        end: ann._appliedAt + ann._appliedMatchedText.length,
+      }
+    }
+
+    const stillOriginal = locateAnnotationInCleanContent(
+      cleanContent,
+      locateEntry,
+      locateAnn,
+      ann.original
+    )
+    if (stillOriginal) {
+      const detail = applyCorrectionDetailed(text, ann.original, ann.suggestion, {
+        cleanStart: stillOriginal.cleanStart,
+        cleanEnd: stillOriginal.cleanEnd,
+      })
+      if (detail.start === -1) {
+        failed.push(ann)
+        continue
+      }
+      text = detail.text
+      continue
+    }
+
+    // Original gone — confirm the suggestion is present near this entry.
+    const hasSuggestion = locateAnnotationInCleanContent(
+      cleanContent,
+      entry,
+      ann,
+      ann.suggestion
+    )
+    if (!hasSuggestion) failed.push(ann)
+  }
+
+  return { text, failed }
 }
 
 // How far (in entry id, which tracks document order) to look for a

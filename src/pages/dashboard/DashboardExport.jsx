@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
+import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -150,8 +151,27 @@ export default function DashboardExport() {
   // width (the body's left margin) and slice exactly that many characters from
   // every line. Content indentation BEYOND the band is left untouched, so
   // captions, "Plaintiff," indents, Q/A alignment, etc. stay exactly as-is.
+  const resolveExportOriginalText = () => {
+    if (!originalText) return null
+    const { text, failed } = ensureAcceptedCorrectionsInOriginalText(
+      originalText,
+      entries,
+      annotations
+    )
+    if (failed.length > 0) {
+      console.warn(
+        `Export: ${failed.length} accepted fix(es) could not be confirmed in originalText`,
+        failed.map((a) => ({ id: a.id, entry_id: a.entry_id, original: a.original, suggestion: a.suggestion }))
+      )
+      throw new Error(
+        `Export blocked: ${failed.length} accepted change${failed.length === 1 ? '' : 's'} could not be verified in the transcript file. Go back to the editor, reopen and re-accept those suggestions, then try again.`
+      )
+    }
+    return text
+  }
+
   const buildCleanText = () => {
-    const source = originalText || buildPlainText()
+    const source = resolveExportOriginalText() || buildPlainText()
     const lines = source.split('\n')
 
     // The body left margin = the smallest "<spaces><number><spaces>" prefix
@@ -180,8 +200,10 @@ export default function DashboardExport() {
   }
 
   const buildJsonExport = () => {
+    const syncedOriginal = resolveExportOriginalText()
     const payload = { title, entries, annotations }
-    if (originalText) payload.originalText = originalText
+    if (syncedOriginal) payload.originalText = syncedOriginal
+    else if (originalText) payload.originalText = originalText
     return JSON.stringify(payload, null, 2)
   }
 
@@ -199,16 +221,17 @@ export default function DashboardExport() {
 
   const handleExport = async (format) => {
     setExporting(format)
+    setError('')
     try {
       const baseName = (caseData?.name || 'transcript').replace(/[^a-zA-Z0-9_-]/g, '_')
       switch (format) {
         case 'txt': {
-          const content = originalText || buildPlainText()
+          const content = resolveExportOriginalText() || buildPlainText()
           triggerDownload(content, `${baseName}.txt`, 'text/plain')
           break
         }
         case 'rtf': {
-          const content = originalText || buildPlainText()
+          const content = resolveExportOriginalText() || buildPlainText()
           triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
           break
         }
