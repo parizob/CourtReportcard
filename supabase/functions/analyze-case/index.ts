@@ -761,14 +761,41 @@ function failureEmailHtml(caseName: string, refunded: number): string {
 }
 
 // ── Shared failure handler ──
+// Must be once-only: chunked extract/proofread can have overlapping invocations
+// that both exhaust retries. Without a claim, each one refunds and the user
+// is credited twice for a single spend (seen in production 2026-07-23, case King).
 async function handleFailure(admin: any, caseRow: any, caseId: string, err: unknown, stage?: string): Promise<void> {
   console.error('Analysis failed for case', caseId, stage, err)
-  const refund = caseRow.tokens_charged || 0
   // Truncated so a pathological error (e.g. a huge Gemini error body) can't
   // blow past Postgres's practical row-size comfort zone. Stage is prefixed
   // so a failure is diagnosable straight from the DB — no more reconstructing
   // which chunk/batch died from storage/API request logs after the fact.
   const lastError = `${stage ? `[${stage}] ` : ''}${(err as Error)?.message || String(err)}`.slice(0, 2000)
+
+  // Atomic claim: only the first failure path soft-deletes the case. Losers
+  // skip refund + email so a race cannot double-credit the ledger.
+  const { data: claimed, error: claimErr } = await admin
+    .from('cases')
+    .update({
+      deleted_at: new Date().toISOString(),
+      status: 'deleted',
+      last_error: lastError,
+    })
+    .eq('id', caseId)
+    .is('deleted_at', null)
+    .select('id, user_id, name, tokens_charged')
+    .maybeSingle()
+
+  if (claimErr) {
+    console.error('Failure claim failed for case', caseId, claimErr)
+    return
+  }
+  if (!claimed) {
+    console.warn('Failure already claimed for case', caseId, '— skipping refund/email. Stage:', stage)
+    return
+  }
+
+  const refund = claimed.tokens_charged || caseRow.tokens_charged || 0
 
   // Clean up storage: case_files rows (transcript/extracted) plus any
   // intermediate "extracting" JSON entries, which have no DB row.
@@ -777,41 +804,40 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
     .filter(Boolean)
   const { data: extractingFiles } = await admin.storage
     .from('case-files')
-    .list(`${caseRow.user_id}/${caseId}/extracting`)
+    .list(`${claimed.user_id}/${caseId}/extracting`)
   for (const f of extractingFiles || []) {
-    storagePaths.push(`${caseRow.user_id}/${caseId}/extracting/${f.name}`)
+    storagePaths.push(`${claimed.user_id}/${caseId}/extracting/${f.name}`)
   }
   if (storagePaths.length > 0) {
     await admin.storage.from('case-files').remove(storagePaths)
   }
 
-  const [profResult, , userResult] = await Promise.all([
-    refund > 0
-      ? admin.from('user_profiles').select('balance').eq('user_id', caseRow.user_id).single()
-      : Promise.resolve({ data: null }),
-    admin.from('cases')
-      .update({ deleted_at: new Date().toISOString(), status: 'deleted', last_error: lastError })
-      .eq('id', caseId),
-    admin.auth.admin.getUserById(caseRow.user_id),
-  ])
+  const userResult = await admin.auth.admin.getUserById(claimed.user_id)
 
-  if (refund > 0 && profResult.data) {
-    await Promise.all([
-      admin.from('user_profiles')
-        .update({ balance: profResult.data.balance + refund, updated_at: new Date().toISOString() })
-        .eq('user_id', caseRow.user_id),
-      admin.from('token_ledger').insert({
-        user_id: caseRow.user_id,
-        amount: refund,
-        type: 'refund',
-        description: 'Refund — failed analysis',
-      }),
-    ])
+  if (refund > 0) {
+    const { data: prof } = await admin
+      .from('user_profiles')
+      .select('balance')
+      .eq('user_id', claimed.user_id)
+      .single()
+    if (prof) {
+      await Promise.all([
+        admin.from('user_profiles')
+          .update({ balance: prof.balance + refund, updated_at: new Date().toISOString() })
+          .eq('user_id', claimed.user_id),
+        admin.from('token_ledger').insert({
+          user_id: claimed.user_id,
+          amount: refund,
+          type: 'refund',
+          description: `Refund — failed analysis (${caseId})`,
+        }),
+      ])
+    }
   }
 
   const email = (userResult as any)?.data?.user?.email
   if (email) {
-    await sendEmail(email, `We couldn't finish analyzing ${caseRow.name}`, failureEmailHtml(caseRow.name, refund))
+    await sendEmail(email, `We couldn't finish analyzing ${claimed.name}`, failureEmailHtml(claimed.name, refund))
   }
 }
 
@@ -1025,7 +1051,11 @@ Deno.serve(async (req: Request) => {
       const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
       try {
         const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(dbFile.storage_path)
-        if (dlErr || !blob) throw new Error(`Failed to download ${dbFile.file_name}`)
+        if (dlErr || !blob) {
+          throw new Error(
+            `Failed to download ${dbFile.file_name}: ${dlErr?.message || 'no blob'} (path=${dbFile.storage_path})`
+          )
+        }
 
         const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
         const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
