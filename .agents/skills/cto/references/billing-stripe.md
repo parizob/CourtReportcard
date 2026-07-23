@@ -15,6 +15,16 @@ One-time token purchases via Stripe Checkout. Subscriptions are not built —
 | Idempotent credit | `credit_tokens` RPC (`supabase/migrations/20260721230000_add_stripe_token_credits.sql`, fixed in `20260722010000_fix_credit_tokens_on_conflict.sql`, price added in `20260722030000_add_token_ledger_price_cents.sql`) | `security definer`, `service_role`-only. Keyed on `token_ledger.stripe_checkout_session_id` (partial unique index) so a webhook retry/duplicate delivery can never double-credit. Writes `token_ledger.price_cents` from Stripe `amount_total` (nullable on legacy/non-purchase rows). Purchase History UI shows tokens + amount (`price_cents / 100`). |
 | Fulfillment failure alerting | `supabase/functions/stripe-webhook/index.ts` (`sendFulfillmentAlert`) | Emails `courtreportcard@gmail.com` via Resend whenever a paid session doesn't end in a credit — see "Fulfillment failure alerts" below. |
 | Purchase UI | `src/pages/dashboard/DashboardBilling.jsx` | Gated by `canPurchase` — see "Beta gating" below. |
+| Promo codes | `promo_codes` + `promo_redemptions` + `redeem_promo` RPC (`supabase/migrations/20260723010000_add_promo_codes.sql`, multi-redeem fix `20260723020000_…`) | Authenticated users redeem from Billing. Caps via `max_per_user` (default 1) and optional `max_redemptions` (global). Credits `user_profiles.balance` and inserts `token_ledger` type `promo`. No Edge Function. Create codes in SQL (service role / dashboard); clients cannot list `promo_codes` (RLS). |
+
+### Create a promo code (SQL)
+
+```sql
+insert into public.promo_codes (code, token_amount, description)
+values ('LAUNCH100', 100, 'Launch promo');
+```
+
+Optional columns: `expires_at`, `starts_at`, `max_redemptions` (global cap), `active`.
 
 ## No Stripe catalog — pricing is 100% code-driven
 

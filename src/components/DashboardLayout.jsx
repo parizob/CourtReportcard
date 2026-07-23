@@ -48,7 +48,7 @@ export default function DashboardLayout() {
             </div>
             <div className="min-w-0">
               <p className="font-body text-lg font-extrabold text-on-surface leading-tight">
-                {tokenBalance ?? '—'} <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">tokens</span>
+                {tokenBalance != null ? tokenBalance.toLocaleString() : '—'} <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">tokens</span>
               </p>
               <p className="font-body text-[9px] text-on-surface-variant/70 italic normal-case tracking-normal">1 token = 1 page</p>
             </div>

@@ -9,12 +9,6 @@ const PILE_IMAGES = ['/coin-pile-small.png', '/coin-pile-medium.png', '/coin-pil
 
 const PURCHASE_PAGE_SIZE = 5
 
-const PLAN_LABELS = {
-  starter: 'Starter',
-  professional: 'Professional',
-  enterprise: 'Enterprise',
-}
-
 const tiers = [
   {
     id: 'starter',
@@ -46,12 +40,8 @@ const tiers = [
 ]
 
 export default function DashboardBilling() {
-  const { user, tokenBalance, userPlan, planRenewsAt, refreshTokens } = useAuth()
+  const { user, tokenBalance, userPlan, refreshTokens } = useAuth()
   const tokenCount = tokenBalance ?? 0
-  const planLabel = userPlan ? (PLAN_LABELS[userPlan] ?? userPlan) : null
-  const renewalDate = planRenewsAt
-    ? new Date(planRenewsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null
 
   // Real purchasing is gated to a single test account while we validate the
   // Stripe sandbox flow — everyone else still sees the beta placeholder below.
@@ -65,18 +55,23 @@ export default function DashboardBilling() {
   const [purchases, setPurchases] = useState([])
   const [purchasesLoading, setPurchasesLoading] = useState(true)
   const [purchasePage, setPurchasePage] = useState(0)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoBusy, setPromoBusy] = useState(false)
+  const [promoMessage, setPromoMessage] = useState(null) // { tone: 'ok' | 'err', text }
 
   const loadPurchases = async () => {
-    // Purchases + admin top-ups (shown as "Bonus"). Pull both types, then
-    // drop "Admin grant refund" / other credit rows client-side.
+    // Purchases + admin top-ups (Bonus) + promo redemptions.
     const { data, error } = await supabase
       .from('token_ledger')
       .select('id, amount, description, created_at, price_cents, type')
-      .in('type', ['purchase', 'credit'])
+      .in('type', ['purchase', 'credit', 'promo'])
       .order('created_at', { ascending: false })
     if (!error) {
       const rows = (data ?? []).filter(
-        (row) => row.type === 'purchase' || row.description === 'Admin grant',
+        (row) =>
+          row.type === 'purchase' ||
+          row.type === 'promo' ||
+          row.description === 'Admin grant',
       )
       setPurchases(rows)
       setPurchasePage(0)
@@ -86,7 +81,58 @@ export default function DashboardBilling() {
 
   const historyLabel = (row) => {
     if (row.description === 'Admin grant') return 'Bonus'
+    if (row.type === 'promo') return row.description || 'Promo'
     return row.description || 'Purchase'
+  }
+
+  const promoErrorMessage = (code) => {
+    switch (code) {
+      case 'invalid_code':
+        return 'That code is not valid.'
+      case 'inactive':
+        return 'That code is not active yet.'
+      case 'expired':
+        return 'That code has expired.'
+      case 'already_redeemed':
+        return 'You already redeemed this code.'
+      case 'exhausted':
+        return 'This code has reached its redemption limit.'
+      case 'not_authenticated':
+        return 'Please sign in to redeem a code.'
+      default:
+        return 'Could not redeem that code. Please try again.'
+    }
+  }
+
+  const handleRedeemPromo = async (e) => {
+    e.preventDefault()
+    const trimmed = promoCode.trim()
+    if (!trimmed || promoBusy) return
+
+    setPromoBusy(true)
+    setPromoMessage(null)
+    try {
+      const { data, error } = await supabase.rpc('redeem_promo', { p_code: trimmed })
+      if (error) {
+        setPromoMessage({ tone: 'err', text: promoErrorMessage('unknown') })
+        return
+      }
+      if (!data?.ok) {
+        setPromoMessage({ tone: 'err', text: promoErrorMessage(data?.error) })
+        return
+      }
+      setPromoCode('')
+      setPromoMessage({
+        tone: 'ok',
+        text: `${Number(data.tokens).toLocaleString()} tokens added to your balance.`,
+      })
+      await refreshTokens()
+      await loadPurchases()
+    } catch {
+      setPromoMessage({ tone: 'err', text: promoErrorMessage('unknown') })
+    } finally {
+      setPromoBusy(false)
+    }
   }
 
   const purchasePageCount = Math.max(1, Math.ceil(purchases.length / PURCHASE_PAGE_SIZE))
@@ -220,23 +266,53 @@ export default function DashboardBilling() {
           </section>
         )}
 
-        {/* ─── Current Balance ─── */}
-        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-on-tertiary-container text-2xl">toll</span>
+        {/* ─── Balance + promo code ─── */}
+        <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 sm:p-8 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-on-tertiary-container text-2xl">toll</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Your Balance</p>
+                <p className="text-2xl font-extrabold text-on-surface">{tokenCount.toLocaleString()} <span className="text-sm font-bold text-on-surface-variant">tokens</span></p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Your Balance</p>
-              <p className="text-2xl font-extrabold text-on-surface">{tokenCount} <span className="text-sm font-bold text-on-surface-variant">tokens</span></p>
+
+            <div className="hidden lg:block w-px self-stretch bg-outline-variant/20 shrink-0" aria-hidden="true" />
+
+            <div className="w-full lg:w-[22rem] shrink-0">
+              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Promo code</p>
+              <form onSubmit={handleRedeemPromo} className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="ENTER CODE"
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={promoBusy}
+                  className="flex-1 min-w-0 bg-surface-container rounded-lg border border-outline-variant/20 px-4 py-3 text-sm font-bold tracking-wider text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/40 disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={promoBusy || !promoCode.trim()}
+                  data-track-id="billing_redeem_promo"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shrink-0"
+                >
+                  {promoBusy ? 'Redeeming…' : 'Redeem'}
+                </button>
+              </form>
+              {promoMessage && (
+                <p
+                  className={`mt-2 text-sm leading-relaxed ${
+                    promoMessage.tone === 'ok' ? 'text-primary font-semibold' : 'text-error'
+                  }`}
+                >
+                  {promoMessage.text}
+                </p>
+              )}
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-on-surface-variant">Plan</p>
-            <p className="text-sm font-bold text-primary">{planLabel ?? 'No active plan'}</p>
-            {renewalDate && (
-              <p className="text-xs text-on-surface-variant mt-0.5">Renews {renewalDate}</p>
-            )}
           </div>
         </section>
 

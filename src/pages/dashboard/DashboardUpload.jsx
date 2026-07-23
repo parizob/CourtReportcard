@@ -350,7 +350,7 @@ export default function DashboardUpload() {
               <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Your Balance</p>
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-primary text-lg">toll</span>
-                <span className="text-sm font-bold text-on-surface">{tokenBalance ?? '—'} token{tokenBalance !== 1 ? 's' : ''}</span>
+                <span className="text-sm font-bold text-on-surface">{tokenBalance != null ? tokenBalance.toLocaleString() : '—'} token{tokenBalance !== 1 ? 's' : ''}</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -419,9 +419,9 @@ export default function DashboardUpload() {
                 </div>
                 <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Insufficient Tokens</h3>
                 <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
-                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages} page{pendingPages !== 1 ? 's' : ''}</span> and
-                  would cost <span className="font-bold text-on-surface">{pendingPages} token{pendingPages !== 1 ? 's' : ''}</span>.
-                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span>.
+                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} page{pendingPages !== 1 ? 's' : ''}</span> and
+                  would cost <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} token{pendingPages !== 1 ? 's' : ''}</span>.
+                  You currently have <span className="font-bold text-on-surface">{(tokenBalance ?? 0).toLocaleString()} token{tokenBalance !== 1 ? 's' : ''}</span>.
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
@@ -446,9 +446,9 @@ export default function DashboardUpload() {
                 </div>
                 <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Confirm Upload</h3>
                 <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages} page{pendingPages !== 1 ? 's' : ''}</span> and
-                  will cost <span className="font-bold text-on-surface">{pendingPages} token{pendingPages !== 1 ? 's' : ''}</span>.
-                  You currently have <span className="font-bold text-on-surface">{tokenBalance ?? 0} token{tokenBalance !== 1 ? 's' : ''}</span>.
+                  This transcript consists of <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} page{pendingPages !== 1 ? 's' : ''}</span> and
+                  will cost <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} token{pendingPages !== 1 ? 's' : ''}</span>.
+                  You currently have <span className="font-bold text-on-surface">{(tokenBalance ?? 0).toLocaleString()} token{tokenBalance !== 1 ? 's' : ''}</span>.
                 </p>
                 <label className="flex items-start gap-3 cursor-pointer group mb-6 p-3 rounded-lg bg-error-container/20 border border-error/20">
                   <input
