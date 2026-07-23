@@ -313,20 +313,23 @@ export default function DashboardEditor() {
 
       updatedOriginalText = detail.text
       _cleanStart = located.cleanStart
-      _cleanEnd = located.cleanStart + finalSuggestion.length
+      _cleanEnd = located.cleanEnd
       _appliedOriginalStart = detail.start
       _appliedOriginalEnd = detail.end
       _appliedOriginalMatchedText = detail.matchedText
 
-      // Recompute _cleanEnd from the post-acceptance clean content. For
-      // cross-line annotations the cleanContent span includes newlines
-      // (one per blank line between transcript lines), making it longer
-      // than finalSuggestion.length. Without this, the green highlight
-      // gets truncated at the line break.
+      // Recompute highlight range from the post-acceptance clean content so
+      // the green underline covers exactly the suggestion (including [sic]),
+      // not neighboring words left after a short original was replaced.
       if (_cleanStart !== null) {
         const { cleanContent: postCc } = buildCleanContentMap(updatedOriginalText)
         const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
-        if (postM) _cleanEnd = _cleanStart + postM.end
+        if (postM) {
+          _cleanStart = _cleanStart + postM.start
+          _cleanEnd = _cleanStart + (postM.end - postM.start)
+        } else {
+          _cleanEnd = _cleanStart + finalSuggestion.length
+        }
       }
     }
 

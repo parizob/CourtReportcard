@@ -218,35 +218,47 @@ export function buildCleanContentMap(text) {
  *
  * Strategy (tight → never relocates onto an earlier repeat):
  * 1. Take a context window around the panel's start/end in the entry,
- *    find that window in cleanContent, then find the flagged span inside it.
- * 2. Else: entry-prefix anchor + search for the panel-matched text / searchWord
- *    from that point only (no unanchored whole-doc fallback for short words).
+ *    find that window in cleanContent, then find searchWord inside it.
+ * 2. Else: entry-prefix anchor + search for searchWord from that point only.
+ *
+ * IMPORTANT: the span we return is always a match of `searchWord` (the
+ * flagged original or accepted suggestion). We never use entry.substring
+ * (ann.start, ann.end) as the replace/highlight needle — stale or model-
+ * wrong offsets can extend past the real phrase (e.g. include ", what")
+ * and accepting would delete those neighboring words.
  *
  * Returns { cleanStart, cleanEnd } or null.
  */
 export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchWord) {
   if (!cleanContent || !searchWord) return null
 
-  const tryNeedlesInRange = (from, needles) => {
-    for (const needle of needles) {
-      if (!needle) continue
-      const m = flexFind(cleanContent.substring(from), needle)
-      if (m) return { cleanStart: from + m.start, cleanEnd: from + m.end }
-    }
+  const tryNeedleInRange = (from) => {
+    const m = flexFind(cleanContent.substring(from), searchWord)
+    if (m) return { cleanStart: from + m.start, cleanEnd: from + m.end }
     return null
   }
 
-  if (entry?.text && Number.isFinite(ann.start) && Number.isFinite(ann.end) && ann.start < ann.end) {
-    const matchedInEntry = entry.text.substring(ann.start, ann.end)
-    const needles = matchedInEntry && matchedInEntry !== searchWord
-      ? [matchedInEntry, searchWord]
-      : [searchWord, matchedInEntry]
+  // Prefer flexFind offsets for the real needle inside the entry; fall back
+  // to ann.start/end only for building a location context window.
+  let coreStart = null
+  let coreEnd = null
+  if (entry?.text) {
+    const entryMatch = flexFind(entry.text, searchWord)
+    if (entryMatch) {
+      coreStart = entryMatch.start
+      coreEnd = entryMatch.end
+    } else if (Number.isFinite(ann.start) && Number.isFinite(ann.end) && ann.start < ann.end) {
+      coreStart = ann.start
+      coreEnd = ann.end
+    }
+  }
 
-    // 1) Context window around the panel-resolved span — unique enough to
-    // avoid latching onto an earlier repeat of a short flagged word.
+  if (entry?.text && coreStart != null && coreEnd != null) {
+    // 1) Context window around the core span — unique enough to avoid
+    // latching onto an earlier repeat of a short flagged word.
     const pad = 48
-    const rawCtxStart = Math.max(0, ann.start - pad)
-    const rawCtxEnd = Math.min(entry.text.length, ann.end + pad)
+    const rawCtxStart = Math.max(0, coreStart - pad)
+    const rawCtxEnd = Math.min(entry.text.length, coreEnd + pad)
     let context = entry.text.substring(rawCtxStart, rawCtxEnd)
     if (rawCtxStart > 0) context = context.replace(/^\S*\s+/, '')
     if (rawCtxEnd < entry.text.length) context = context.replace(/\s+\S*$/, '')
@@ -256,14 +268,11 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
       const ctxMatch = flexFind(cleanContent, context)
       if (ctxMatch) {
         const region = cleanContent.substring(ctxMatch.start, ctxMatch.end)
-        for (const needle of needles) {
-          if (!needle) continue
-          const inner = flexFind(region, needle)
-          if (inner) {
-            return {
-              cleanStart: ctxMatch.start + inner.start,
-              cleanEnd: ctxMatch.start + inner.end,
-            }
+        const inner = flexFind(region, searchWord)
+        if (inner) {
+          return {
+            cleanStart: ctxMatch.start + inner.start,
+            cleanEnd: ctxMatch.start + inner.end,
           }
         }
       }
@@ -274,7 +283,7 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
     if (anchor) {
       const em = flexFind(cleanContent, anchor)
       if (em) {
-        const hit = tryNeedlesInRange(em.start, needles)
+        const hit = tryNeedleInRange(em.start)
         if (hit) return hit
       }
     }
@@ -283,7 +292,7 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
   }
 
   // No panel offsets — last resort whole-doc search (legacy / incomplete anns).
-  return tryNeedlesInRange(0, [searchWord])
+  return tryNeedleInRange(0)
 }
 
 const _tokenize = (s) => {
