@@ -323,7 +323,12 @@ export default function Dashboard() {
                 <span className="w-32 text-center">Days Left</span>
                 <span className="w-32 text-center">Actions</span>
               </div>
-              {cases.map((c) => {
+              {filteredCases.length === 0 ? (
+                <div className="px-6 py-12 text-center">
+                  <p className="text-sm text-on-surface-variant">No cases match "{searchQuery.trim()}".</p>
+                </div>
+              ) : (
+              filteredCases.map((c) => {
                 const m = getMetrics(c)
                 const displayStatus = getDisplayStatus(c)
                 const resolved = m ? (m.accepted || 0) + (m.ignored || 0) : 0
@@ -431,7 +436,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 )
-              })}
+              })
+              )}
               </div>
             </div>
           )}
