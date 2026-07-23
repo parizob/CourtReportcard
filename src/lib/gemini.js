@@ -596,6 +596,32 @@ export function fixAnnotationPositions(entries, annotations) {
   for (const a of annotations) {
     if (!a.original) { fixed.push(a); continue }
 
+    // Accepted corrections already replaced `original` in the entry text.
+    // Re-searching for `original` would miss and DROP them — wiping the
+    // accept from the UI/resolved list and from the next save. Keep them
+    // using accept metadata (or the suggestion still present in the entry).
+    if (a.status === 'accepted') {
+      if (a._appliedAt != null && a._appliedEnd != null) {
+        fixed.push({
+          ...a,
+          entry_id: a._appliedEntryId ?? a.entry_id,
+          start: a._appliedAt,
+          end: a._appliedEnd,
+        })
+        continue
+      }
+      const acceptedEntry = entries.find((e) => e.id === a.entry_id)
+      if (acceptedEntry && a.suggestion) {
+        const sm = flexFind(acceptedEntry.text, a.suggestion)
+        if (sm) {
+          fixed.push({ ...a, start: sm.start, end: sm.end })
+          continue
+        }
+      }
+      fixed.push(a)
+      continue
+    }
+
     // Try the referenced entry first
     const entry = entries.find((e) => e.id === a.entry_id)
     if (entry) {
