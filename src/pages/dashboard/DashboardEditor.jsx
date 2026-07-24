@@ -20,6 +20,7 @@ export default function DashboardEditor() {
   const [loading, setLoading] = useState(!!caseId)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [exportPreparing, setExportPreparing] = useState(false)
   const [error, setError] = useState('')
   const [jumpNotice, setJumpNotice] = useState('')
   const [title, setTitle] = useState('')
@@ -37,7 +38,6 @@ export default function DashboardEditor() {
   const extractedFilePathRef = useRef(extractedFilePath)
   const caseIdRef = useRef(caseId)
   const syncTimerRef = useRef(null)
-  const syncPendingRef = useRef(false)
   const persistNowRef = useRef(null)
   useEffect(() => { entriesRef.current = entries }, [entries])
   useEffect(() => { annotationsRef.current = annotations }, [annotations])
@@ -188,7 +188,6 @@ export default function DashboardEditor() {
   const persistNow = useCallback(async () => {
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = null
-    syncPendingRef.current = false
 
     const latestAnnotations = annotationsRef.current
     const latestEntries = entriesRef.current
@@ -251,36 +250,29 @@ export default function DashboardEditor() {
 
   persistNowRef.current = persistNow
 
-  const debouncedSync = useCallback(() => {
-    syncPendingRef.current = true
-    clearTimeout(syncTimerRef.current)
-    syncTimerRef.current = setTimeout(() => {
-      void persistNow()
-    }, 600)
-  }, [persistNow])
-
-  // Flush pending debounce on leave — do NOT only clearTimeout (that was dropping accepts).
+  // On leave (sidebar Export, Dashboard, etc.), flush latest accepts/ignores.
+  // Export also awaits waitForCasePersists() so it won't read a stale file.
   useEffect(() => () => {
     clearTimeout(syncTimerRef.current)
-    if (syncPendingRef.current && persistNowRef.current) {
-      void persistNowRef.current()
-    }
+    if (persistNowRef.current) void persistNowRef.current()
   }, [])
 
   const goToExport = useCallback(async (e) => {
     e?.preventDefault?.()
-    if (!caseId) return
+    if (!caseId || exportPreparing) return
+    setExportPreparing(true)
+    setError('')
     try {
-      if (syncPendingRef.current || hasChanges) {
-        await persistNow()
-      }
+      // Always persist before leaving — do not trust debounce or "looks saved".
+      await persistNow()
+      navigate(`/dashboard/export?case=${caseId}`)
     } catch (err) {
       console.error('Flush before export failed:', err)
       setError(err.message || 'Could not save your changes before export. Try Save Changes, then export again.')
-      return
+    } finally {
+      setExportPreparing(false)
     }
-    navigate(`/dashboard/export?case=${caseId}`)
-  }, [caseId, hasChanges, navigate, persistNow])
+  }, [caseId, exportPreparing, navigate, persistNow])
 
   const showJumpNotice = useCallback((message) => {
     setJumpNotice(message)
@@ -464,8 +456,10 @@ export default function DashboardEditor() {
     setSaved(false)
     setInlinePopover(null)
 
-    debouncedSync()
-  }, [debouncedSync, showJumpNotice])
+    // Accept/ignore must hit storage immediately — debounce was losing the
+    // last click (often Ignore) when users went straight to Export.
+    void persistNow()
+  }, [persistNow, showJumpNotice])
 
   const ignoreAnnotation = useCallback((annotationId) => {
     const curAnnotations = annotationsRef.current
@@ -477,8 +471,8 @@ export default function DashboardEditor() {
     setInlinePopover(null)
     setSaved(false)
 
-    debouncedSync()
-  }, [debouncedSync])
+    void persistNow()
+  }, [persistNow])
 
   // Jump-to: prefer the exact highlight span; if the cleanContent highlight
   // pass never created one, fall back to the entry / nearest transcript line
@@ -637,8 +631,8 @@ export default function DashboardEditor() {
     setInlinePopover(null)
     setSaved(false)
 
-    debouncedSync()
-  }, [debouncedSync])
+    void persistNow()
+  }, [persistNow])
 
   const handleSave = async () => {
     if (!extractedFilePath || !hasChanges) return
@@ -945,8 +939,8 @@ export default function DashboardEditor() {
             <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
             <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>
             <p className="text-xs text-on-surface-variant mb-4">Your transcript is ready. Save your changes and export.</p>
-            <button type="button" onClick={goToExport} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors">
-              Export Now
+            <button type="button" onClick={goToExport} disabled={exportPreparing} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors disabled:opacity-60 disabled:cursor-wait">
+              {exportPreparing ? 'Saving…' : 'Export Now'}
             </button>
           </div>
         )}
@@ -1102,10 +1096,11 @@ export default function DashboardEditor() {
         <button
           type="button"
           onClick={goToExport}
-          className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
+          disabled={exportPreparing}
+          className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-60 disabled:cursor-wait"
         >
-          <span className="material-symbols-outlined text-base">cloud_download</span>
-          Export This Case
+          <span className="material-symbols-outlined text-base">{exportPreparing ? 'hourglass_top' : 'cloud_download'}</span>
+          {exportPreparing ? 'Saving your changes…' : 'Export This Case'}
         </button>
         <Link
           to="/dashboard"

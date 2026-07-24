@@ -631,6 +631,8 @@ export function fixAnnotationPositions(entries, annotations) {
     // Re-searching for `original` would miss and DROP them — wiping the
     // accept from the UI/resolved list and from the next save. Keep them
     // using accept metadata (or the suggestion still present in the entry).
+    // Ignored annotations must also never be dropped: the user already
+    // resolved them, and "unplaceable" after other edits must not reopen them.
     if (a.status === 'accepted') {
       if (a._appliedAt != null && a._appliedEnd != null) {
         fixed.push({
@@ -649,6 +651,10 @@ export function fixAnnotationPositions(entries, annotations) {
           continue
         }
       }
+      fixed.push(a)
+      continue
+    }
+    if (a.status === 'ignored') {
       fixed.push(a)
       continue
     }
@@ -718,6 +724,12 @@ export function filterPhantomFixes(entries, annotations) {
   let droppedCount = 0
   for (const a of annotations) {
     if (!a.original || !a.suggestion) { filtered.push(a); continue }
+
+    // User already resolved these — never strip them on load/repair.
+    if (a.status === 'accepted' || a.status === 'ignored') {
+      filtered.push(a)
+      continue
+    }
 
     // A real correction can never suggest the exact text that's already there.
     if (a.suggestion === a.original) {
