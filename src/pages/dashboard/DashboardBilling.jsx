@@ -43,11 +43,6 @@ export default function DashboardBilling() {
   const { user, tokenBalance, userPlan, refreshTokens } = useAuth()
   const tokenCount = tokenBalance ?? 0
 
-  // Real purchasing is gated to a single test account while we validate the
-  // Stripe sandbox flow — everyone else still sees the beta placeholder below.
-  const testEmail = import.meta.env.VITE_BILLING_TEST_USER_EMAIL
-  const canPurchase = Boolean(testEmail && user?.email && user.email.toLowerCase() === testEmail.toLowerCase())
-
   const [purchasingId, setPurchasingId] = useState(null)
   const [purchaseError, setPurchaseError] = useState(null)
   const [checkoutBanner, setCheckoutBanner] = useState(null) // 'success' | 'canceled'
@@ -249,23 +244,6 @@ export default function DashboardBilling() {
           </div>
         )}
 
-        {/* ─── Beta notice ─── */}
-        {!canPurchase && (
-          <section className="bg-tertiary-fixed/30 border border-tertiary-fixed-dim/40 rounded-2xl p-5 mb-8 flex items-start gap-4">
-            <span className="material-symbols-outlined text-tertiary-fixed-dim text-2xl shrink-0 mt-0.5">info</span>
-            <div>
-              <p className="text-sm font-bold text-on-surface mb-1">We're in beta — no purchasing required right now.</p>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                While we're in beta, there's no option to purchase tokens. But if you're running low, we're happy to load your account with more tokens for free to help you keep testing.{' '}
-                <a href="mailto:courtreportcard@gmail.com" className="text-primary font-semibold hover:underline">Email us</a>
-                {' '}or{' '}
-                <a href="/support" className="text-primary font-semibold hover:underline">submit a support ticket</a>
-                {' '}and we'll top you up right away.
-              </p>
-            </div>
-          </section>
-        )}
-
         {/* ─── Balance + promo code ─── */}
         <section className="bg-surface-container-lowest rounded-2xl editorial-shadow p-6 sm:p-8 mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
@@ -316,82 +294,60 @@ export default function DashboardBilling() {
           </div>
         </section>
 
-        {canPurchase ? (
-          /* ─── Token Packs (sandbox — Stripe test mode) ─── */
-          <section className="mb-10">
-            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-on-tertiary-container text-2xl">token</span>
-                </div>
-                <div>
-                  <h2 className="font-headline text-lg font-bold text-on-surface mb-1">
-                    Transcript Tokens
-                  </h2>
-                  <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
-                    Buy in bulk to save more per token.
-                  </p>
-                </div>
+        {/* ─── Token Packs ─── */}
+        <section className="mb-10">
+          <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-8">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-tertiary-fixed/15 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-on-tertiary-container text-2xl">token</span>
               </div>
+              <div>
+                <h2 className="font-headline text-lg font-bold text-on-surface mb-1">
+                  Transcript Tokens
+                </h2>
+                <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
+                  Buy in bulk to save more per token.
+                </p>
+              </div>
+            </div>
 
-              {purchaseError && (
-                <p className="text-sm text-red-600 mb-4">{purchaseError}</p>
-              )}
+            {purchaseError && (
+              <p className="text-sm text-red-600 mb-4">{purchaseError}</p>
+            )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {TOKEN_PACKS.map((pack, idx) => {
-                  const pileImage = PILE_IMAGES[idx] ?? PILE_IMAGES[PILE_IMAGES.length - 1]
-                  const isPopular = idx === 1
-                  return (
-                  <div
-                    key={pack.id}
-                    className={`relative rounded-xl border p-5 text-center ${
-                      isPopular ? 'border-primary/30 bg-primary/[0.03]' : 'border-outline-variant/20 bg-surface-container/30'
-                    }`}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {TOKEN_PACKS.map((pack, idx) => {
+                const pileImage = PILE_IMAGES[idx] ?? PILE_IMAGES[PILE_IMAGES.length - 1]
+                const isPopular = idx === 1
+                return (
+                <div
+                  key={pack.id}
+                  className={`relative rounded-xl border p-5 text-center ${
+                    isPopular ? 'border-primary/30 bg-primary/[0.03]' : 'border-outline-variant/20 bg-surface-container/30'
+                  }`}
+                >
+                  {isPopular && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary text-on-primary text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                      Most Popular
+                    </span>
+                  )}
+                  <img src={pileImage} alt="" aria-hidden="true" className="h-14 w-auto mx-auto mb-3" />
+                  <p className="text-3xl font-extrabold text-on-surface">{pack.tokens.toLocaleString()}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold mb-3">tokens</p>
+                  <p className="text-lg font-bold text-on-surface mb-3">${pack.priceUsd}</p>
+                  <button
+                    onClick={() => handleBuy(pack)}
+                    disabled={purchasingId !== null}
+                    className="w-full bg-primary text-on-primary py-2 rounded-lg font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                   >
-                    {isPopular && (
-                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary text-on-primary text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                        Most Popular
-                      </span>
-                    )}
-                    <img src={pileImage} alt="" aria-hidden="true" className="h-14 w-auto mx-auto mb-3" />
-                    <p className="text-3xl font-extrabold text-on-surface">{pack.tokens.toLocaleString()}</p>
-                    <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold mb-3">tokens</p>
-                    <p className="text-lg font-bold text-on-surface mb-3">${pack.priceUsd}</p>
-                    <button
-                      onClick={() => handleBuy(pack)}
-                      disabled={purchasingId !== null}
-                      className="w-full bg-primary text-on-primary py-2 rounded-lg font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                    >
-                      {purchasingId === pack.id ? 'Redirecting…' : 'Buy'}
-                    </button>
-                  </div>
-                  )
-                })}
-              </div>
+                    {purchasingId === pack.id ? 'Redirecting…' : 'Buy'}
+                  </button>
+                </div>
+                )
+              })}
             </div>
-          </section>
-        ) : (
-          /* ─── Beta Notice ─── */
-          <section className="mb-10">
-            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-10 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
-                <span className="material-symbols-outlined text-primary text-3xl">construction</span>
-              </div>
-              <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
-                Beta
-              </span>
-              <h2 className="font-headline text-xl font-bold text-on-surface mb-2">Billing is on its way</h2>
-              <p className="text-sm text-on-surface-variant max-w-sm leading-relaxed">
-                Court Reportcard is currently in beta. Subscription plans, token purchases, and payment management
-                will be available when we launch publicly.
-              </p>
-              <p className="text-xs text-on-surface-variant/60 mt-4">
-                Your token balance above reflects any tokens granted during the beta period.
-              </p>
-            </div>
-          </section>
-        )}
+          </div>
+        </section>
 
         {/* ─── History: purchases + admin bonuses (token_ledger) ─── */}
         <section className="mb-10">

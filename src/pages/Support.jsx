@@ -44,11 +44,15 @@ const faqs = [
     q: 'I\'ve run out of tokens. How do I get more?',
     a: (
       <>
-        During beta, there&rsquo;s no purchase option yet — and that&rsquo;s intentional. Submit a support ticket above and we&rsquo;ll add tokens to your account right away, no questions asked. Or, you can reach us directly at{' '}
+        You can buy token packs any time from{' '}
+        <a href="/dashboard/billing" className="italic text-primary underline transition-colors">
+          Tokens &amp; Billing
+        </a>
+        {' '}in your dashboard (1 token = 1 page). If something goes wrong with a purchase, submit a support ticket above or email{' '}
         <a href="mailto:courtreportcard@gmail.com" className="italic text-primary underline transition-colors">
           courtreportcard@gmail.com
         </a>
-        . We want you to be able to keep working while we build out the full billing system.
+        .
       </>
     ),
   },

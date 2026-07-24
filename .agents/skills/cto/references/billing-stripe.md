@@ -84,18 +84,13 @@ you're ready):
    secrets.
 4. Flip `STRIPE_MODE` to `live` (affects the non-localhost path only, per
    above).
-5. Remove/expand the `canPurchase` beta gate (see below) — this is the one
-   actual code change required for public launch, everything else above is
-   config.
+5. ~~Remove the `canPurchase` beta gate~~ — done 2026-07-23; all signed-in
+   users see Buy on Tokens & Billing.
 6. Do one real small live purchase end-to-end before announcing.
 
 ## Beta gating (`DashboardBilling.jsx`)
 
-`canPurchase = user.email === VITE_BILLING_TEST_USER_EMAIL` (case-insensitive).
-Only that one account sees the real Buy UI; everyone else sees a static
-"we'll top you up for free, email us" notice. This is intentional and
-temporary — remove or replace with real rollout logic before public launch
-(see checklist above, item 5).
+Removed 2026-07-23. Purchasing is open to all authenticated users.
 
 ## Fulfillment failure alerts
 
