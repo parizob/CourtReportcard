@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
+import { waitForCasePersists } from '../../lib/casePersist'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -27,6 +28,10 @@ export default function DashboardExport() {
     setLoading(true)
     setError('')
     try {
+      // Editor debounces persists; wait so we don't load a pre-accept snapshot
+      // and wipe the user's work from the export stats.
+      await waitForCasePersists()
+
       const { data: caseRow, error: caseErr } = await supabase
         .from('cases')
         .select('*, case_files(*), case_metrics(*)')

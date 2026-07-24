@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent } from '../../lib/gemini'
 import { countByType } from '../../lib/annotationStats'
+import { trackCasePersist } from '../../lib/casePersist'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const caseId = searchParams.get('case')
 
   const [caseData, setCaseData] = useState(null)
@@ -31,9 +33,18 @@ export default function DashboardEditor() {
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
   const originalTextRef = useRef(originalText)
+  const titleRef = useRef(title)
+  const extractedFilePathRef = useRef(extractedFilePath)
+  const caseIdRef = useRef(caseId)
+  const syncTimerRef = useRef(null)
+  const syncPendingRef = useRef(false)
+  const persistNowRef = useRef(null)
   useEffect(() => { entriesRef.current = entries }, [entries])
   useEffect(() => { annotationsRef.current = annotations }, [annotations])
   useEffect(() => { originalTextRef.current = originalText }, [originalText])
+  useEffect(() => { titleRef.current = title }, [title])
+  useEffect(() => { extractedFilePathRef.current = extractedFilePath }, [extractedFilePath])
+  useEffect(() => { caseIdRef.current = caseId }, [caseId])
 
   // Dismiss inline popover on escape, scroll, or window resize
   useEffect(() => {
@@ -172,17 +183,23 @@ export default function DashboardEditor() {
     setSaved(false)
   }, [])
 
-  const syncTimerRef = useRef(null)
-
-  const debouncedSync = useCallback(() => {
+  // Persist accepts/ignores to storage + metrics. Debounced while typing/clicking;
+  // flushed immediately on navigate away so Export never reads a stale file.
+  const persistNow = useCallback(async () => {
     clearTimeout(syncTimerRef.current)
-    syncTimerRef.current = setTimeout(async () => {
-      const latestAnnotations = annotationsRef.current
-      const latestEntries = entriesRef.current
-      const latestOriginalText = originalTextRef.current
+    syncTimerRef.current = null
+    syncPendingRef.current = false
 
-      if (!caseId || !extractedFilePath) return
+    const latestAnnotations = annotationsRef.current
+    const latestEntries = entriesRef.current
+    const latestOriginalText = originalTextRef.current
+    const latestCaseId = caseIdRef.current
+    const latestPath = extractedFilePathRef.current
+    const latestTitle = titleRef.current
 
+    if (!latestCaseId || !latestPath) return
+
+    const run = async () => {
       const accepted = latestAnnotations.filter((a) => a.status === 'accepted').length
       const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
       const open = latestAnnotations.filter((a) => a.status === 'open').length
@@ -190,7 +207,7 @@ export default function DashboardEditor() {
       const total = latestAnnotations.length
 
       const { error: upsertError } = await supabase.from('case_metrics').upsert({
-        case_id: caseId,
+        case_id: latestCaseId,
         total_entries: latestEntries.length,
         total_issues: total,
         accepted,
@@ -203,31 +220,67 @@ export default function DashboardEditor() {
       if (upsertError) console.error('case_metrics save failed:', upsertError.message)
 
       if (total > 0 && open === 0) {
-        await supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
+        await supabase.from('cases').update({ status: 'reviewed' }).eq('id', latestCaseId)
       }
 
-      try {
-        const payload = {
-          title,
-          extracted_at: new Date().toISOString(),
-          entries: latestEntries,
-          annotations: latestAnnotations,
-        }
-        if (latestOriginalText) payload.originalText = latestOriginalText
-
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-        const { error: upErr } = await supabase.storage
-          .from('case-files')
-          .upload(extractedFilePath, blob, { upsert: true })
-        if (upErr) console.error('Persist JSON storage error:', upErr)
-        else setOriginalSnapshot(JSON.stringify({ entries: latestEntries, annotations: latestAnnotations, originalText: latestOriginalText }))
-      } catch (err) {
-        console.error('Persist JSON failed:', err)
+      const payload = {
+        title: latestTitle,
+        extracted_at: new Date().toISOString(),
+        entries: latestEntries,
+        annotations: latestAnnotations,
       }
+      if (latestOriginalText) payload.originalText = latestOriginalText
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const { error: upErr } = await supabase.storage
+        .from('case-files')
+        .upload(latestPath, blob, { upsert: true })
+      if (upErr) {
+        console.error('Persist JSON storage error:', upErr)
+        throw upErr
+      }
+      setOriginalSnapshot(JSON.stringify({
+        entries: latestEntries,
+        annotations: latestAnnotations,
+        originalText: latestOriginalText,
+      }))
+    }
+
+    return trackCasePersist(run())
+  }, [])
+
+  persistNowRef.current = persistNow
+
+  const debouncedSync = useCallback(() => {
+    syncPendingRef.current = true
+    clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(() => {
+      void persistNow()
     }, 600)
-  }, [caseId, extractedFilePath, title])
+  }, [persistNow])
 
-  useEffect(() => () => clearTimeout(syncTimerRef.current), [])
+  // Flush pending debounce on leave — do NOT only clearTimeout (that was dropping accepts).
+  useEffect(() => () => {
+    clearTimeout(syncTimerRef.current)
+    if (syncPendingRef.current && persistNowRef.current) {
+      void persistNowRef.current()
+    }
+  }, [])
+
+  const goToExport = useCallback(async (e) => {
+    e?.preventDefault?.()
+    if (!caseId) return
+    try {
+      if (syncPendingRef.current || hasChanges) {
+        await persistNow()
+      }
+    } catch (err) {
+      console.error('Flush before export failed:', err)
+      setError(err.message || 'Could not save your changes before export. Try Save Changes, then export again.')
+      return
+    }
+    navigate(`/dashboard/export?case=${caseId}`)
+  }, [caseId, hasChanges, navigate, persistNow])
 
   const showJumpNotice = useCallback((message) => {
     setJumpNotice(message)
@@ -592,28 +645,7 @@ export default function DashboardEditor() {
     setSaving(true)
     setError('')
     try {
-      const payload = { title, extracted_at: new Date().toISOString(), entries, annotations }
-      if (originalText) payload.originalText = originalText
-      const updatedJson = JSON.stringify(payload, null, 2)
-      const blob = new Blob([updatedJson], { type: 'application/json' })
-      const { error: uploadErr } = await supabase.storage
-        .from('case-files')
-        .upload(extractedFilePath, blob, { upsert: true })
-      if (uploadErr) throw uploadErr
-
-      await supabase.from('case_metrics').upsert({
-        case_id: caseId,
-        total_entries: entries.length,
-        total_issues: annotations.length,
-        accepted: annotations.filter((a) => a.status === 'accepted').length,
-        ignored: annotations.filter((a) => a.status === 'ignored').length,
-        open: annotations.filter((a) => a.status === 'open').length,
-        custom_changed: annotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length,
-        annotations_by_type: countByType(annotations),
-        last_reviewed_at: new Date().toISOString(),
-      }, { onConflict: 'case_id' })
-
-      setOriginalSnapshot(JSON.stringify({ entries, annotations, originalText }))
+      await persistNow()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -913,9 +945,9 @@ export default function DashboardEditor() {
             <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
             <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>
             <p className="text-xs text-on-surface-variant mb-4">Your transcript is ready. Save your changes and export.</p>
-            <Link to={`/dashboard/export?case=${caseId}`} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors">
+            <button type="button" onClick={goToExport} className="inline-block px-6 py-2 bg-primary text-on-primary rounded-md font-bold text-sm hover:bg-primary-container transition-colors">
               Export Now
-            </Link>
+            </button>
           </div>
         )}
 
@@ -1067,13 +1099,14 @@ export default function DashboardEditor() {
           <span className="material-symbols-outlined text-base">save</span>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
-        <Link
-          to={`/dashboard/export?case=${caseId}`}
+        <button
+          type="button"
+          onClick={goToExport}
           className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors"
         >
           <span className="material-symbols-outlined text-base">cloud_download</span>
           Export This Case
-        </Link>
+        </button>
         <Link
           to="/dashboard"
           className="w-full flex items-center justify-center gap-2 text-on-surface-variant text-sm font-medium hover:text-primary transition-colors py-2"

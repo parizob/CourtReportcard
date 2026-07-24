@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 const navItems = [
   { icon: 'dashboard', label: 'Dashboard', to: '/dashboard', end: true },
@@ -17,6 +17,8 @@ const gettingStartedSteps = [
 
 export default function DashboardLayout() {
   const { pathname } = useLocation()
+  const [searchParams] = useSearchParams()
+  const caseId = searchParams.get('case')
   const { signOut, tokenBalance, user } = useAuth()
   const navigate = useNavigate()
   const [showGettingStarted, setShowGettingStarted] = useState(false)
@@ -24,6 +26,15 @@ export default function DashboardLayout() {
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
+  }
+
+  const navTo = (item) => {
+    // Keep the open case when jumping Editor ↔ Export so accepts aren't
+    // reviewed against an empty export screen.
+    if (caseId && (item.to === '/dashboard/editor' || item.to === '/dashboard/export')) {
+      return `${item.to}?case=${caseId}`
+    }
+    return item.to
   }
 
   return (
@@ -59,7 +70,7 @@ export default function DashboardLayout() {
             {navItems.map((item) => (
               <NavLink
                 key={item.label}
-                to={item.to}
+                to={navTo(item)}
                 end={item.end}
                 data-track-id={`dash_nav_${item.label.toLowerCase()}`}
                 className={({ isActive }) =>
