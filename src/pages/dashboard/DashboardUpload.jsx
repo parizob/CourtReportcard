@@ -367,11 +367,12 @@ export default function DashboardUpload() {
     )
   }
 
-  // overflow-y-auto (not hidden): short/zoomed viewports can scroll to the
-  // Upload and Analyze button. Tall screens still fit with no scrollbar.
+  // Tall screens: my-auto vertically centers the form.
+  // Short/zoomed: no free space left, so my-auto collapses and overflow-y-auto
+  // lets them scroll to Upload and Analyze (without clipping the top).
   return (
-    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex items-start justify-center px-6 py-8">
-      <div className="w-full max-w-xl flex flex-col gap-5 pb-2">
+    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex flex-col px-6 py-8">
+      <div className="w-full max-w-xl mx-auto my-auto flex flex-col gap-5">
 
         {/* Header */}
         <div className="shrink-0">
