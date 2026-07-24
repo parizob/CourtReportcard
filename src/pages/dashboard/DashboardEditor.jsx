@@ -256,6 +256,21 @@ export default function DashboardEditor() {
 
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
+
+      // Already corrected (e.g. reopen didn't revert entry text): keep as-is.
+      // Otherwise flexFind(original) hits the prefix of "<original> [sic]" and
+      // accept would insert a second [sic]. Only treat as already-applied when
+      // the suggestion is present and the original is not a distinct earlier hit.
+      const already = flexFind(e.text, finalSuggestion)
+      const stillOrig = flexFind(e.text, ann.original)
+      if (already && (!stillOrig || stillOrig.start === already.start)) {
+        appliedEntryId = e.id
+        appliedAt = already.start
+        appliedEnd = already.end
+        appliedMatchedText = ann.original
+        return e
+      }
+
       const m = flexFind(e.text, ann.original)
       if (!m) return e
       appliedEntryId = e.id
@@ -294,41 +309,87 @@ export default function DashboardEditor() {
       // gets "the cat" when they accepted "the cat".
       const { cleanContent: cc } = buildCleanContentMap(curOriginalText)
       const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
-      const located = locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original)
-      const detail = located
-        ? applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion, {
-            cleanStart: located.cleanStart,
-            cleanEnd: located.cleanEnd,
-          })
-        : { text: curOriginalText, start: -1, end: -1, matchedText: null }
 
-      if (detail.start === -1) {
-        // Fail closed: do not mark accepted if the export source cannot be updated.
-        console.warn(
-          `Accept blocked: entry ok but originalText apply failed — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} suggestion=${JSON.stringify(finalSuggestion)} located=${!!located}`
-        )
-        showJumpNotice('Could not apply this change to the export transcript. The suggestion was left open so nothing is missing from download.')
-        return
+      // If the suggestion is already present (e.g. reopen failed to revert
+      // originalText, or a prior accept left it in place), do not re-apply —
+      // that turns "thesis [sic]" into "thesis [sic] [sic]".
+      const alreadyApplied = locateAnnotationInCleanContent(
+        cc,
+        annotationEntry,
+        ann,
+        finalSuggestion
+      )
+      const located = locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original)
+
+      if (
+        alreadyApplied &&
+        (!located || alreadyApplied.cleanStart === located.cleanStart)
+      ) {
+        // Suggestion already at this site (including [sic] where original is
+        // only a prefix of the suggestion). Do not apply again.
+        updatedOriginalText = curOriginalText
+        _cleanStart = alreadyApplied.cleanStart
+        _cleanEnd = alreadyApplied.cleanEnd
+        // Keep reopen able to splice: map clean → original offsets for the
+        // already-present suggestion span.
+        const { cleanToOrig } = buildCleanContentMap(curOriginalText)
+        _appliedOriginalStart = cleanToOrig[alreadyApplied.cleanStart]
+        _appliedOriginalEnd =
+          cleanToOrig[Math.min(alreadyApplied.cleanEnd - 1, cleanToOrig.length - 1)] + 1
+        _appliedOriginalMatchedText = ann.original
+      } else {
+        const detail = located
+          ? applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion, {
+              cleanStart: located.cleanStart,
+              cleanEnd: located.cleanEnd,
+            })
+          : { text: curOriginalText, start: -1, end: -1, matchedText: null }
+
+        if (detail.start === -1) {
+          // Fail closed: do not mark accepted if the export source cannot be updated.
+          console.warn(
+            `Accept blocked: entry ok but originalText apply failed — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} suggestion=${JSON.stringify(finalSuggestion)} located=${!!located}`
+          )
+          showJumpNotice('Could not apply this change to the export transcript. The suggestion was left open so nothing is missing from download.')
+          return
+        }
+
+        updatedOriginalText = detail.text
+        _cleanStart = located.cleanStart
+        _cleanEnd = located.cleanEnd
+        _appliedOriginalStart = detail.start
+        _appliedOriginalEnd = detail.end
+        _appliedOriginalMatchedText = detail.matchedText
       }
 
-      updatedOriginalText = detail.text
-      _cleanStart = located.cleanStart
-      _cleanEnd = located.cleanEnd
-      _appliedOriginalStart = detail.start
-      _appliedOriginalEnd = detail.end
-      _appliedOriginalMatchedText = detail.matchedText
-
-      // Recompute highlight range from the post-acceptance clean content so
-      // the green underline covers exactly the suggestion (including [sic]),
-      // not neighboring words left after a short original was replaced.
-      if (_cleanStart !== null) {
-        const { cleanContent: postCc } = buildCleanContentMap(updatedOriginalText)
+      // Recompute highlight from the post-accept entry + clean content so the
+      // green span is the suggestion itself (not a stale pre-accept offset).
+      const { cleanContent: postCc } = buildCleanContentMap(updatedOriginalText)
+      const postEntry = newEntries.find((e) => e.id === appliedEntryId) || annotationEntry
+      const postLocated = locateAnnotationInCleanContent(
+        postCc,
+        postEntry,
+        { ...ann, suggestion: finalSuggestion, start: appliedAt, end: appliedEnd },
+        finalSuggestion
+      )
+      if (postLocated) {
+        _cleanStart = postLocated.cleanStart
+        _cleanEnd = postLocated.cleanEnd
+      } else if (_cleanStart !== null) {
         const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
         if (postM) {
           _cleanStart = _cleanStart + postM.start
           _cleanEnd = _cleanStart + (postM.end - postM.start)
         } else {
           _cleanEnd = _cleanStart + finalSuggestion.length
+        }
+        const exactEnd = _cleanStart + finalSuggestion.length
+        if (
+          exactEnd <= postCc.length &&
+          postCc.substring(_cleanStart, exactEnd) === finalSuggestion &&
+          exactEnd > _cleanEnd
+        ) {
+          _cleanEnd = exactEnd
         }
       }
     }
@@ -437,13 +498,35 @@ export default function DashboardEditor() {
 
     // If previously accepted, revert both entries and originalText.
     if (ann.status === 'accepted') {
-      // Revert entries using the exact stored position to avoid flexFind matching the wrong word.
+      const restoreText = ann._appliedMatchedText ?? ann.original
+
+      // Revert entries: only splice at stored offsets when that span still is
+      // the suggestion. Stale offsets (another accept shifted the document)
+      // or a short end would otherwise eat/duplicate letters (e.g. "wee").
       if (ann._appliedAt != null && ann._appliedEntryId != null) {
         curEntries = curEntries.map((e) => {
           if (e.id !== ann._appliedEntryId) return e
-          const before = e.text.substring(0, ann._appliedAt)
-          const after  = e.text.substring(ann._appliedEnd)
-          return { ...e, text: before + (ann._appliedMatchedText ?? ann.original) + after }
+          const slice = e.text.substring(ann._appliedAt, ann._appliedEnd)
+          if (ann.suggestion && slice === ann.suggestion) {
+            return {
+              ...e,
+              text:
+                e.text.substring(0, ann._appliedAt) +
+                restoreText +
+                e.text.substring(ann._appliedEnd),
+            }
+          }
+          const sm = ann.suggestion ? flexFind(e.text, ann.suggestion) : null
+          if (sm) {
+            return {
+              ...e,
+              text: e.text.substring(0, sm.start) + restoreText + e.text.substring(sm.end),
+            }
+          }
+          console.warn(
+            `Reopen: could not safely revert entry — id=${ann.id} entry_id=${ann._appliedEntryId} suggestion=${JSON.stringify(ann.suggestion)}`
+          )
+          return e
         })
         entriesRef.current = curEntries
         setEntries(curEntries)
@@ -453,14 +536,21 @@ export default function DashboardEditor() {
       const curOriginalText = originalTextRef.current
       if (curOriginalText) {
         let reverted = curOriginalText
-        if (ann._appliedOriginalStart != null && ann._appliedOriginalMatchedText != null) {
-          // Splice back the exact text that was replaced — avoids flexFind
-          // matching the wrong occurrence of `suggestion` elsewhere in the
-          // document and correctly restores line-break-spanning corrections.
-          reverted = curOriginalText.substring(0, ann._appliedOriginalStart) +
+        const otSlice =
+          ann._appliedOriginalStart != null && ann._appliedOriginalEnd != null
+            ? curOriginalText.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd)
+            : null
+        if (
+          ann._appliedOriginalStart != null &&
+          ann._appliedOriginalMatchedText != null &&
+          otSlice === ann.suggestion
+        ) {
+          reverted =
+            curOriginalText.substring(0, ann._appliedOriginalStart) +
             ann._appliedOriginalMatchedText +
             curOriginalText.substring(ann._appliedOriginalEnd)
         } else if (ann.suggestion) {
+          // Offsets stale or span mismatch — search for the suggestion near the entry.
           reverted = applyCorrection(curOriginalText, ann.suggestion, ann.original)
         }
         originalTextRef.current = reverted
@@ -658,10 +748,12 @@ export default function DashboardEditor() {
       }
 
       let cls = 'inline '
+      // No font-semibold here: synthetic bold breaks monospace advance widths and
+      // makes accepted spans look like shifted/extra letters in the transcript.
       if (ann.status === 'accepted') {
-        cls += 'text-green-600 font-semibold'
+        cls += 'text-green-600'
       } else if (ann.severity === 'critical') {
-        cls += 'border-b-2 border-error text-error font-semibold cursor-pointer'
+        cls += 'border-b-2 border-error text-error cursor-pointer'
       } else if (ann.severity === 'warning') {
         cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
       } else {
@@ -1270,13 +1362,16 @@ export default function DashboardEditor() {
                   parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor, h.localStart)}</span>)
                 }
 
+                // No font-semibold in the mono transcript: bold synthesizes wider
+                // glyphs and makes green spans look offset (black letters mid-word,
+                // fake "extra spaces") even when the underlying text is fine.
                 let cls = 'inline whitespace-pre '
                 if (h.status === 'accepted') {
-                  cls += 'text-green-600 font-semibold cursor-pointer'
+                  cls += 'text-green-600 cursor-pointer'
                 } else if (h.status === 'ignored') {
                   cls += 'border-b border-dashed border-on-surface-variant/30 text-on-surface/60 cursor-pointer'
                 } else if (h.severity === 'critical') {
-                  cls += 'border-b-2 border-error text-error font-semibold cursor-pointer'
+                  cls += 'border-b-2 border-error text-error cursor-pointer'
                 } else if (h.severity === 'warning') {
                   cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
                 } else {

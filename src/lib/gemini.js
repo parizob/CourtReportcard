@@ -568,6 +568,18 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       }
     }
 
+    // IMPORTANT: check for the suggestion BEFORE the original. For [sic]
+    // notes the suggestion is "<original> [sic]", so the original word is
+    // still a flexFind hit inside the already-corrected text. Searching
+    // original first would re-apply and produce "thesis [sic] [sic]".
+    const hasSuggestion = locateAnnotationInCleanContent(
+      cleanContent,
+      entry,
+      ann,
+      ann.suggestion
+    )
+    if (hasSuggestion) continue
+
     const stillOriginal = locateAnnotationInCleanContent(
       cleanContent,
       locateEntry,
@@ -575,6 +587,14 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       ann.original
     )
     if (stillOriginal) {
+      // Same prefix trap: if this "original" hit is already the start of the
+      // suggestion (locate missed above), do not re-apply.
+      const alreadySlice = cleanContent.substring(
+        stillOriginal.cleanStart,
+        stillOriginal.cleanStart + ann.suggestion.length
+      )
+      if (alreadySlice === ann.suggestion) continue
+
       const detail = applyCorrectionDetailed(text, ann.original, ann.suggestion, {
         cleanStart: stillOriginal.cleanStart,
         cleanEnd: stillOriginal.cleanEnd,
@@ -587,14 +607,7 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       continue
     }
 
-    // Original gone — confirm the suggestion is present near this entry.
-    const hasSuggestion = locateAnnotationInCleanContent(
-      cleanContent,
-      entry,
-      ann,
-      ann.suggestion
-    )
-    if (!hasSuggestion) failed.push(ann)
+    failed.push(ann)
   }
 
   return { text, failed }

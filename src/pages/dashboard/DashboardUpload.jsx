@@ -332,9 +332,11 @@ export default function DashboardUpload() {
   }
 
   if (done) {
+    // Same shell as the upload form: center in the content column (not the
+    // full viewport, which pulls the card left toward the sidebar).
     return (
-      <main className="min-h-screen flex items-center justify-center bg-background p-8">
-        <div className="bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center max-w-md">
+      <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex flex-col px-6 py-8">
+        <div className="w-full max-w-md mx-auto my-auto bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
             <span className="material-symbols-outlined text-primary text-3xl">hourglass_top</span>
           </div>
