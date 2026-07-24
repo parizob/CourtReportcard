@@ -29,10 +29,11 @@ not one — don't assume both passes cost/behave the same:
   documents over `CHUNK_THRESHOLD_PAGES` (20 pages) — see `architecture.md`.
 - **Proofreading** — `gemini-2.5-pro`, uncapped thinking. "Full quality here
   because proofreading IS the product" per the code comment. Runs once per
-  batch of `ENTRIES_PER_PROOFREAD_BATCH` (300 entries).
+  batch of `ENTRIES_PER_PROOFREAD_BATCH` (250 entries).
 - A single-file upload is therefore: **1+ extraction calls** (1 if ≤20
   pages, else 1 per ~15-page chunk) **+ 1+ proofreading calls** (1 per
-  300-entry batch), all against the Edge Function's 135s wall-clock budget.
+  250-entry batch), all against the Edge Function's 370s per-invocation
+  deadline (Paid plan 400s hard kill).
 - `maxOutputTokens: 131072`, `temperature: 0` — same as before, don't change
   either casually (temperature 0 doesn't guarantee determinism, see
   `testing.md`, but is still the right default for reproducibility).

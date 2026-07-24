@@ -25,10 +25,13 @@ const MODEL_PROOFREAD = 'gemini-2.5-pro'  // Full quality, uncapped thinking —
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 
-// Free-tier Edge Functions are hard-killed at 150s wall-clock. Abort the Gemini
-// calls a bit before that so the failure path (refund + email) always gets to
-// run instead of the worker being killed mid-analysis and leaving the case stuck.
-const ANALYSIS_DEADLINE_MS = 135000
+// Paid-plan Edge Functions are hard-killed at 400s wall-clock (Free is 150s).
+// Abort Gemini calls a bit before that so the failure path (refund + email)
+// always gets to run instead of the worker being killed mid-analysis and
+// leaving the case stuck. Raised from 135s on 2026-07-24 after Pro upgrade —
+// medium hearing transcripts (~140–170 entries, uncapped Pro) were measured
+// locally at ~146s and were returning empty `[]` or timing out under 135s.
+const ANALYSIS_DEADLINE_MS = 370000
 
 // ── Chunking (large-transcript support) ──
 // Measured directly (see scripts/calibrate-chunk-size.mjs against the real
@@ -46,18 +49,26 @@ const CHUNK_THRESHOLD_PAGES = 20
 // roughly matches 15 pages' worth of entries at observed density (~22-24
 // entries/page in calibration). Trimmed from 300 on 2026-07-16 after a real
 // case's middle batch (a full 300-entry batch, Pro's uncapped thinking) took
-// anywhere from ~87s to >135s across repeated attempts on identical content —
-// ANALYSIS_DEADLINE_MS can't be raised on the free tier (already near the
-// 150s hard kill), so this is the only lever left to pull typical per-batch
-// latency down from that timeout-prone range without changing the deadline.
+// anywhere from ~87s to >135s across repeated attempts on identical content
+// while on the Free-tier 135s deadline. Kept at 250 after the Pro upgrade
+// (370s deadline) — bigger batches are not worth reintroducing that variance;
+// smaller ones would multiply Gemini calls without fixing the real limit.
 const ENTRIES_PER_PROOFREAD_BATCH = 250
 // 1 initial attempt + 3 retries per chunk/batch before falling through to the
 // full refund+delete path — see handleFailure. Helps transient failures
-// (timeout, momentary 5xx); won't help a chunk whose content deterministically
-// confuses the model at temperature:0. Raised from 3 to 4 on 2026-07-16
-// alongside the ENTRIES_PER_PROOFREAD_BATCH trim above — same incident, an
-// extra shot at the timeout coin-flip for a batch that's already borderline.
+// (timeout, momentary 5xx, empty proofread result); won't help a chunk whose
+// content deterministically confuses the model at temperature:0. Raised from
+// 3 to 4 on 2026-07-16 alongside the ENTRIES_PER_PROOFREAD_BATCH trim above.
 const MAX_CHUNK_ATTEMPTS = 4
+// A non-trivial proofread batch that returns zero annotations is almost
+// never a genuinely clean transcript — production incident 2026-07-24
+// (Natalie / Alexander rough): same file returned `[]` twice in prod while
+// a local Pro run found 84 issues including obvious misspellings. Treat
+// empty as a soft failure so the attempt/retry path can re-roll; after
+// MAX_CHUNK_ATTEMPTS the case falls through to handleFailure instead of
+// finalizing as a fake clean report. Tiny batches stay exempt (caption-only
+// / short clean excerpts can legitimately be empty).
+const MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY = 40
 
 /** Mirrors src/lib/pageCount.js's countPages. */
 function countPages(text: string): number {
@@ -1382,7 +1393,18 @@ Deno.serve(async (req: Request) => {
       const batchEntries = entries.slice(contextStart, batchEnd)
       const rangeGuard = numBatches > 1 ? { min: entries[batchStart].id, max: entries[batchEnd - 1].id } : undefined
 
+      const ownedCount = batchEnd - batchStart
       const { annotations, droppedCount } = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
+      if (annotations.length === 0 && ownedCount >= MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY) {
+        console.warn(
+          `proofread returned empty annotations for ${ownedCount} owned entries ` +
+          `(file ${fileIndex} batch ${batchIndex} attempt ${attempt}) — treating as soft failure`,
+        )
+        throw new Error(
+          `PROOFREAD_EMPTY_RESULT: 0 annotations for ${ownedCount} entries ` +
+          `(file ${fileIndex} batch ${batchIndex})`,
+        )
+      }
       const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations, droppedCount }, null, 2))
       const { error: upErr } = await admin.storage.from('case-files').upload(batchPath, batchBytes, { upsert: true, contentType: 'application/json' })
       if (upErr) throw new Error(`Failed to save annotation batch ${batchIndex} for ${jsonBaseName}: ${upErr.message}`)

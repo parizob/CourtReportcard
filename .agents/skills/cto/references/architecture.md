@@ -31,9 +31,10 @@
    - The user is told to close the tab; they get an email when it's done.
 2. **`analyze-case` Edge Function** (`supabase/functions/analyze-case/index.ts`)
    — one HTTP request does the entire two-pass pipeline for every file on the
-   case, synchronously, subject to a 135s deadline (Edge Functions are
-   hard-killed at 150s; the deadline leaves room for the failure path —
-   refund + cleanup + email — to still run if analysis itself times out).
+   case, asynchronously via self-fetch continuations, subject to a 370s
+   deadline per invocation (Paid Edge Functions are hard-killed at 400s;
+   Free is 150s. The deadline leaves room for the failure path — refund +
+   cleanup + email — to still run if analysis itself times out).
    - **Chunking** (large-document support): if the transcript is above
      `CHUNK_THRESHOLD_PAGES` (20), it's split into ~`PAGES_PER_CHUNK` (15)
      chunks at speaker-turn boundaries (mirrors `src/lib/chunkSplit.js`),
@@ -50,8 +51,11 @@
      sometimes emits across chunk boundaries, remaps annotation `entry_id`s.
    - **Pass 2 — proofread** (`PROOFREAD_ONLY_PROMPT`, `gemini-2.5-pro`):
      testimony entries only (CAPTION/INDEX/CERTIFICATE/EXHIBITS/HEADING are
-     skipped) are proofread in batches of `ENTRIES_PER_PROOFREAD_BATCH` (300),
-     with `CONTEXT_ENTRIES` (8) carried from the previous batch. Returns
+     skipped) are proofread in batches of `ENTRIES_PER_PROOFREAD_BATCH` (250),
+     with `CONTEXT_ENTRIES` (8) carried from the previous batch. An empty
+     annotation result on a batch of ≥40 owned entries is treated as a soft
+     failure and retried (up to `MAX_CHUNK_ATTEMPTS`) rather than finalized
+     as a clean transcript. Returns
      `annotations`: `{ type, severity, original, suggestion, explanation,
      confidence, entry_id }`.
    - **Position repair** (`fixAnnotationPositions` / `flexFind`): Gemini's
