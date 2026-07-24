@@ -22,7 +22,12 @@ const TOKEN_PACKS: Record<string, { tokens: number; priceUsd: number }> = {
 // is allowed since local dev servers vary; it's also how we detect "this is
 // local dev" to force test-mode keys below, regardless of STRIPE_MODE.
 const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/
-const isAllowedOrigin = (origin: string) => origin === 'https://courtreportcard.com' || LOCALHOST_ORIGIN.test(origin)
+// Production serves both apex and www (canonical is www); allow either so
+// Checkout success/cancel URLs match the tab the user bought from.
+const isAllowedOrigin = (origin: string) =>
+  origin === 'https://courtreportcard.com' ||
+  origin === 'https://www.courtreportcard.com' ||
+  LOCALHOST_ORIGIN.test(origin)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

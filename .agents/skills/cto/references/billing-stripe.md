@@ -54,7 +54,8 @@ real switch, because of how the two functions actually decide mode:
 - **`create-checkout-session`** picks mode from the request's `origin`, not
   `STRIPE_MODE`: any `http://localhost:<any port>` origin always forces
   `test` keys, regardless of what `STRIPE_MODE` is set to. Non-localhost
-  (i.e. `https://courtreportcard.com`) falls back to `STRIPE_MODE`. This
+  (i.e. `https://courtreportcard.com` or `https://www.courtreportcard.com`)
+  falls back to `STRIPE_MODE`. This
   means once `STRIPE_MODE` is flipped to `live` for launch, local dev keeps
   working against Stripe test mode automatically, forever, on any port —
   no more manual flipping, and no risk of a real charge from a laptop.

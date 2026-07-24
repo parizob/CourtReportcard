@@ -25,7 +25,7 @@ export const blogPosts = [
     date: '2026-07-25',
     dateLabel: 'July 25, 2026',
     dateLabelShort: '7/25/26',
-    readMinutes: 4,
+    readMinutes: 5,
     tags: ['product-update'],
     hero: 'launch',
     metaDescription:
@@ -80,6 +80,24 @@ export const blogPosts = [
       {
         type: 'p',
         text: 'If you have been waiting for a tool that takes this craft seriously, the door is open. Come take a look. Bring the hard jobs. Tell us what still needs work. We will keep building from there.',
+      },
+
+      { type: 'h2', text: 'P.S. You made it this far' },
+      {
+        type: 'p',
+        text: 'Look at you. Still here. Most people bounce after the first "buy tokens" sentence. Not you. You finished the whole thing. That is either dedication or the same stubborn focus that gets a transcript out the door at midnight. We respect both.',
+      },
+      {
+        type: 'p',
+        text: 'So here is a tiny launch celebration for the finishers. We made a promo code. Not a scavenger hunt. Not a countdown clock. Just a thank-you for reading past the callout and sticking with us this long.',
+      },
+      {
+        type: 'callout',
+        text: 'LAUNCH100. One hundred free tokens. Redeem once on the Billing page. Then put them on a real job and see what you think.',
+      },
+      {
+        type: 'p',
+        text: 'Whisper it to Billing. Watch the balance jump. Feel briefly powerful. Then get back to the pages. That is the whole party.',
       },
     ],
   },
