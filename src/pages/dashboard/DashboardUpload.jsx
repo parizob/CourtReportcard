@@ -290,9 +290,9 @@ export default function DashboardUpload() {
     } catch (err) {
       console.error('Upload failed:', err)
 
-      // Upload never completed — return the tokens we charged up front.
-      if (tokensCharged > 0) {
-        const refunded = await refundTokens(tokensCharged, 'Refund — failed upload')
+      // Upload never completed — return the tokens charged on this case.
+      if (tokensCharged > 0 && createdId) {
+        const refunded = await refundTokens(createdId, 'Refund — failed upload')
         if (!refunded) console.error('Token refund failed after upload error.')
       }
 

@@ -16,6 +16,7 @@ One-time token purchases via Stripe Checkout. Subscriptions are not built —
 | Fulfillment failure alerting | `supabase/functions/stripe-webhook/index.ts` (`sendFulfillmentAlert`) | Emails `courtreportcard@gmail.com` via Resend whenever a paid session doesn't end in a credit — see "Fulfillment failure alerts" below. |
 | Purchase UI | `src/pages/dashboard/DashboardBilling.jsx` | Gated by `canPurchase` — see "Beta gating" below. |
 | Promo codes | `promo_codes` + `promo_redemptions` + `redeem_promo` RPC (`supabase/migrations/20260723010000_add_promo_codes.sql`, multi-redeem fix `20260723020000_…`) | Authenticated users redeem from Billing. Caps via `max_per_user` (default 1) and optional `max_redemptions` (global). Credits `user_profiles.balance` and inserts `token_ledger` type `promo`. No Edge Function. Create codes in SQL (service role / dashboard); clients cannot list `promo_codes` (RLS). |
+| Case refunds | `refund_case_tokens(p_case_id)` (`supabase/migrations/20260724190000_secure_refund_case_tokens.sql`) | Client upload-failure refunds. Credits only `cases.tokens_charged` for a case the caller owns, then zeros the charge (idempotent). Old open-mint `refund_tokens(amount)` is disabled. Analysis failures still refund inside `analyze-case` `handleFailure` (service role). |
 
 ### Create a promo code (SQL)
 

@@ -842,7 +842,12 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
     return
   }
 
+  // Claimed row still has the pre-zero charge. Clear it immediately so a
+  // concurrent client refund_case_tokens is a no-op (cannot double-credit).
   const refund = claimed.tokens_charged || caseRow.tokens_charged || 0
+  if (refund > 0) {
+    await admin.from('cases').update({ tokens_charged: 0 }).eq('id', caseId)
+  }
 
   // Hash transcript bytes before storage cleanup so we can block doomed retries.
   const failureCount = await recordCaseFailureFingerprints(
@@ -1007,11 +1012,19 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // Only the genuine client-initiated extract call needs the JWT ownership
-  // check — every chunk/batch continuation, retry, and pass transition is
-  // self-fetched internally with the service role key.
-  if (pass === 'extract' && !internal) {
-    const authHeader = req.headers.get('Authorization') || ''
+  // Authz:
+  // - Client kick: pass=extract, internal=false → JWT must own the case.
+  // - Continuations / pass transitions: internal=true (or non-extract pass) →
+  //   must present the service role key. The `internal` body flag alone used
+  //   to skip ownership checks, which let any authed client spoof continuations
+  //   against another user's case_id (read/delete/refund).
+  const authHeader = req.headers.get('Authorization') || ''
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+  const isServiceRole = Boolean(SERVICE_ROLE_KEY) && bearer === SERVICE_ROLE_KEY
+
+  if (internal || pass !== 'extract') {
+    if (!isServiceRole) return json({ error: 'Forbidden.' }, 403)
+  } else {
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     })

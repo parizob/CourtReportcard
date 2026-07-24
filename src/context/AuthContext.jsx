@@ -36,12 +36,12 @@ export function AuthProvider({ children }) {
     return true
   }, [user])
 
-  // Returns tokens to the user — e.g. when an upload errors out before it
-  // finishes, so a failed analysis never costs credits.
-  const refundTokens = useCallback(async (amount = 1, description = null) => {
-    if (!user || amount <= 0) return false
-    const { data, error } = await supabase.rpc('refund_tokens', {
-      p_amount: amount,
+  // Returns tokens charged on a case — e.g. when an upload errors out before
+  // handoff. Case-scoped so callers cannot mint an arbitrary amount.
+  const refundTokens = useCallback(async (caseId, description = null) => {
+    if (!user || !caseId) return false
+    const { data, error } = await supabase.rpc('refund_case_tokens', {
+      p_case_id: caseId,
       p_description: description,
     })
     if (error || data === null || data === undefined) {
