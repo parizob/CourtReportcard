@@ -1,10 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { countPages } from '../../lib/pageCount'
 import { stripRtf } from '../../lib/rtf'
+import { sha256Hex } from '../../lib/fileHash'
+
+// After this many failures for the same file contents, block further uploads
+// of that file and point the user to support (Gemini cost on doomed retries).
+const RETRY_BLOCK_AFTER = 2
 
 const ALLOWED_EXTENSIONS = ['.txt', '.rtf']
 // RTF files carry heavy markup overhead (font tables, margin codes, etc.) that
@@ -55,25 +60,132 @@ function validateFile(file) {
 
 export default function DashboardUpload() {
   const { user, tokenBalance, spendTokens, refundTokens, refreshTokens } = useAuth()
+  const [searchParams] = useSearchParams()
+  const preview = searchParams.get('preview')
+  const previewRetryBanner = preview === 'retry-banner'
+  const previewTooLarge = preview === 'too-large'
   const [caseName, setCaseName] = useState('')
   const [transcriptFiles, setTranscriptFiles] = useState([])
+  const [fileHash, setFileHash] = useState(null)
+  // retryBlocked keeps Upload disabled; retryBannerVisible is the dismissible alert.
+  const [retryBlocked, setRetryBlocked] = useState(previewRetryBanner)
+  const [retryBannerVisible, setRetryBannerVisible] = useState(previewRetryBanner)
+  const [retryBannerExiting, setRetryBannerExiting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadPhase, setUploadPhase] = useState('')
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [tooLargeBannerVisible, setTooLargeBannerVisible] = useState(previewTooLarge)
+  const [tooLargeBannerExiting, setTooLargeBannerExiting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingPages, setPendingPages] = useState(0)
   const [counting, setCounting] = useState(false)
   const [phiCertified, setPhiCertified] = useState(false)
 
-  const canUpload = caseName.trim().length > 0 && transcriptFiles.length > 0 && !uploading && !counting
+  const canUpload =
+    caseName.trim().length > 0 &&
+    transcriptFiles.length > 0 &&
+    !uploading &&
+    !counting &&
+    !retryBlocked
+
+  const markRetryBlocked = () => {
+    setRetryBlocked(true)
+    setRetryBannerExiting(false)
+    setRetryBannerVisible(true)
+  }
+
+  const clearRetryState = () => {
+    setRetryBlocked(previewRetryBanner)
+    setRetryBannerVisible(previewRetryBanner)
+    setRetryBannerExiting(false)
+  }
+
+  // Same dismiss pattern as the billing checkout banner: hold 5s, collapse, unmount.
+  useEffect(() => {
+    if (!retryBannerVisible) return
+    setRetryBannerExiting(false)
+    const exitTimer = setTimeout(() => setRetryBannerExiting(true), 5000)
+    const removeTimer = setTimeout(() => {
+      setRetryBannerVisible(false)
+      setRetryBannerExiting(false)
+    }, 5340)
+    return () => {
+      clearTimeout(exitTimer)
+      clearTimeout(removeTimer)
+    }
+  }, [retryBannerVisible])
+
+  useEffect(() => {
+    if (!tooLargeBannerVisible) return
+    setTooLargeBannerExiting(false)
+    const exitTimer = setTimeout(() => setTooLargeBannerExiting(true), 5000)
+    const removeTimer = setTimeout(() => {
+      setTooLargeBannerVisible(false)
+      setTooLargeBannerExiting(false)
+    }, 5340)
+    return () => {
+      clearTimeout(exitTimer)
+      clearTimeout(removeTimer)
+    }
+  }, [tooLargeBannerVisible])
+
+  const showTooLargeBanner = (on) => {
+    if (on) {
+      setTooLargeBannerExiting(false)
+      setTooLargeBannerVisible(true)
+      setError('')
+    } else {
+      setTooLargeBannerVisible(false)
+      setTooLargeBannerExiting(false)
+    }
+  }
 
   const resetForm = () => {
     setDone(false)
     setCaseName('')
     setTranscriptFiles([])
+    setFileHash(null)
+    clearRetryState()
     setPendingPages(0)
     setError('')
+    showTooLargeBanner(false)
+  }
+
+  const onTranscriptChosen = async (file) => {
+    if (!file) return
+    const err = validateFile(file)
+    if (err) {
+      setTranscriptFiles([])
+      setFileHash(null)
+      clearRetryState()
+      if (err === 'TRANSCRIPT_TOO_LARGE') {
+        showTooLargeBanner(true)
+      } else {
+        showTooLargeBanner(false)
+        setError(err)
+      }
+      return
+    }
+    setError('')
+    showTooLargeBanner(false)
+    setTranscriptFiles([file])
+    setFileHash(null)
+    clearRetryState()
+    try {
+      const hash = await sha256Hex(file)
+      setFileHash(hash)
+      const { data: count, error: countErr } = await supabase.rpc('get_upload_failure_count', {
+        p_hash: hash,
+      })
+      if (countErr) {
+        console.error('Failure fingerprint check failed:', countErr)
+        return
+      }
+      if ((count ?? 0) >= RETRY_BLOCK_AFTER) markRetryBlocked()
+    } catch (hashErr) {
+      console.error('Could not hash transcript file:', hashErr)
+    }
   }
 
   const handleUploadClick = async () => {
@@ -197,8 +309,22 @@ export default function DashboardUpload() {
           .eq('id', createdId)
       }
 
+      // Fingerprint this file so a doomed retry of the same bytes can be blocked.
+      const hashToRecord = fileHash || (transcriptFiles[0] ? await sha256Hex(transcriptFiles[0]).catch(() => null) : null)
+      if (hashToRecord) {
+        const { data: newCount } = await supabase.rpc('record_upload_failure', {
+          p_hash: hashToRecord,
+          p_file_name: transcriptFiles[0]?.name || null,
+        })
+        if ((newCount ?? 0) >= RETRY_BLOCK_AFTER) markRetryBlocked()
+      }
+
       const tooLarge = err.message === 'TRANSCRIPT_TOO_LARGE'
-      setError(tooLarge ? 'TRANSCRIPT_TOO_LARGE' : (err.message || 'Upload failed. Please try again.'))
+      if (tooLarge) {
+        showTooLargeBanner(true)
+      } else {
+        setError(err.message || 'Upload failed. Please try again.')
+      }
       setUploading(false)
       setUploadPhase('')
       refreshTokens()
@@ -242,8 +368,10 @@ export default function DashboardUpload() {
   }
 
   return (
-    <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-start justify-center px-6 py-8">
-      <div className="w-full max-w-xl flex flex-col gap-5">
+    {/* overflow-y-auto (not hidden): short/zoomed viewports can scroll to Upload &
+        Analyze. Tall screens still fit without a scrollbar, so layout looks the same. */}
+    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex items-start justify-center px-6 py-8">
+      <div className="w-full max-w-xl flex flex-col gap-5 pb-2">
 
         {/* Header */}
         <div className="shrink-0">
@@ -251,22 +379,58 @@ export default function DashboardUpload() {
           <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to get started.</p>
         </div>
 
-        {/* Error banner */}
-        {error && (
-          error === 'TRANSCRIPT_TOO_LARGE' ? (
-            <div className="shrink-0 p-3.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl flex items-start gap-3">
-              <span className="material-symbols-outlined text-primary text-lg shrink-0 mt-0.5">volunteer_activism</span>
-              <div>
-                <p className="text-sm font-bold text-on-surface">That file looks unusually large for a transcript.</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">Double check it exported correctly, or reach out and we'll take a look.</p>
+        {/* Retry block — same file contents failed twice already */}
+        {retryBannerVisible && (
+          <div
+            className={`shrink-0 grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
+              retryBannerExiting ? 'grid-rows-[0fr] opacity-0 mb-0' : 'grid-rows-[1fr] opacity-100'
+            }`}
+          >
+            <div className="overflow-hidden min-h-0">
+              <div className="p-3.5 bg-surface-container-lowest border border-error/25 rounded-xl flex items-start gap-3">
+                <span className="material-symbols-outlined text-error text-lg shrink-0 mt-0.5">front_hand</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-on-surface">This file has already failed twice.</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
+                    Please don&apos;t keep uploading it. That won&apos;t fix the issue, and it burns processing on a file that needs a human look.
+                    {' '}
+                    <Link to="/support" className="font-bold text-primary hover:underline">
+                      Contact support
+                    </Link>
+                    {' '}
+                    and we&apos;ll dig in.
+                  </p>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2">
-              <span className="material-symbols-outlined text-base shrink-0">error</span>
-              {error}
+          </div>
+        )}
+
+        {/* Too-large banner — soft amber warning, same dismiss as retry/billing */}
+        {tooLargeBannerVisible && !retryBlocked && (
+          <div
+            className={`shrink-0 grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out ${
+              tooLargeBannerExiting ? 'grid-rows-[0fr] opacity-0 mb-0' : 'grid-rows-[1fr] opacity-100'
+            }`}
+          >
+            <div className="overflow-hidden min-h-0">
+              <div className="p-3.5 bg-surface-container-lowest border border-tertiary-fixed-dim/40 rounded-xl flex items-start gap-3">
+                <span className="material-symbols-outlined text-tertiary-fixed-dim text-lg shrink-0 mt-0.5">volunteer_activism</span>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">That file looks unusually large for a transcript.</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">Double check it exported correctly, or reach out and we'll take a look.</p>
+                </div>
+              </div>
             </div>
-          )
+          </div>
+        )}
+
+        {/* Other upload errors */}
+        {error && !retryBlocked && !tooLargeBannerVisible && (
+          <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2">
+            <span className="material-symbols-outlined text-base shrink-0">error</span>
+            {error}
+          </div>
         )}
 
         {/* Case name — prominent */}
@@ -299,21 +463,16 @@ export default function DashboardUpload() {
                   type="file"
                   className="hidden"
                   accept=".txt,.rtf"
-                  onChange={(e) => {
-                    const file = e.target.files[0]
-                    if (!file) return
-                    const err = validateFile(file)
-                    if (err) { setError(err); setTranscriptFiles([]); return }
-                    setError('')
-                    setTranscriptFiles([file])
-                  }}
+                  onChange={(e) => onTranscriptChosen(e.target.files[0])}
                 />
               </label>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-5 gap-3 min-w-0 w-full overflow-hidden">
                 <div className="flex items-center gap-3 w-full min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${retryBlocked ? 'bg-error-container/40' : 'bg-green-100'}`}>
+                    <span className={`material-symbols-outlined text-lg ${retryBlocked ? 'text-error' : 'text-green-600'}`}>
+                      {retryBlocked ? 'block' : 'check_circle'}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-on-surface truncate">{transcriptFiles[0].name}</p>
@@ -321,7 +480,9 @@ export default function DashboardUpload() {
                       {transcriptFiles[0].name.split('.').pop().toUpperCase()} &middot; {(transcriptFiles[0].size / 1024).toFixed(0)} KB
                     </p>
                   </div>
-                  <span className="material-symbols-outlined text-green-500 text-lg shrink-0">check</span>
+                  <span className={`material-symbols-outlined text-lg shrink-0 ${retryBlocked ? 'text-error' : 'text-green-500'}`}>
+                    {retryBlocked ? 'block' : 'check'}
+                  </span>
                 </div>
                 <label className="flex items-center gap-1 text-xs font-bold text-primary cursor-pointer hover:underline">
                   <span className="material-symbols-outlined text-sm">swap_horiz</span>
@@ -329,15 +490,8 @@ export default function DashboardUpload() {
                   <input
                     type="file"
                     className="hidden"
-                  accept=".txt,.rtf"
-                  onChange={(e) => {
-                    const file = e.target.files[0]
-                    if (!file) return
-                    const err = validateFile(file)
-                    if (err) { setError(err); setTranscriptFiles([]); return }
-                    setError('')
-                    setTranscriptFiles([file])
-                  }}
+                    accept=".txt,.rtf"
+                    onChange={(e) => onTranscriptChosen(e.target.files[0])}
                   />
                 </label>
               </div>

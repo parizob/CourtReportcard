@@ -738,8 +738,11 @@ function successEmailHtml(caseName: string, issueCount: number, caseId: string):
   `
 }
 
-function failureEmailHtml(caseName: string, refunded: number): string {
+function failureEmailHtml(caseName: string, refunded: number, repeatFailure = false): string {
   const supportUrl = `${SITE_URL}/support`
+  const nextStep = repeatFailure
+    ? `This is the second time this specific file has run into a problem. Sometimes that's something about the file, sometimes it's on our end, we're not sure yet without a closer look. Instead of trying again, email us at <a href="mailto:courtreportcard@gmail.com" style="color: #001939; font-weight: 700; text-decoration: underline;">courtreportcard@gmail.com</a> or use <a href="${supportUrl}" style="color: #001939; font-weight: 700; text-decoration: underline;">Contact Support</a> so we can check what's actually going on.`
+    : `This is usually a temporary issue. Please try uploading again. If it happens a second time, reach out and we'll take a look. Don't keep retrying the same file over and over.`
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
       <div style="background: #001939; padding: 24px 32px; border-radius: 8px 8px 0 0;">
@@ -748,16 +751,49 @@ function failureEmailHtml(caseName: string, refunded: number): string {
       <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
           We hit a problem analyzing <strong>${caseName}</strong>, so it wasn't completed.
-          We've <strong>refunded ${refunded} token${refunded === 1 ? '' : 's'}</strong> — you weren't charged.
+          We've <strong>refunded ${refunded} token${refunded === 1 ? '' : 's'}</strong>. You weren't charged.
         </p>
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          This is usually a temporary issue. Please try uploading again — if it happens a second
-          time, reach out and we'll take a look.
+          ${nextStep}
         </p>
         <a href="${supportUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Contact Support</a>
       </div>
     </div>
   `
+}
+
+async function sha256HexBytes(data: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Fingerprint transcript file bytes before storage cleanup. Returns max failure count across files. */
+async function recordCaseFailureFingerprints(admin: any, userId: string, caseFiles: any[]): Promise<number> {
+  let maxCount = 0
+  const transcripts = (caseFiles || []).filter((f: any) => f.file_type === 'transcript' && f.storage_path)
+  for (const f of transcripts) {
+    try {
+      const { data: blob, error } = await admin.storage.from('case-files').download(f.storage_path)
+      if (error || !blob) {
+        console.error('Fingerprint download failed:', f.storage_path, error)
+        continue
+      }
+      const hash = await sha256HexBytes(await blob.arrayBuffer())
+      const { data: newCount, error: rpcErr } = await admin.rpc('admin_record_upload_failure', {
+        p_user_id: userId,
+        p_hash: hash,
+        p_file_name: f.file_name || null,
+      })
+      if (rpcErr) {
+        console.error('admin_record_upload_failure failed:', rpcErr)
+        continue
+      }
+      if ((newCount ?? 0) > maxCount) maxCount = newCount
+    } catch (e) {
+      console.error('Fingerprint record failed for', f.storage_path, e)
+    }
+  }
+  return maxCount
 }
 
 // ── Shared failure handler ──
@@ -796,6 +832,14 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
   }
 
   const refund = claimed.tokens_charged || caseRow.tokens_charged || 0
+
+  // Hash transcript bytes before storage cleanup so we can block doomed retries.
+  const failureCount = await recordCaseFailureFingerprints(
+    admin,
+    claimed.user_id,
+    caseRow.case_files || [],
+  )
+  const repeatFailure = failureCount >= 2
 
   // Clean up storage: case_files rows (transcript/extracted) plus any
   // intermediate "extracting" JSON entries, which have no DB row.
@@ -837,7 +881,11 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
 
   const email = (userResult as any)?.data?.user?.email
   if (email) {
-    await sendEmail(email, `We couldn't finish analyzing ${claimed.name}`, failureEmailHtml(claimed.name, refund))
+    await sendEmail(
+      email,
+      `We couldn't finish analyzing ${claimed.name}`,
+      failureEmailHtml(claimed.name, refund, repeatFailure),
+    )
   }
 }
 
