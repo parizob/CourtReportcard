@@ -1,0 +1,8 @@
+# Minimal config for function deploy flags. Project is linked via CLI.
+
+[functions.sweep-stuck-cases]
+# Auth is enforced inside the function (service role = all cases; user JWT = own).
+verify_jwt = false
+
+[functions.analyze-case]
+verify_jwt = false

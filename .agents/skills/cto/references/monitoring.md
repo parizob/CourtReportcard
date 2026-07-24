@@ -98,7 +98,7 @@ this is a manual `execute_sql` check for now). Until that changes:
   harness catches recall/false-positive regressions on seeded transcripts,
   but neither signal is exercised by the harness — real production traffic
   is the only way to see them).
-- If usage grows enough that manual checks stop being practical, this is a
-  good candidate for a scheduled Supabase Edge Function (or just a cron
-  querying and emailing a summary) rather than continuing to rely on someone
-  remembering to run the query.
+- Stuck `processing` cases are handled by `sweep-stuck-cases` (every 5 min via
+  `pg_cron`, plus opportunistic kicks from `analyze-case` / dashboard): one
+  automatic re-kick, then refund+fail. Heartbeats bump `cases.updated_at` each
+  extract/proofread unit so long healthy jobs are not mistaken for stuck.

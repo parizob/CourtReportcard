@@ -55,11 +55,14 @@ prompts from the same source of truth you're editing), but:
 The harness needs `/api/gemini` reachable, so the Vite dev server must be
 running. **Gotcha:** locally the Gemini key is stored as `VITE_GEMINI_API_KEY`
 in `.env`, but `api/gemini.js` reads `GEMINI_API_KEY` (the name Vercel uses in
-production). Map it when starting dev:
+production). `/api/gemini` also requires `GEMINI_HARNESS_SECRET` (header
+`x-gemini-harness-secret`) — same value in `.env` for local and in Vercel
+env for prod. Map keys when starting dev:
 
 ```bash
 export GEMINI_API_KEY=$(grep '^VITE_GEMINI_API_KEY=' .env | cut -d= -f2-)
-GEMINI_API_KEY="$GEMINI_API_KEY" npm run dev
+export GEMINI_HARNESS_SECRET=$(grep '^GEMINI_HARNESS_SECRET=' .env | cut -d= -f2-)
+GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_HARNESS_SECRET="$GEMINI_HARNESS_SECRET" npm run dev
 ```
 
 Then, in another shell:

@@ -10,6 +10,21 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Harness-only proxy — not used by real uploads (those go through analyze-case).
+  // Require a shared secret so strangers cannot burn GEMINI_API_KEY via POST.
+  const expected = (process.env.GEMINI_HARNESS_SECRET || '').trim()
+  if (!expected) {
+    return res.status(503).json({ error: 'GEMINI_HARNESS_SECRET is not configured.' })
+  }
+  const got = (
+    req.headers['x-gemini-harness-secret'] ||
+    req.headers['X-Gemini-Harness-Secret'] ||
+    ''
+  ).toString().trim()
+  if (got !== expected) {
+    return res.status(401).json({ error: 'Unauthorized.' })
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: 'Gemini API key not configured on server.' })
   }

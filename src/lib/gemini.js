@@ -13,11 +13,20 @@ async function callGemini(prompt, filePart, model, thinkingConfig, timeoutMs = 3
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const startedAt = Date.now()
 
+  // Secret is server/harness-only (Node process.env). Never use a VITE_ prefix —
+  // this module is also imported by the browser for pure helpers; the browser
+  // must not receive the secret, and must not call /api/gemini in production.
+  const harnessSecret =
+    (typeof process !== 'undefined' && process.env && process.env.GEMINI_HARNESS_SECRET) || ''
+
   let response
   try {
     response = await fetch('/api/gemini', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(harnessSecret ? { 'x-gemini-harness-secret': harnessSecret } : {}),
+      },
       signal: controller.signal,
       body: JSON.stringify({ prompt, filePart, model, thinkingConfig }),
     })

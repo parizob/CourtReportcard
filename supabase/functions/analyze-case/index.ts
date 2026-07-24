@@ -957,6 +957,15 @@ function runInBackground(work: Promise<void>): void {
   else work
 }
 
+/** Keeps stuck-case sweeper from treating an in-flight analysis as abandoned. */
+async function touchHeartbeat(admin: any, caseId: string): Promise<void> {
+  const { error } = await admin
+    .from('cases')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', caseId)
+  if (error) console.warn('analysis heartbeat failed', caseId, error.message)
+}
+
 // ── Handler ──
 // Supports two passes via `pass` body field, each internally sequenced across
 // N extraction chunks / M proofread batches for large documents (see
@@ -996,6 +1005,8 @@ Deno.serve(async (req: Request) => {
   let batchIndex: number
   let attempt: number
   let internal: boolean
+  let failReason: string
+  let failStage: string
   try {
     const body = await req.json()
     caseId = body.case_id
@@ -1005,6 +1016,8 @@ Deno.serve(async (req: Request) => {
     batchIndex = body.batch_index || 0
     attempt = body.attempt || 0
     internal = body.internal === true
+    failReason = typeof body.reason === 'string' ? body.reason : 'STUCK_ANALYSIS_TIMEOUT'
+    failStage = typeof body.stage === 'string' ? body.stage : 'stuck sweeper'
   } catch {
     return json({ error: 'Invalid request body.' }, 400)
   }
@@ -1020,7 +1033,13 @@ Deno.serve(async (req: Request) => {
   //   against another user's case_id (read/delete/refund).
   const authHeader = req.headers.get('Authorization') || ''
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
-  const isServiceRole = Boolean(SERVICE_ROLE_KEY) && bearer === SERVICE_ROLE_KEY
+  let isServiceRole = Boolean(SERVICE_ROLE_KEY) && bearer === SERVICE_ROLE_KEY
+  if (!isServiceRole && bearer.split('.').length === 3) {
+    try {
+      const payload = JSON.parse(atob(bearer.split('.')[1]!))
+      isServiceRole = payload?.role === 'service_role'
+    } catch { /* ignore */ }
+  }
 
   if (internal || pass !== 'extract') {
     if (!isServiceRole) return json({ error: 'Forbidden.' }, 403)
@@ -1047,6 +1066,13 @@ Deno.serve(async (req: Request) => {
 
   const caseFiles: any[] = caseRow.case_files || []
 
+  // Stuck-case sweeper (and ops) ask us to run the normal failure path:
+  // soft-delete, refund, fingerprint, email. Service-role only (see authz above).
+  if (pass === 'fail') {
+    await handleFailure(admin, caseRow, caseId, new Error(failReason), failStage)
+    return json({ ok: true, status: 'failed' }, 200)
+  }
+
   // Duplicate-kick guard — only relevant for the genuine first external call
   // (e.g. a double-clicked upload button). Every other invocation legitimately
   // expects prior extracting/ state to already exist.
@@ -1058,6 +1084,24 @@ Deno.serve(async (req: Request) => {
     const alreadyStarted = alreadyExtracted || (extractingStorageFiles?.length ?? 0) > 0
     if (alreadyStarted) return json({ ok: true, skipped: 'already_started' })
     if (caseRow.status !== 'processing') return json({ ok: true, skipped: `status_${caseRow.status}` })
+
+    // Opportunistic platform-wide stuck sweep whenever a real user kicks analysis.
+    runInBackground((async () => {
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/sweep-stuck-cases`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            apikey: SERVICE_ROLE_KEY,
+          },
+          body: '{}',
+        })
+        if (!resp.ok) console.warn('Opportunistic stuck sweep HTTP', resp.status)
+      } catch (e) {
+        console.warn('Opportunistic stuck sweep failed', e)
+      }
+    })())
   }
 
   // ── Extract pass ──
@@ -1122,6 +1166,7 @@ Deno.serve(async (req: Request) => {
     const work = (async () => {
       const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
       try {
+        await touchHeartbeat(admin, caseId)
         const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(dbFile.storage_path)
         if (dlErr || !blob) {
           throw new Error(
@@ -1394,6 +1439,7 @@ Deno.serve(async (req: Request) => {
   const work = (async () => {
     const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
     try {
+      await touchHeartbeat(admin, caseId)
       // A handful of leading entries from the previous batch are included as
       // context (not owned by this batch) so a judgment call right at the
       // seam still has surrounding text to reason from — see ownIdRange /
