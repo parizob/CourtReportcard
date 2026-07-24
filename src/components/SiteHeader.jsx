@@ -90,6 +90,13 @@ const publicNavClass = ({ isActive }) =>
 const LOW_TOKEN_THRESHOLD = 10
 const ADMIN_ALWAYS_SHOW = 'parizob1@gmail.com'
 
+// Dropdown: full-bleed inset on narrow viewports (avoids left-edge clip when
+// the bell sits mid-header); desktop keeps the classic right-anchored card.
+const notifPanelClass =
+  'z-50 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden ' +
+  'fixed left-4 right-4 top-[73px] ' +
+  'sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-80 sm:max-w-none'
+
 export default function SiteHeader() {
   const { isAuthenticated, user, displayName, initials, openModal, signOut, tokenBalance } = useAuth()
   const navigate = useNavigate()
@@ -257,7 +264,7 @@ export default function SiteHeader() {
               </button>
 
               {lowTokenOpen && (
-                <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden z-50">
+                <div className={notifPanelClass}>
                   <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15">
                     <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
                     {totalAuthNotifs > 0 && (
@@ -418,9 +425,11 @@ export default function SiteHeader() {
             Sign Up
           </button>
 
-          <div className="relative hidden sm:block" ref={notifRef}>
+          <div className="relative" ref={notifRef}>
             <button
-              onClick={() => setNotifOpen((v) => !v)}
+              onClick={() => { setMobileMenuOpen(false); setNotifOpen((v) => !v) }}
+              data-track-id="header_guest_bell"
+              aria-label="Notifications"
               className="relative flex items-center justify-center hover:bg-surface-container-high p-2 rounded-full transition-colors"
             >
               <span
@@ -437,7 +446,7 @@ export default function SiteHeader() {
             </button>
 
             {notifOpen && (
-              <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/20 overflow-hidden">
+              <div className={notifPanelClass}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/15">
                   <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
                   <button onClick={dismissNotification} className="text-xs text-primary font-semibold hover:underline">Mark as read</button>
@@ -476,7 +485,7 @@ export default function SiteHeader() {
 
           {/* Mobile hamburger */}
           <button
-            onClick={() => setMobileMenuOpen((v) => !v)}
+            onClick={() => { setNotifOpen(false); setMobileMenuOpen((v) => !v) }}
             className="md:hidden flex items-center justify-center p-2 rounded-full hover:bg-surface-container-high transition-colors"
             aria-label="Open menu"
           >
