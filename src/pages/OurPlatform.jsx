@@ -34,17 +34,17 @@ const stats = [
   {
     metric: '< 5 min',
     label: 'to analyze a 100-page deposition',
-    sub: 'A human scopist averages 6–8 hours for the same file.',
+    sub: 'A careful human review averages 6–8 hours for the same file.',
   },
   {
     metric: '100%',
     label: 'of words evaluated for errors',
-    sub: 'No line skipped. No page rushed. No homophone missed.',
+    sub: 'No line skipped. No page rushed. You stay in control.',
   },
   {
     metric: '~98%',
     label: 'cost reduction vs. manual review',
-    sub: 'Cents per page instead of dollars per hour.',
+    sub: 'Cents per page. Same careful review, without the wait.',
   },
 ]
 
