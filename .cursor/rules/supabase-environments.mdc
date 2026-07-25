@@ -1,0 +1,50 @@
+---
+description: Prod vs Dev Supabase projects — never target the wrong one
+alwaysApply: true
+---
+
+# Supabase Environments
+
+Court Reportcard has two Supabase projects. Treat them as hard boundaries.
+
+| Env | Project | Ref |
+|-----|---------|-----|
+| **Prod** | Court Reportcard | `wyexjojoezttbzhcpkco` |
+| **Dev** | Court Reportcard Dev (free org) | `jotklhjskmewzfsgzkvp` |
+
+## Rules
+
+- **Local app** uses Dev via `.env`: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` → `jotklhjskmewzfsgzkvp`.
+- **Vercel Production** keeps Prod keys. Never put Dev keys in Vercel Production.
+- **Vercel Preview** uses Dev keys (safe PR previews).
+- Before `supabase db push`, `functions deploy`, or `secrets set`: confirm linked ref (`supabase projects list` or `supabase/.temp/project-ref`). Relink if wrong. Default linked target after setup is **Dev**.
+- **Always state the target out loud** before any deploy/migration/secrets command: "This will hit **Dev** (`jotklhjskmewzfsgzkvp`)" or "This will hit **Prod** (`wyexjojoezttbzhcpkco`)".
+- **Any write to Prod needs explicit user confirmation in that turn** — migrations, `db push`, Edge Function deploys, secrets, storage/auth config changes, data updates/deletes, etc. If unclear whether they mean Dev or Prod, ask first. Do not assume.
+- **Read-only Prod queries are OK without asking** (e.g. `SELECT` / MCP `execute_sql` that only reads, checking logs, listing tables). If a "query" would insert/update/delete or change schema, treat it as a write and confirm first.
+- Linking CLI to Dev does **not** disconnect Prod. It only changes which project local CLI commands hit.
+- Never put `service_role` in any `VITE_` env var or frontend code.
+- Schema bootstrap for an empty Dev DB lives in `supabase/dev/bootstrap_schema.sql` (Dev only — do not apply to Prod).
+- Incremental migrations in `supabase/migrations/` are for ongoing changes; after applying to Dev, apply to Prod only when the user asks to ship to Prod.
+
+## Git push vs Edge Functions (two different pipes)
+
+- `git push` / merge to `main` → **Vercel** rebuilds the frontend only. It does **not** update Supabase Edge Functions.
+- Edge Functions (`analyze-case`, `stripe-webhook`, etc.) deploy via `supabase functions deploy` to whichever project is targeted.
+- Normal workflow for function changes:
+  1. Deploy to **Dev** first (default linked ref) and test on localhost.
+  2. Only when the user explicitly says to ship: deploy the **same** function code to **Prod** (`--project-ref wyexjojoezttbzhcpkco` or re-link), and confirm out loud.
+- So shipping a function is not "git push twice" — it's git (for the repo) + Supabase deploy to Dev (while building) + Supabase deploy to Prod (when releasing). UI-only changes need git/Vercel only.
+
+## Stripe
+
+- Localhost checkout always uses Stripe **test** keys (forced in `create-checkout-session` when origin is localhost), regardless of `STRIPE_MODE` in `.env`.
+- Stripe **test** webhook → Dev Supabase only.
+- Stripe **live** webhook → Prod Supabase only.
+- Prod Edge `STRIPE_MODE` stays `live`. Do not flip Prod to test.
+
+## Day-to-day gotchas
+
+- **Never** run `vercel env pull` into the project `.env` — it can overwrite local Dev keys with Production.
+- Dev is a **separate** auth universe (new signups, no Prod users/cases/promos). Seed promo codes on Dev if you need them locally.
+- Free-tier Dev projects can **pause** after inactivity — if local auth/API suddenly fails, check the Dev project isn’t paused in the Supabase dashboard.
+- After merging to `main`, do a 60-second Prod smoke test (load site, login, open dashboard) — frontend only changed; DB should still be Prod.

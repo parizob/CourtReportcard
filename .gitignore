@@ -10,3 +10,5 @@ dist
 .env*.local
 scripts/test-transcripts/results_*.json
 scripts/.proofread-pool-cache.json
+# Supabase CLI local link/cache (project-ref, pooler URL, versions)
+supabase/.temp/
