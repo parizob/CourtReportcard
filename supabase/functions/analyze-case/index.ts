@@ -56,19 +56,24 @@ const CHUNK_THRESHOLD_PAGES = 20
 const ENTRIES_PER_PROOFREAD_BATCH = 250
 // 1 initial attempt + 3 retries per chunk/batch before falling through to the
 // full refund+delete path — see handleFailure. Helps transient failures
-// (timeout, momentary 5xx, empty proofread result); won't help a chunk whose
-// content deterministically confuses the model at temperature:0. Raised from
-// 3 to 4 on 2026-07-16 alongside the ENTRIES_PER_PROOFREAD_BATCH trim above.
+// (timeout, momentary 5xx). Empty proofread results retry here too, then
+// accept and continue (see MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY). Won't help
+// a chunk whose content deterministically confuses the model at temperature:0.
+// Raised from 3 to 4 on 2026-07-16 alongside the ENTRIES_PER_PROOFREAD_BATCH trim.
 const MAX_CHUNK_ATTEMPTS = 4
-// A non-trivial proofread batch that returns zero annotations is almost
-// never a genuinely clean transcript — production incident 2026-07-24
-// (Natalie / Alexander rough): same file returned `[]` twice in prod while
-// a local Pro run found 84 issues including obvious misspellings. Treat
-// empty as a soft failure so the attempt/retry path can re-roll; after
-// MAX_CHUNK_ATTEMPTS the case falls through to handleFailure instead of
-// finalizing as a fake clean report. Tiny batches stay exempt (caption-only
-// / short clean excerpts can legitimately be empty).
+// A non-trivial proofread batch that returns zero annotations may be a
+// Gemini flake (2026-07-24 Natalie / Alexander rough: prod returned `[]`
+// while a local Pro run found 84 issues) OR a legitimately clean batch
+// (caption/early pages of a long file, short clean tests, true perfect).
+// Treat empty as a soft failure so attempts can re-roll; after
+// MAX_CHUNK_ATTEMPTS accept `[]` and continue so later batches still run
+// and perfect jobs are not refunded. Large all-clean finals are flagged
+// to the founder for spot-check (see ZERO_ISSUE_ALERT_MIN_TOKENS).
 const MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY = 40
+// Founder alert when a case finalizes with 0 suggestions at/above this
+// page-token size. Short test uploads stay quiet.
+const ZERO_ISSUE_ALERT_MIN_TOKENS = 40
+const FOUNDER_ALERT_EMAIL = 'courtreportcard@gmail.com'
 
 /** Mirrors src/lib/pageCount.js's countPages. */
 function countPages(text: string): number {
@@ -749,6 +754,34 @@ function successEmailHtml(caseName: string, issueCount: number, caseId: string):
   `
 }
 
+function zeroIssueAlertHtml(opts: {
+  caseName: string
+  caseId: string
+  userEmail: string
+  tokensCharged: number
+  totalEntries: number
+}): string {
+  const editorUrl = `${SITE_URL}/dashboard/editor?case=${opts.caseId}`
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
+      <div style="background: #001939; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <p style="color: white; font-size: 18px; font-weight: 800; margin: 0;">Spot-check: 0 suggestions on a large case</p>
+      </div>
+      <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
+        <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+          <strong>${opts.caseName}</strong> finished with 0 suggestions
+          (${opts.tokensCharged} tokens / ${opts.totalEntries} entries).
+          User: ${opts.userEmail}. Case: ${opts.caseId}.
+        </p>
+        <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+          Skim for material misses. If it looks clean, do nothing. If you find real errors, email the user personally.
+        </p>
+        <a href="${editorUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Open in Editor</a>
+      </div>
+    </div>
+  `
+}
+
 function failureEmailHtml(caseName: string, refunded: number, repeatFailure = false): string {
   const supportUrl = `${SITE_URL}/support`
   const nextStep = repeatFailure
@@ -1297,8 +1330,23 @@ Deno.serve(async (req: Request) => {
         await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
 
         const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
-        if (u?.user?.email) {
-          await sendEmail(u.user.email, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
+        const userEmail = u?.user?.email
+        if (userEmail) {
+          await sendEmail(userEmail, `Your transcript is ready — ${caseRow.name}`, successEmailHtml(caseRow.name, totalIssues, caseId))
+        }
+        const tokensCharged = caseRow.tokens_charged || 0
+        if (totalIssues === 0 && tokensCharged >= ZERO_ISSUE_ALERT_MIN_TOKENS) {
+          await sendEmail(
+            FOUNDER_ALERT_EMAIL,
+            `Spot-check: 0 issues on large case — ${caseRow.name}`,
+            zeroIssueAlertHtml({
+              caseName: caseRow.name,
+              caseId,
+              userEmail: userEmail || 'unknown',
+              tokensCharged,
+              totalEntries,
+            }),
+          )
         }
       } catch (err) {
         await handleFailure(admin, caseRow, caseId, err, 'proofread finalize (case-level)')
@@ -1455,13 +1503,19 @@ Deno.serve(async (req: Request) => {
       const ownedCount = batchEnd - batchStart
       const { annotations, droppedCount } = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
       if (annotations.length === 0 && ownedCount >= MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY) {
+        if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+          console.warn(
+            `proofread returned empty annotations for ${ownedCount} owned entries ` +
+            `(file ${fileIndex} batch ${batchIndex} attempt ${attempt}) — treating as soft failure`,
+          )
+          throw new Error(
+            `PROOFREAD_EMPTY_RESULT: 0 annotations for ${ownedCount} entries ` +
+            `(file ${fileIndex} batch ${batchIndex})`,
+          )
+        }
         console.warn(
-          `proofread returned empty annotations for ${ownedCount} owned entries ` +
-          `(file ${fileIndex} batch ${batchIndex} attempt ${attempt}) — treating as soft failure`,
-        )
-        throw new Error(
-          `PROOFREAD_EMPTY_RESULT: 0 annotations for ${ownedCount} entries ` +
-          `(file ${fileIndex} batch ${batchIndex})`,
+          `proofread still empty after ${MAX_CHUNK_ATTEMPTS} attempts for ${ownedCount} owned entries ` +
+          `(file ${fileIndex} batch ${batchIndex}) — accepting empty and continuing`,
         )
       }
       const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations, droppedCount }, null, 2))
