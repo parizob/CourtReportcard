@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import Tooltip from '../../components/Tooltip'
 import { retryStuckCases } from '../../lib/backgroundAnalysis'
+import { waitForCasePersists } from '../../lib/casePersist'
 
 export default function Dashboard() {
   const { displayName } = useAuth()
@@ -41,6 +42,13 @@ export default function Dashboard() {
 
   const fetchCases = async (showLoading = true) => {
     if (showLoading) setLoading(true)
+    // Editor unmount flushes accepts/reopens into this queue. Wait so the
+    // list doesn't paint "Reviewed" from a fetch that raced the reopen save.
+    try {
+      await waitForCasePersists()
+    } catch (persistErr) {
+      console.warn('Dashboard load: prior editor save had an error', persistErr)
+    }
     const { data, error } = await supabase
       .from('cases')
       .select('*, case_files(*), case_metrics(*)')
@@ -127,13 +135,17 @@ export default function Dashboard() {
 
   const getMetrics = (c) => (c.case_metrics && c.case_metrics.length > 0 ? c.case_metrics[0] : c.case_metrics && !Array.isArray(c.case_metrics) ? c.case_metrics : null)
 
-  // Derive display status from actual metrics so the UI always reflects annotation reality
+  // Derive display status from actual metrics so the UI always reflects annotation reality.
+  // Use open count too: after a full reopen, resolved is 0 but open > 0 — falling
+  // back to cases.status would incorrectly keep showing "reviewed".
   const getDisplayStatus = (c) => {
     const m = getMetrics(c)
     if (!m || m.total_issues == null) return c.status
     const total = m.total_issues || 0
+    const open = m.open || 0
     const resolved = (m.accepted || 0) + (m.ignored || 0)
     if (total === 0) return c.status
+    if (open > 0) return resolved > 0 ? 'in_progress' : 'analyzed'
     if (resolved >= total) return 'reviewed'
     if (resolved > 0) return 'in_progress'
     return c.status // 'analyzed' or 'uploaded' etc.

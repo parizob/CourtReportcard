@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent } from '../../lib/gemini'
-import { countByType } from '../../lib/annotationStats'
-import { enqueueCasePersist } from '../../lib/casePersist'
+import {
+  clearCasePersistError,
+  waitForCasePersists,
+  publishCaseReviewPending,
+  enqueueCaseReviewSave,
+  syncMetricsFromAnnotations,
+} from '../../lib/casePersist'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
@@ -39,19 +44,30 @@ export default function DashboardEditor() {
   const caseIdRef = useRef(caseId)
   const syncTimerRef = useRef(null)
   const persistNowRef = useRef(null)
+  const mountedRef = useRef(true)
   // Only persist after a case has finished loading. Unmount flush without this
   // can upload empty annotations and wipe accepts/ignores (Strict Mode remount
   // or navigating away mid-load).
   const canPersistRef = useRef(false)
-  useEffect(() => { entriesRef.current = entries }, [entries])
-  useEffect(() => { annotationsRef.current = annotations }, [annotations])
-  useEffect(() => { originalTextRef.current = originalText }, [originalText])
+  // Bumps on every loadCase; stale async loads must not apply after a newer
+  // load started or after the user already accepted in the current session.
+  const loadGenRef = useRef(0)
+  // Do NOT mirror entries/annotations/originalText via useEffect — that can
+  // stomp a newer direct ref write from accept/ignore/reopen with a stale
+  // render, so the next persist uploads the pre-reopen state while the UI
+  // looks saved. Mutations update refs synchronously; these stay in sync for
+  // path/id/title only.
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { extractedFilePathRef.current = extractedFilePath }, [extractedFilePath])
   useEffect(() => { caseIdRef.current = caseId }, [caseId])
   useEffect(() => {
     canPersistRef.current = false
   }, [caseId])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   // Dismiss inline popover on escape, scroll, or window resize
   useEffect(() => {
@@ -97,11 +113,13 @@ export default function DashboardEditor() {
   const displayStatus = useMemo(() => {
     const total = annotations.length
     if (total === 0) return caseData?.status
+    const open = openAnnotations.length
     const resolved = resolvedAnnotations.length
+    if (open > 0) return resolved > 0 ? 'in_progress' : 'analyzed'
     if (resolved >= total) return 'reviewed'
     if (resolved > 0) return 'in_progress'
     return caseData?.status
-  }, [annotations, resolvedAnnotations, caseData])
+  }, [annotations, openAnnotations, resolvedAnnotations, caseData])
 
   const statusLabel = (s) => ({ uploaded: 'Uploaded', processing: 'Processing', analyzed: 'Analyzed', in_progress: 'Editing', reviewed: 'Reviewed', exported: 'Exported' }[s] || s)
 
@@ -111,10 +129,21 @@ export default function DashboardEditor() {
   }, [caseId])
 
   const loadCase = async () => {
+    const gen = ++loadGenRef.current
     setLoading(true)
     setError('')
     canPersistRef.current = false
     try {
+      // Wait for accept/ignore/unmount flushes from the previous editor visit.
+      // Otherwise we download a pre-accept snapshot, show everything open, and
+      // the next unmount flush writes that open state over the real save.
+      try {
+        await waitForCasePersists()
+      } catch (persistErr) {
+        console.warn('Editor load: prior save had an error', persistErr)
+      }
+      if (gen !== loadGenRef.current) return
+
       const { data: caseRow, error: caseErr } = await supabase
         .from('cases')
         .select('*, case_files(*)')
@@ -122,15 +151,18 @@ export default function DashboardEditor() {
         .single()
 
       if (caseErr) throw caseErr
+      if (gen !== loadGenRef.current) return
       setCaseData(caseRow)
 
       const extractedFile = caseRow.case_files?.find((f) => f.file_type === 'extracted')
       if (extractedFile) {
+        // Set path ref before canPersist — persist must never skip for a missing
+        // path while the UI is already interactive (useEffect sync is one tick late).
+        extractedFilePathRef.current = extractedFile.storage_path
         setExtractedFilePath(extractedFile.storage_path)
-        const { data: blob, error: dlErr } = await supabase.storage
-          .from('case-files')
-          .download(extractedFile.storage_path)
+        const { data: blob, error: dlErr } = await downloadCaseFile(extractedFile.storage_path)
         if (dlErr) throw dlErr
+        if (gen !== loadGenRef.current) return
 
         const parsed = JSON.parse(await blob.text())
 
@@ -141,7 +173,10 @@ export default function DashboardEditor() {
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
         const fixedAnnotations = filterPhantomFixes(dedupedEntries, fixAnnotationPositions(dedupedEntries, dedupedAnnotations))
+        if (gen !== loadGenRef.current) return
+
         setTitle(parsed.title || '')
+        titleRef.current = parsed.title || ''
         setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)
         setOriginalText(parsed.originalText || null)
@@ -153,121 +188,111 @@ export default function DashboardEditor() {
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
         }))
+        publishCaseReviewPending({
+          caseId,
+          storagePath: extractedFile.storage_path,
+          title: parsed.title || '',
+          entries: dedupedEntries,
+          annotations: fixedAnnotations,
+          originalText: parsed.originalText || null,
+        })
         canPersistRef.current = true
+        // Drop sticky persist failures from a prior session/HMR so Export is not
+        // blocked forever after an old constraint error.
+        clearCasePersistError()
 
-        // Sync metrics from annotation file on load so dashboard always reflects reality
-        const accepted = fixedAnnotations.filter((a) => a.status === 'accepted').length
-        const ignored = fixedAnnotations.filter((a) => a.status === 'ignored').length
-        const open = fixedAnnotations.filter((a) => a.status === 'open').length
-        const custom_changed = fixedAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
-        const total = fixedAnnotations.length
-        supabase.from('case_metrics').upsert({
-          case_id: caseId,
-          total_entries: dedupedEntries.length,
-          total_issues: total,
-          accepted,
-          ignored,
-          open,
-          custom_changed,
-          last_reviewed_at: new Date().toISOString(),
-        }, { onConflict: 'case_id' }).then(({ error }) => {
-          if (error) console.error('case_metrics sync failed (editor load):', error.message)
-          else if (total > 0 && open === 0) {
-            supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
-          }
+        // Sync metrics from the annotation file so the dashboard matches storage.
+        syncMetricsFromAnnotations(caseId, dedupedEntries, fixedAnnotations).catch((error) => {
+          if (gen !== loadGenRef.current) return
+          console.error('case_metrics sync failed (editor load):', error.message || error)
         })
       }
     } catch (err) {
+      if (gen !== loadGenRef.current) return
       console.error('Failed to load case:', err)
       setError(err.message || 'Failed to load case.')
       canPersistRef.current = false
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) setLoading(false)
     }
   }
 
   const updateEntryText = useCallback((id, newText) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, text: newText } : e)))
+    const next = entriesRef.current.map((e) => (e.id === id ? { ...e, text: newText } : e))
+    entriesRef.current = next
+    setEntries(next)
     setSaved(false)
+    // Keep module pending current so unmount flush includes typed edits.
+    if (canPersistRef.current && caseIdRef.current && extractedFilePathRef.current) {
+      publishCaseReviewPending({
+        caseId: caseIdRef.current,
+        storagePath: extractedFilePathRef.current,
+        title: titleRef.current,
+        entries: next,
+        annotations: annotationsRef.current,
+        originalText: originalTextRef.current,
+      })
+    }
   }, [])
 
   const updateEntrySpeaker = useCallback((id, newSpeaker) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, speaker: newSpeaker } : e)))
+    const next = entriesRef.current.map((e) => (e.id === id ? { ...e, speaker: newSpeaker } : e))
+    entriesRef.current = next
+    setEntries(next)
     setSaved(false)
+    if (canPersistRef.current && caseIdRef.current && extractedFilePathRef.current) {
+      publishCaseReviewPending({
+        caseId: caseIdRef.current,
+        storagePath: extractedFilePathRef.current,
+        title: titleRef.current,
+        entries: next,
+        annotations: annotationsRef.current,
+        originalText: originalTextRef.current,
+      })
+    }
   }, [])
 
-  // Persist accepts/ignores to storage + metrics. Queued so rapid clicks can't
-  // let an older upload finish last and wipe a newer ignore/accept.
+  // Publish module-level pending (survives unmount), then queue a verified save.
+  const publishPendingFromRefs = useCallback(() => {
+    const id = caseIdRef.current
+    const path = extractedFilePathRef.current
+    if (!id || !path || !canPersistRef.current) return false
+    publishCaseReviewPending({
+      caseId: id,
+      storagePath: path,
+      title: titleRef.current,
+      entries: entriesRef.current,
+      annotations: annotationsRef.current,
+      originalText: originalTextRef.current,
+    })
+    return true
+  }, [])
+
   const persistNow = useCallback(() => {
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = null
-
-    return enqueueCasePersist(async () => {
-      // Read refs when THIS job runs (after prior persists), not when queued.
-      if (!canPersistRef.current) return
-
-      const latestAnnotations = annotationsRef.current
-      const latestEntries = entriesRef.current
-      const latestOriginalText = originalTextRef.current
-      const latestCaseId = caseIdRef.current
-      const latestPath = extractedFilePathRef.current
-      const latestTitle = titleRef.current
-
-      if (!latestCaseId || !latestPath) return
-
-      const accepted = latestAnnotations.filter((a) => a.status === 'accepted').length
-      const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
-      const open = latestAnnotations.filter((a) => a.status === 'open').length
-      const custom_changed = latestAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
-      const total = latestAnnotations.length
-
-      const { error: upsertError } = await supabase.from('case_metrics').upsert({
-        case_id: latestCaseId,
-        total_entries: latestEntries.length,
-        total_issues: total,
-        accepted,
-        ignored,
-        open,
-        custom_changed,
-        annotations_by_type: countByType(latestAnnotations),
-        last_reviewed_at: new Date().toISOString(),
-      }, { onConflict: 'case_id' })
-      if (upsertError) console.error('case_metrics save failed:', upsertError.message)
-
-      if (total > 0 && open === 0) {
-        await supabase.from('cases').update({ status: 'reviewed' }).eq('id', latestCaseId)
-      }
-
-      const payload = {
-        title: latestTitle,
-        extracted_at: new Date().toISOString(),
-        entries: latestEntries,
-        annotations: latestAnnotations,
-      }
-      if (latestOriginalText) payload.originalText = latestOriginalText
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const { error: upErr } = await supabase.storage
-        .from('case-files')
-        .upload(latestPath, blob, { upsert: true })
-      if (upErr) {
-        console.error('Persist JSON storage error:', upErr)
-        throw upErr
-      }
+    if (!publishPendingFromRefs()) {
+      return Promise.resolve('skipped')
+    }
+    return enqueueCaseReviewSave().then((result) => {
+      if (result === 'skipped') return result
+      // Mark editor clean from what we published, only if still mounted.
+      if (!mountedRef.current || !canPersistRef.current) return result
       setOriginalSnapshot(JSON.stringify({
-        entries: latestEntries,
-        annotations: latestAnnotations,
-        originalText: latestOriginalText,
+        entries: entriesRef.current,
+        annotations: annotationsRef.current,
+        originalText: originalTextRef.current,
       }))
+      return result
     })
-  }, [])
+  }, [publishPendingFromRefs])
 
   persistNowRef.current = persistNow
 
-  // On leave (sidebar Export, Dashboard, etc.), flush latest accepts/ignores.
-  // Export also awaits waitForCasePersists() so it won't read a stale file.
+  // On leave: flush module-level pending (not React refs — those die with unmount).
   useEffect(() => () => {
     clearTimeout(syncTimerRef.current)
+    // Publish one last time while refs are still valid, then enqueue.
     if (persistNowRef.current) void persistNowRef.current()
   }, [])
 
@@ -277,12 +302,17 @@ export default function DashboardEditor() {
     setExportPreparing(true)
     setError('')
     try {
-      // Always persist before leaving — do not trust debounce or "looks saved".
-      await persistNow()
+      // Always persist + drain the queue before leaving.
+      const result = await persistNow()
+      if (result === 'skipped') {
+        throw new Error('Editor is still loading. Wait a moment, then try Export again.')
+      }
+      await waitForCasePersists()
+      clearCasePersistError()
       navigate(`/dashboard/export?case=${caseId}`)
     } catch (err) {
       console.error('Flush before export failed:', err)
-      setError(err.message || 'Could not save your changes before export. Try Save Changes, then export again.')
+      setError(err.message || 'Could not save your changes before export. Click Save Changes, then try Export again.')
     } finally {
       setExportPreparing(false)
     }
@@ -469,10 +499,16 @@ export default function DashboardEditor() {
     if (curOriginalText) setOriginalText(updatedOriginalText)
     setSaved(false)
     setInlinePopover(null)
+    setError('')
 
-    // Accept/ignore must hit storage immediately — debounce was losing the
-    // last click (often Ignore) when users went straight to Export.
-    void persistNow()
+    void persistNow().then((result) => {
+      if (result === 'skipped') {
+        setError('Could not save that accept yet. Click Save Changes.')
+      }
+    }).catch((err) => {
+      console.error('Persist after accept failed:', err)
+      setError(err.message || 'Could not save that accept. Click Save Changes and try again.')
+    })
   }, [persistNow, showJumpNotice])
 
   const ignoreAnnotation = useCallback((annotationId) => {
@@ -484,8 +520,16 @@ export default function DashboardEditor() {
     setAnnotations(updated)
     setInlinePopover(null)
     setSaved(false)
+    setError('')
 
-    void persistNow()
+    void persistNow().then((result) => {
+      if (result === 'skipped') {
+        setError('Could not save that ignore yet. Click Save Changes.')
+      }
+    }).catch((err) => {
+      console.error('Persist after ignore failed:', err)
+      setError(err.message || 'Could not save that ignore. Click Save Changes and try again.')
+    })
   }, [persistNow])
 
   // Jump-to: prefer the exact highlight span; if the cleanContent highlight
@@ -644,8 +688,16 @@ export default function DashboardEditor() {
     setAnnotations(updated)
     setInlinePopover(null)
     setSaved(false)
+    setError('')
 
-    void persistNow()
+    void persistNow().then((result) => {
+      if (result === 'skipped') {
+        setError('Could not save that reopen yet. Click Save Changes.')
+      }
+    }).catch((err) => {
+      console.error('Persist after reopen failed:', err)
+      setError(err.message || 'Could not save that reopen. Click Save Changes and try again.')
+    })
   }, [persistNow])
 
   const handleSave = async () => {
@@ -653,7 +705,10 @@ export default function DashboardEditor() {
     setSaving(true)
     setError('')
     try {
-      await persistNow()
+      const result = await persistNow()
+      if (result === 'skipped') {
+        throw new Error('Editor is still loading. Wait a moment, then click Save Changes again.')
+      }
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -1114,7 +1169,7 @@ export default function DashboardEditor() {
           className="w-full flex items-center justify-center gap-2 border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-60 disabled:cursor-wait"
         >
           <span className="material-symbols-outlined text-base">{exportPreparing ? 'hourglass_top' : 'cloud_download'}</span>
-          {exportPreparing ? 'Saving your changes…' : 'Export This Case'}
+          {exportPreparing ? 'Preparing export…' : 'Export This Case'}
         </button>
         <Link
           to="/dashboard"
@@ -1145,26 +1200,42 @@ export default function DashboardEditor() {
             </p>
           </div>
           <div className="flex flex-col items-start md:items-end gap-4 shrink-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {hasChanges && (
-                <button onClick={handleRevert} className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-error transition-colors">
-                  <span className="material-symbols-outlined text-base">undo</span>
-                  Revert
-                </button>
+                <Tooltip text="Revert unsaved changes">
+                  <button
+                    type="button"
+                    onClick={handleRevert}
+                    className="w-10 h-10 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-xl">undo</span>
+                  </button>
+                </Tooltip>
               )}
-              <button
-                onClick={handleSave}
-                disabled={!hasChanges || saving}
-                className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed editorial-shadow"
-              >
-                {saving ? (
-                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Saving...</>
-                ) : saved ? (
-                  <><span className="material-symbols-outlined text-base">check</span> Saved</>
-                ) : (
-                  <><span className="material-symbols-outlined text-base">save</span> Save Changes</>
-                )}
-              </button>
+              <Tooltip text={saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!hasChanges || saving}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-r from-primary to-primary-container text-on-primary hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed editorial-shadow"
+                >
+                  {saving ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  ) : (
+                    <span className="material-symbols-outlined text-xl">{saved ? 'check' : 'save'}</span>
+                  )}
+                </button>
+              </Tooltip>
+              <Tooltip text={exportPreparing ? 'Preparing export…' : 'Export'}>
+                <button
+                  type="button"
+                  onClick={goToExport}
+                  disabled={exportPreparing}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/40 text-on-surface hover:bg-surface-container transition-colors disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <span className="material-symbols-outlined text-xl">{exportPreparing ? 'hourglass_top' : 'cloud_download'}</span>
+                </button>
+              </Tooltip>
             </div>
 
             {/* Types of Suggestions popover */}

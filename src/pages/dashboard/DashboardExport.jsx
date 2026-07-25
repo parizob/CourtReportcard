@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
-import { waitForCasePersists } from '../../lib/casePersist'
+import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -17,6 +17,7 @@ export default function DashboardExport() {
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(!!caseId)
   const [error, setError] = useState('')
+  const [exportBlocked, setExportBlocked] = useState(false)
   const [exporting, setExporting] = useState(null)
 
   useEffect(() => {
@@ -27,10 +28,19 @@ export default function DashboardExport() {
   const loadCase = async () => {
     setLoading(true)
     setError('')
+    setExportBlocked(false)
     try {
-      // Editor debounces persists; wait so we don't load a pre-accept snapshot
-      // and wipe the user's work from the export stats.
-      await waitForCasePersists()
+      // Wait for in-flight editor saves; fail closed if the last one errored
+      // so we never download a pre-accept storage snapshot.
+      try {
+        await waitForCasePersists()
+      } catch (persistErr) {
+        console.error('Export blocked: persist queue failed', persistErr)
+        setExportBlocked(true)
+        throw new Error(
+          'We want to make sure your latest changes are on the file before you download. Go back to the editor, click Save Changes, then open Export again.'
+        )
+      }
 
       const { data: caseRow, error: caseErr } = await supabase
         .from('cases')
@@ -38,46 +48,41 @@ export default function DashboardExport() {
         .eq('id', caseId)
         .single()
       if (caseErr) throw caseErr
-      setCaseData(caseRow)
 
       const m = caseRow.case_metrics && caseRow.case_metrics.length > 0
         ? caseRow.case_metrics[0]
         : (!Array.isArray(caseRow.case_metrics) ? caseRow.case_metrics : null)
-      if (m) setMetrics(m)
 
       const extractedFile = caseRow.case_files?.find((f) => f.file_type === 'extracted')
       if (extractedFile) {
-        const { data: blob, error: dlErr } = await supabase.storage
-          .from('case-files')
-          .download(extractedFile.storage_path)
+        const { data: blob, error: dlErr } = await downloadCaseFile(extractedFile.storage_path)
         if (dlErr) throw dlErr
         const parsed = JSON.parse(await blob.text())
-        setTitle(parsed.title || '')
         const loadedAnnotations = parsed.annotations || []
+
+        setCaseData(caseRow)
+        setTitle(parsed.title || '')
         setEntries(parsed.entries || [])
         setAnnotations(loadedAnnotations)
         setOriginalText(parsed.originalText || null)
 
-        // Sync case_metrics from annotation file so dashboard stays accurate
-        const accepted = loadedAnnotations.filter((a) => a.status === 'accepted').length
-        const ignored = loadedAnnotations.filter((a) => a.status === 'ignored').length
-        const open = loadedAnnotations.filter((a) => a.status === 'open').length
-        const custom_changed = loadedAnnotations.filter((a) => a.status === 'accepted' && a._originalSuggestion !== undefined && a.suggestion !== a._originalSuggestion).length
-        const total = loadedAnnotations.length
-        supabase.from('case_metrics').upsert({
-          case_id: caseId,
-          total_issues: total,
-          accepted,
-          ignored,
-          open,
-          custom_changed,
-          last_reviewed_at: new Date().toISOString(),
-        }, { onConflict: 'case_id' }).then(({ error }) => {
-          if (error) console.error('case_metrics sync failed (export load):', error.message)
-          else if (total > 0 && open === 0) {
-            supabase.from('cases').update({ status: 'reviewed' }).eq('id', caseId)
-          }
+        // File is source of truth. Sync metrics from it so dashboard matches
+        // what they can download. In-session save failures are fail-closed above.
+        const counts = annotationStatusCounts(loadedAnnotations)
+        setMetrics({
+          ...(m || {}),
+          total_issues: counts.total,
+          accepted: counts.accepted,
+          ignored: counts.ignored,
+          open: counts.open,
+          custom_changed: counts.custom_changed,
         })
+        syncMetricsFromAnnotations(caseId, parsed.entries || [], loadedAnnotations).catch((error) => {
+          console.error('case_metrics sync failed (export load):', error.message || error)
+        })
+      } else {
+        setCaseData(caseRow)
+        if (m) setMetrics(m)
       }
     } catch (err) {
       console.error('Failed to load case:', err)
@@ -225,6 +230,10 @@ export default function DashboardExport() {
   }
 
   const handleExport = async (format) => {
+    if (exportBlocked) {
+      setError('Save your latest changes in the editor first, then open Export again.')
+      return
+    }
     setExporting(format)
     setError('')
     try {
@@ -277,7 +286,7 @@ export default function DashboardExport() {
     )
   }
 
-  if (!caseId || (!caseData && !loading)) {
+  if (!caseId) {
     return (
       <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-center justify-center px-6">
         <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
@@ -298,6 +307,41 @@ export default function DashboardExport() {
             <Link to="/dashboard/upload" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
               <span className="material-symbols-outlined text-base">cloud_upload</span>
               Upload a Case
+            </Link>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!caseData && !loading) {
+    return (
+      <main className="h-[calc(100vh-65px)] overflow-hidden bg-background flex items-center justify-center px-6">
+        <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${exportBlocked ? 'bg-secondary-container/40' : 'bg-error-container/30'}`}>
+            <span className={`material-symbols-outlined text-3xl ${exportBlocked ? 'text-secondary' : 'text-error'}`}>
+              {exportBlocked ? 'save' : 'error'}
+            </span>
+          </div>
+          <div>
+            <h2 className="font-headline text-xl font-bold text-on-surface mb-1">
+              {exportBlocked ? 'One quick save first' : 'Could not load case'}
+            </h2>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              {error || 'Something went wrong loading this case for download.'}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link
+              to={`/dashboard/editor?case=${caseId}`}
+              className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all"
+            >
+              <span className="material-symbols-outlined text-base">edit_note</span>
+              Back to Editor
+            </Link>
+            <Link to="/dashboard" className="flex items-center gap-2 border border-outline-variant/40 text-on-surface px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Dashboard
             </Link>
           </div>
         </div>
@@ -382,7 +426,7 @@ export default function DashboardExport() {
               <button
                 key={format}
                 onClick={() => handleExport(format)}
-                disabled={!!exporting}
+                disabled={!!exporting || exportBlocked}
                 data-track-id={`export_${format}`}
                 className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
               >
@@ -412,7 +456,7 @@ export default function DashboardExport() {
               <button
                 key={format}
                 onClick={() => handleExport(format)}
-                disabled={!!exporting}
+                disabled={!!exporting || exportBlocked}
                 data-track-id={`export_${format}`}
                 className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
               >
@@ -464,7 +508,7 @@ export default function DashboardExport() {
 
         <button
           onClick={() => handleExport('json')}
-          disabled={!!exporting}
+          disabled={!!exporting || exportBlocked}
           data-track-id="export_json"
           className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow px-4 py-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
         >
