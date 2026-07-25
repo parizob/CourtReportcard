@@ -39,12 +39,19 @@ export default function DashboardEditor() {
   const caseIdRef = useRef(caseId)
   const syncTimerRef = useRef(null)
   const persistNowRef = useRef(null)
+  // Only persist after a case has finished loading. Unmount flush without this
+  // can upload empty annotations and wipe accepts/ignores (Strict Mode remount
+  // or navigating away mid-load).
+  const canPersistRef = useRef(false)
   useEffect(() => { entriesRef.current = entries }, [entries])
   useEffect(() => { annotationsRef.current = annotations }, [annotations])
   useEffect(() => { originalTextRef.current = originalText }, [originalText])
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { extractedFilePathRef.current = extractedFilePath }, [extractedFilePath])
   useEffect(() => { caseIdRef.current = caseId }, [caseId])
+  useEffect(() => {
+    canPersistRef.current = false
+  }, [caseId])
 
   // Dismiss inline popover on escape, scroll, or window resize
   useEffect(() => {
@@ -106,6 +113,7 @@ export default function DashboardEditor() {
   const loadCase = async () => {
     setLoading(true)
     setError('')
+    canPersistRef.current = false
     try {
       const { data: caseRow, error: caseErr } = await supabase
         .from('cases')
@@ -137,11 +145,15 @@ export default function DashboardEditor() {
         setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)
         setOriginalText(parsed.originalText || null)
+        entriesRef.current = dedupedEntries
+        annotationsRef.current = fixedAnnotations
+        originalTextRef.current = parsed.originalText || null
         setOriginalSnapshot(JSON.stringify({
           entries: dedupedEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
         }))
+        canPersistRef.current = true
 
         // Sync metrics from annotation file on load so dashboard always reflects reality
         const accepted = fixedAnnotations.filter((a) => a.status === 'accepted').length
@@ -168,6 +180,7 @@ export default function DashboardEditor() {
     } catch (err) {
       console.error('Failed to load case:', err)
       setError(err.message || 'Failed to load case.')
+      canPersistRef.current = false
     } finally {
       setLoading(false)
     }
@@ -191,6 +204,8 @@ export default function DashboardEditor() {
 
     return enqueueCasePersist(async () => {
       // Read refs when THIS job runs (after prior persists), not when queued.
+      if (!canPersistRef.current) return
+
       const latestAnnotations = annotationsRef.current
       const latestEntries = entriesRef.current
       const latestOriginalText = originalTextRef.current
