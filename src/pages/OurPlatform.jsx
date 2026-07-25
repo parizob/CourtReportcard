@@ -95,7 +95,7 @@ export default function OurPlatform() {
                 A court reporter proofreading tool built for the way you actually work.
               </h2>
               <p className="text-on-surface-variant text-base leading-relaxed">
-                No learning curve. No new workflow. Your transcript — surfaced, annotated, scored, and ready to sign off on.
+                No learning curve. No new workflow. Errors flagged across the whole transcript. You review and decide.
               </p>
             </div>
 
