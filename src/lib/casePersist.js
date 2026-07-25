@@ -1,19 +1,25 @@
 /**
- * Tracks in-flight editor → storage persists so other routes (Export) can
- * wait for the latest accept/ignore save before reading case JSON.
- * Without this, navigating within the debounce window loads a stale file
- * and looks like the user "lost" their accepts.
+ * Serializes editor → storage persists so Export (and rapid accept/ignore)
+ * always see the latest in-memory state.
+ *
+ * Important: callers must pass a function that reads refs when it runs, not a
+ * Promise that already snapped state at schedule time — otherwise a slow
+ * earlier save can finish after a later one and wipe an ignore/accept.
  */
 
 let chain = Promise.resolve()
 
-export function trackCasePersist(promise) {
-  const next = Promise.resolve(promise).then(
+export function enqueueCasePersist(fn) {
+  const run = chain.then(
+    () => fn(),
+    () => fn()
+  )
+  // Keep the queue alive even if one persist fails.
+  chain = run.then(
     () => {},
     () => {}
   )
-  chain = chain.then(() => next)
-  return promise
+  return run
 }
 
 export function waitForCasePersists() {

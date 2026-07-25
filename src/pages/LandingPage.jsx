@@ -212,7 +212,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-primary group-hover:text-on-primary">cloud_upload</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">Upload Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">Securely upload your transcript as a .txt or .rtf file — exported from any steno software. Additional file formats coming soon.</p>
+                <p className="text-on-surface-variant leading-relaxed">Drop in your .txt or .rtf transcript from your steno software. Give the case a name and we'll start the review.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">01</div>
               </div>
               {/* Step 2 */}
@@ -220,8 +220,8 @@ export default function LandingPage() {
                 <div className="w-14 h-14 bg-tertiary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-tertiary-fixed-dim transition-colors">
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
-                <h3 className="font-headline font-bold text-xl mb-3">Error Detection</h3>
-                <p className="text-on-surface-variant leading-relaxed">Our error detection engine checks against legal dictionaries, flags procedural inconsistencies, and scores every page by confidence.</p>
+                <h3 className="font-headline font-bold text-xl mb-3">Review Suggestions</h3>
+                <p className="text-on-surface-variant leading-relaxed">We flag likely steno errors, homophones, missing words, and punctuation issues. You review each one and decide what to keep.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
               </div>
               {/* Step 3 */}
@@ -229,8 +229,8 @@ export default function LandingPage() {
                 <div className="w-14 h-14 bg-secondary-container rounded-lg flex items-center justify-center mb-6 group-hover:bg-secondary transition-colors">
                   <span className="material-symbols-outlined text-on-secondary-container group-hover:text-on-secondary">download_done</span>
                 </div>
-                <h3 className="font-headline font-bold text-xl mb-3">Export Certified</h3>
-                <p className="text-on-surface-variant leading-relaxed">Review the changes and export a clean, court-ready document. High-confidence edits can be auto-applied.</p>
+                <h3 className="font-headline font-bold text-xl mb-3">Export Transcript</h3>
+                <p className="text-on-surface-variant leading-relaxed">You stay in control of every change. Accept what looks right, ignore the rest, then download a clean transcript when you're done reviewing.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">03</div>
               </div>
             </div>

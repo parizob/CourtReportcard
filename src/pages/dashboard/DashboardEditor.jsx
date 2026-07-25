@@ -4,7 +4,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent } from '../../lib/gemini'
 import { countByType } from '../../lib/annotationStats'
-import { trackCasePersist } from '../../lib/casePersist'
+import { enqueueCasePersist } from '../../lib/casePersist'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
@@ -183,22 +183,23 @@ export default function DashboardEditor() {
     setSaved(false)
   }, [])
 
-  // Persist accepts/ignores to storage + metrics. Debounced while typing/clicking;
-  // flushed immediately on navigate away so Export never reads a stale file.
-  const persistNow = useCallback(async () => {
+  // Persist accepts/ignores to storage + metrics. Queued so rapid clicks can't
+  // let an older upload finish last and wipe a newer ignore/accept.
+  const persistNow = useCallback(() => {
     clearTimeout(syncTimerRef.current)
     syncTimerRef.current = null
 
-    const latestAnnotations = annotationsRef.current
-    const latestEntries = entriesRef.current
-    const latestOriginalText = originalTextRef.current
-    const latestCaseId = caseIdRef.current
-    const latestPath = extractedFilePathRef.current
-    const latestTitle = titleRef.current
+    return enqueueCasePersist(async () => {
+      // Read refs when THIS job runs (after prior persists), not when queued.
+      const latestAnnotations = annotationsRef.current
+      const latestEntries = entriesRef.current
+      const latestOriginalText = originalTextRef.current
+      const latestCaseId = caseIdRef.current
+      const latestPath = extractedFilePathRef.current
+      const latestTitle = titleRef.current
 
-    if (!latestCaseId || !latestPath) return
+      if (!latestCaseId || !latestPath) return
 
-    const run = async () => {
       const accepted = latestAnnotations.filter((a) => a.status === 'accepted').length
       const ignored = latestAnnotations.filter((a) => a.status === 'ignored').length
       const open = latestAnnotations.filter((a) => a.status === 'open').length
@@ -243,9 +244,7 @@ export default function DashboardEditor() {
         annotations: latestAnnotations,
         originalText: latestOriginalText,
       }))
-    }
-
-    return trackCasePersist(run())
+    })
   }, [])
 
   persistNowRef.current = persistNow
