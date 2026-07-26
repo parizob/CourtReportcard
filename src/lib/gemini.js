@@ -523,6 +523,36 @@ export function applyCorrection(text, original, suggestion) {
 }
 
 /**
+ * True when `suggestion` is truly already applied — not when it only matches
+ * as a prefix of the still-present `original` (e.g. "to" inside "too").
+ *
+ * Hits may use { start, end } or { cleanStart, cleanEnd }.
+ */
+export function isSuggestionAlreadyApplied(text, suggestionHit, originalHit, original, suggestion) {
+  if (!text || !suggestion || !suggestionHit) return false
+  const sStart = suggestionHit.cleanStart ?? suggestionHit.start
+  if (sStart == null || sStart < 0) return false
+
+  if (!originalHit) return true
+  const oStart = originalHit.cleanStart ?? originalHit.start
+  if (oStart == null || oStart < 0) return true
+
+  if (sStart !== oStart) {
+    // Suggestion appears elsewhere; the original error site still needs fixing.
+    return false
+  }
+
+  // Same anchor. [sic]-style suggestions are longer than the original and the
+  // full suggestion slice must already be present. Equal/shorter at the same
+  // start is the to⊂too prefix trap — not already applied.
+  if (suggestion.length > (original?.length ?? 0)) {
+    const slice = text.substring(sStart, sStart + suggestion.length)
+    return slice === suggestion
+  }
+  return false
+}
+
+/**
  * Ensures every accepted annotation's correction is present in originalText
  * (the export source). Repairs any that still contain the original flagged
  * text; reports any that can neither be confirmed fixed nor repaired.
@@ -568,33 +598,35 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       }
     }
 
-    // IMPORTANT: check for the suggestion BEFORE the original. For [sic]
-    // notes the suggestion is "<original> [sic]", so the original word is
-    // still a flexFind hit inside the already-corrected text. Searching
-    // original first would re-apply and produce "thesis [sic] [sic]".
+    // Check suggestion first so [sic] ("thesis [sic]") is not re-applied just
+    // because "thesis" still flex-matches inside it. Prefix traps (to⊂too) are
+    // rejected by isSuggestionAlreadyApplied.
     const hasSuggestion = locateAnnotationInCleanContent(
       cleanContent,
       entry,
       ann,
       ann.suggestion
     )
-    if (hasSuggestion) continue
-
     const stillOriginal = locateAnnotationInCleanContent(
       cleanContent,
       locateEntry,
       locateAnn,
       ann.original
     )
-    if (stillOriginal) {
-      // Same prefix trap: if this "original" hit is already the start of the
-      // suggestion (locate missed above), do not re-apply.
-      const alreadySlice = cleanContent.substring(
-        stillOriginal.cleanStart,
-        stillOriginal.cleanStart + ann.suggestion.length
-      )
-      if (alreadySlice === ann.suggestion) continue
 
+    if (
+      isSuggestionAlreadyApplied(
+        cleanContent,
+        hasSuggestion,
+        stillOriginal,
+        ann.original,
+        ann.suggestion
+      )
+    ) {
+      continue
+    }
+
+    if (stillOriginal) {
       const detail = applyCorrectionDetailed(text, ann.original, ann.suggestion, {
         cleanStart: stillOriginal.cleanStart,
         cleanEnd: stillOriginal.cleanEnd,

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -346,13 +346,12 @@ export default function DashboardEditor() {
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
 
-      // Already corrected (e.g. reopen didn't revert entry text): keep as-is.
-      // Otherwise flexFind(original) hits the prefix of "<original> [sic]" and
-      // accept would insert a second [sic]. Only treat as already-applied when
-      // the suggestion is present and the original is not a distinct earlier hit.
+      // Already corrected (e.g. [sic] already present): keep as-is. Do NOT
+      // treat "to" inside "too" as already applied — that prefix trap would
+      // leave the error in the entry (and sometimes in export).
       const already = flexFind(e.text, finalSuggestion)
       const stillOrig = flexFind(e.text, ann.original)
-      if (already && (!stillOrig || stillOrig.start === already.start)) {
+      if (isSuggestionAlreadyApplied(e.text, already, stillOrig, ann.original, finalSuggestion)) {
         appliedEntryId = e.id
         appliedAt = already.start
         appliedEnd = already.end
@@ -410,12 +409,8 @@ export default function DashboardEditor() {
       )
       const located = locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original)
 
-      if (
-        alreadyApplied &&
-        (!located || alreadyApplied.cleanStart === located.cleanStart)
-      ) {
-        // Suggestion already at this site (including [sic] where original is
-        // only a prefix of the suggestion). Do not apply again.
+      if (isSuggestionAlreadyApplied(cc, alreadyApplied, located, ann.original, finalSuggestion)) {
+        // Truly already applied ([sic]); not the to⊂too prefix trap.
         updatedOriginalText = curOriginalText
         _cleanStart = alreadyApplied.cleanStart
         _cleanEnd = alreadyApplied.cleanEnd
