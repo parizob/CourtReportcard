@@ -1,0 +1,219 @@
+{
+  "title": "Cusato Jump Seed — 2 full pages (6–7)",
+  "extracted_at": "2026-07-26T18:33:22.830Z",
+  "source_note": "Exact pages 6–7 from Melanie Cusato case 245caa8c… (form-feed + right-aligned page numbers + HH:MM:SS gutters). Trailing page-8 header included so page 7 closes cleanly. No synthetic lines.",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. Do you know what I'm talking about when I say the phrase \"Jonelle Blaze\"?"
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. Yes."
+    },
+    {
+      "id": 3,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. What do I mean?"
+    },
+    {
+      "id": 4,
+      "speaker": "THE WITNESS",
+      "text": "A. Video game tag."
+    },
+    {
+      "id": 5,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. Okay. Anywhere else?"
+    },
+    {
+      "id": 6,
+      "speaker": "THE WITNESS",
+      "text": "A. Not that I can recall."
+    },
+    {
+      "id": 7,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. And where does the word \"Blaze\" come from in your life?"
+    },
+    {
+      "id": 8,
+      "speaker": "THE WITNESS",
+      "text": "A. My husband's like, I guess, stage name."
+    },
+    {
+      "id": 9,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. And stage name, what, is he a performer? Where does that come from?"
+    },
+    {
+      "id": 10,
+      "speaker": "MS. MARINER",
+      "text": "MS. MARINER: Objection. Ambiguous."
+    },
+    {
+      "id": 11,
+      "speaker": "THE WITNESS",
+      "text": "A. I guess he was a performer, I guess."
+    },
+    {
+      "id": 12,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. (By Mr. McGrath) What did he do?"
+    },
+    {
+      "id": 13,
+      "speaker": "THE WITNESS",
+      "text": "A. He makes music."
+    },
+    {
+      "id": 14,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. If I could direct your attention to some of the documents we've put in front of you. I'm not going to go through these right now, I just want to identify them for the record. If you could take a look at what's been marked as Exhibit Number 1, which should be at the top of your pile there, have you seen that document before?"
+    },
+    {
+      "id": 15,
+      "speaker": "THE WITNESS",
+      "text": "A. No. No."
+    },
+    {
+      "id": 16,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. I will represent to you that's your notice of your deposition for today. That's the formal paper that brought us here today. We just marked that for the record. If I could direct your attention now to the second document which is marked as Exhibit Number 2, again, not going to go through it right now, but I just want to get this out of the way because we'll be referring to it later. Have you seen Exhibit Number 2 before?"
+    },
+    {
+      "id": 17,
+      "speaker": "THE WITNESS",
+      "text": "A. Yes. Yes."
+    },
+    {
+      "id": 18,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. And can you tell us what Exhibit Number 2 is?"
+    },
+    {
+      "id": 19,
+      "speaker": "THE WITNESS",
+      "text": "A. It says, \"Complaint for Damages.\""
+    },
+    {
+      "id": 20,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. So do you understand that to be the complaint that started the lawsuit we're here for?"
+    },
+    {
+      "id": 21,
+      "speaker": "THE WITNESS",
+      "text": "A. I believe so."
+    },
+    {
+      "id": 22,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. And now if I can -- again, just to get it out of the way, if I can direct your attention to Exhibit Number 3, which is in front of you, have you seen this document before?"
+    },
+    {
+      "id": 23,
+      "speaker": "THE WITNESS",
+      "text": "A. No -- wait. (Document reviewed.) Oh, yes. Yes."
+    },
+    {
+      "id": 24,
+      "speaker": "MR. MCGRATH",
+      "text": "Q. Can you tell us what Exhibit Number 3 is?"
+    },
+    {
+      "id": 25,
+      "speaker": "MS. MARINER",
+      "text": "MS. MARINER: I'm sorry. I didn't"
+    }
+  ],
+  "annotations": [
+    {
+      "status": "open",
+      "id": 1,
+      "entry_id": 14,
+      "type": "legal_term",
+      "severity": "warning",
+      "original": "Exhibit Number 1",
+      "suggestion": "Exhibit No. 1",
+      "explanation": "Timestamp wrap on page 6. Jump + Accept must keep 08:03:24 22 gutter.",
+      "start": 228,
+      "end": 244,
+      "_anchorBefore": "marked as ",
+      "_anchorAfter": ", which"
+    },
+    {
+      "status": "open",
+      "id": 2,
+      "entry_id": 16,
+      "type": "legal_term",
+      "severity": "warning",
+      "original": "Exhibit Number 2",
+      "suggestion": "Exhibit No. 2",
+      "explanation": "Jump must hit marked as…again, not Have you seen…before?",
+      "start": 243,
+      "end": 259,
+      "_anchorBefore": "marked as ",
+      "_anchorAfter": ", again,"
+    },
+    {
+      "status": "open",
+      "id": 3,
+      "entry_id": 22,
+      "type": "legal_term",
+      "severity": "warning",
+      "original": "Exhibit Number 3",
+      "suggestion": "Exhibit No. 3",
+      "explanation": "Cross-line Exhibit Number 3 on page 7.",
+      "start": 95,
+      "end": 111,
+      "_anchorBefore": "attention to ",
+      "_anchorAfter": ", which"
+    },
+    {
+      "status": "open",
+      "id": 4,
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "critical",
+      "original": "Jonelle Blaze",
+      "suggestion": "Jonelle Blaze [sic]",
+      "explanation": "Same-page jump/underline on page 6.",
+      "start": 61,
+      "end": 74,
+      "_anchorBefore": "phrase \"",
+      "_anchorAfter": "\"?"
+    },
+    {
+      "status": "open",
+      "id": 5,
+      "entry_id": 8,
+      "type": "grammar",
+      "severity": "warning",
+      "original": "stage name",
+      "suggestion": "stage name [sic]",
+      "explanation": "Warning jump on page 6.",
+      "start": 31,
+      "end": 41,
+      "_anchorBefore": "guess, ",
+      "_anchorAfter": "."
+    },
+    {
+      "status": "open",
+      "id": 6,
+      "entry_id": 22,
+      "type": "context",
+      "severity": "warning",
+      "original": "returning the moon rocks",
+      "suggestion": "returning the tablets",
+      "explanation": "Found not in file — must DROP on load.",
+      "start": 0,
+      "end": 24,
+      "_anchorBefore": "about ",
+      "_anchorAfter": " to"
+    }
+  ],
+  "originalText": "\f\r\n                                                                        6\r\n\r\n\r\n\r\n\r\n08:02:23  1                  Do you know what I'm talking about when I\r\n\r\n08:02:24  2           say the phrase \"Jonelle Blaze\"?\r\n\r\n08:02:27  3                  A.  Yes.\r\n\r\n08:02:27  4                  Q.  What do I mean?\r\n\r\n08:02:28  5                  A.  Video game tag.\r\n\r\n08:02:30  6                  Q.  Okay.  Anywhere else?\r\n\r\n08:02:35  7                  A.  Not that I can recall.\r\n\r\n08:02:36  8                  Q.  And where does the word \"Blaze\" come\r\n\r\n08:02:41  9           from in your life?\r\n\r\n08:02:43 10                  A.  My husband's like, I guess, stage name.\r\n\r\n08:02:48 11                  Q.  And stage name, what, is he a performer?\r\n\r\n08:02:52 12           Where does that come from?\r\n\r\n08:02:53 13                  MS. MARINER:  Objection.  Ambiguous.\r\n\r\n08:02:56 14                  A.  I guess he was a performer, I guess.\r\n\r\n08:03:00 15                  Q.  (By Mr. McGrath)  What did he do?\r\n\r\n08:03:01 16                  A.  He makes music.\r\n\r\n08:03:12 17                  Q.  If I could direct your attention to some\r\n\r\n08:03:16 18           of the documents we've put in front of you.  I'm\r\n\r\n08:03:18 19           not going to go through these right now, I just\r\n\r\n08:03:21 20           want to identify them for the record.  If you could\r\n\r\n08:03:23 21           take a look at what's been marked as Exhibit\r\n\r\n08:03:24 22           Number 1, which should be at the top of your pile\r\n\r\n08:03:26 23           there, have you seen that document before?\r\n\r\n08:03:29 24                  A.  No.  No.\r\n\r\n08:03:44 25                  Q.  I will represent to you that's your\r\n\f\r\n                                                                        7\r\n\r\n\r\n\r\n\r\n08:03:48  1           notice of your deposition for today.  That's the\r\n\r\n08:03:50  2           formal paper that brought us here today.  We just\r\n\r\n08:03:54  3           marked that for the record.\r\n\r\n08:03:56  4                  If I could direct your attention now to the\r\n\r\n08:03:57  5           second document which is marked as Exhibit\r\n\r\n08:04:00  6           Number 2, again, not going to go through it right\r\n\r\n08:04:02  7           now, but I just want to get this out of the way\r\n\r\n08:04:04  8           because we'll be referring to it later.\r\n\r\n08:04:06  9                  Have you seen Exhibit Number 2 before?\r\n\r\n08:04:18 10                  A.  Yes.  Yes.\r\n\r\n08:04:37 11                  Q.  And can you tell us what Exhibit\r\n\r\n08:04:38 12           Number 2 is?\r\n\r\n08:04:42 13                  A.  It says, \"Complaint for Damages.\"\r\n\r\n08:04:46 14                  Q.  So do you understand that to be the\r\n\r\n08:04:47 15           complaint that started the lawsuit we're here for?\r\n\r\n08:04:49 16                  A.  I believe so.\r\n\r\n08:04:54 17                  Q.  And now if I can -- again, just to get\r\n\r\n08:04:57 18           it out of the way, if I can direct your attention\r\n\r\n08:04:58 19           to Exhibit Number 3, which is in front of you, have\r\n\r\n08:05:01 20           you seen this document before?\r\n\r\n08:05:16 21                  A.  No -- wait.  (Document reviewed.)  Oh,\r\n\r\n08:05:32 22           yes.  Yes.\r\n\r\n08:05:32 23                  Q.  Can you tell us what Exhibit Number 3\r\n\r\n08:05:35 24           is?\r\n\r\n08:05:37 25                  MS. MARINER:  I'm sorry.  I didn't\r\n\f\r\n                                                                        8\r\n\r\n\r\n\r\n\r\n"
+}

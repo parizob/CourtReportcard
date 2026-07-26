@@ -21,6 +21,12 @@ import {
   locateAnnotationWithAnchor,
   locateAtAnchorStrict,
   ensureAnnotationAnchors,
+  jumpSearchNeedles,
+  resolveJumpLineIndex,
+  toCleanContentNeedle,
+  lineParticipatesInNeedle,
+  compactSpanText,
+  dropTranscriptUnplaceableAnnotations,
   wouldFlattenTranscriptStructure,
   missingCrossLineReopenBytes,
   isCrossLineApplySiteIntact,
@@ -765,6 +771,534 @@ console.log('\n=== Export integrity ===\n')
   assert(typeof ensured[0]._anchorBefore === 'string', 'ensure sets before')
   assert(typeof ensured[0]._anchorAfter === 'string', 'ensure sets after')
   assert(ensured[0]._anchorBefore.includes('with'), 'ensured before near receipt')
+}
+
+// --- 18b. Jump needles + line resolve (Alison jump-to harden) ---
+{
+  console.log('\n18b. Jump search needles + resolveJumpLineIndex')
+  const openNeedles = jumpSearchNeedles({
+    status: 'open',
+    original: 'teh',
+    suggestion: 'the',
+  })
+  assertEq(openNeedles[0], 'teh', 'open prefers original')
+  assert(openNeedles.includes('the'), 'open also tries suggestion')
+
+  const sicNeedles = jumpSearchNeedles({
+    status: 'accepted',
+    original: 'gonna',
+    suggestion: 'gonna [sic]',
+  })
+  assertEq(sicNeedles[0], 'gonna [sic]', 'accepted prefers full suggestion')
+  assert(sicNeedles.includes('gonna'), 'accepted also tries stripped [sic] / original')
+
+  const line = 'He said gonna once and left.'
+  const originalText = `1   Q.    ${line}\n`
+  const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+  const entry = { id: 1, text: line }
+  const ann = {
+    id: 'sic1',
+    status: 'accepted',
+    entry_id: 1,
+    original: 'gonna',
+    suggestion: 'gonna [sic]',
+    start: line.indexOf('gonna'),
+    end: line.indexOf('gonna') + 5,
+  }
+  // Primary needle "gonna [sic]" is not in the file; bare original still locates.
+  const lineIdx = resolveJumpLineIndex(
+    cleanContent,
+    parsedLines,
+    entry,
+    ann,
+    jumpSearchNeedles(ann)
+  )
+  assert(lineIdx >= 0, 'resolveJumpLineIndex finds line via stripped needle')
+  assertEq(lineIdx, 0, 'jump lands on first transcript line')
+}
+
+// --- 18c. CleanContent locate with leaked gutter / cross-line needles (Alison) ---
+{
+  console.log('\n18c. Locate gutter-polluted needles in cleanContent')
+  assertEq(
+    toCleanContentNeedle('optical\n\n            20          recognizance'),
+    'optical recognizance',
+    'toCleanContentNeedle strips interior gutter'
+  )
+  assertEq(
+    toCleanContentNeedle('\n\n             5          to'),
+    ' to',
+    'toCleanContentNeedle strips leading gutter, keeps word boundary space'
+  )
+
+  // Transcript lines with gutters — cleanContent drops leading "20" / "5".
+  const originalText =
+    '   19   Q.    Again, optical sensing is very broad.  As we said, optical\n' +
+    '   20          recognizance, change detection helps.\n' +
+    '    4          and one happened\n' +
+    '    5          to me yesterday.\n'
+  const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+  assert(!/\b20\b/.test(cleanContent.split('recognizance')[0].slice(-20)), 'clean drops line-20 gutter near phrase')
+
+  const entryCross = {
+    id: 379,
+    text: 'Again, optical sensing is very broad.  As we said, optical\n\n            20          recognizance, change detection helps.',
+  }
+  const annCross = {
+    id: 28,
+    status: 'ignored',
+    entry_id: 379,
+    severity: 'critical',
+    type: 'context',
+    original: 'optical\n\n            20          recognizance',
+    suggestion: 'optical\n\n            20          reconnaissance',
+    _anchorBefore: 'field of ',
+    _anchorAfter: ', change',
+  }
+  // Offsets inside entry for the polluted span
+  const mCross = flexFind(entryCross.text, annCross.original)
+  assert(!!mCross, 'fixture polluted original exists in entry')
+  annCross.start = mCross.start
+  annCross.end = mCross.end
+
+  let located = locateAnnotationWithAnchor(
+    cleanContent,
+    entryCross,
+    annCross,
+    annCross.original
+  )
+  assert(!!located, 'gutter-polluted original locates in cleanContent')
+  assertEq(
+    cleanContent.substring(located.cleanStart, located.cleanEnd).replace(/\s+/g, ' ').trim(),
+    'optical recognizance',
+    'located span is optical recognizance'
+  )
+
+  const entryShort = {
+    id: 395,
+    text: 'You know, again, if you — I will give you one example, and one happened\n\n             5          to me yesterday.',
+  }
+  // Rebuild clean map from text that matches this entry shape
+  const ot2 =
+    '    4          and one happened\n' +
+    '    5          to me yesterday.\n'
+  const map2 = buildCleanContentMap(ot2)
+  const annShort = {
+    id: 33,
+    status: 'ignored',
+    entry_id: 395,
+    severity: 'warning',
+    type: 'grammar',
+    original: 'happened',
+    suggestion: 'happened [sic]',
+    _anchorBefore: 'and one ',
+    _anchorAfter: '\n\n             5          to',
+  }
+  const mShort = flexFind(entryShort.text, 'happened')
+  annShort.start = mShort.start
+  annShort.end = mShort.end
+  located = locateAnnotationWithAnchor(
+    map2.cleanContent,
+    entryShort,
+    annShort,
+    'happened'
+  )
+  assert(!!located, 'short warning with gutter-polluted after-anchor locates')
+  if (located) {
+    assertEq(
+      map2.cleanContent.substring(located.cleanStart, located.cleanEnd),
+      'happened',
+      'short warning underline is happened'
+    )
+  }
+
+  const lineIdx = resolveJumpLineIndex(
+    cleanContent,
+    parsedLines,
+    entryCross,
+    annCross,
+    jumpSearchNeedles(annCross)
+  )
+  assert(lineIdx >= 0, 'jump resolves line for gutter-polluted flag')
+
+  // Clean needle + gutter-only before-anchor (Alison #30 class)
+  assertEq(
+    toCleanContentNeedle('of\n\n             7          '),
+    'of ',
+    'gutter-only before-anchor cleans to of '
+  )
+  assertEq(
+    toCleanContentNeedle('see Exhibit 16'),
+    'see Exhibit 16',
+    'does not strip real content numbers'
+  )
+  assertEq(
+    toCleanContentNeedle('page 12'),
+    'page 12',
+    'does not strip page 12'
+  )
+  assertEq(
+    toCleanContentNeedle('change detection.\n\n             8 '),
+    'change detection. ',
+    'strips trailing gutter leftover, keeps boundary space'
+  )
+  const ot3 =
+    '    6          knowledge in the field of\n' +
+    '    7          optical recognizance, it was known to us.\n'
+  const map3 = buildCleanContentMap(ot3)
+  const entry30 = {
+    id: 383,
+    text: 'knowledge in the field of\n\n             7          optical recognizance, it was known to us.',
+  }
+  const ann30 = {
+    id: 30,
+    status: 'ignored',
+    entry_id: 383,
+    original: 'optical recognizance, it was',
+    suggestion: 'optical reconnaissance, it was',
+    _anchorBefore: 'of\n\n             7          ',
+    _anchorAfter: ' known to',
+  }
+  const m30 = flexFind(entry30.text, ann30.original)
+  ann30.start = m30.start
+  ann30.end = m30.end
+  located = locateAnnotationWithAnchor(
+    map3.cleanContent,
+    entry30,
+    ann30,
+    ann30.original
+  )
+  assert(!!located, 'clean needle with gutter before-anchor locates')
+  if (located) {
+    assert(
+      map3.cleanContent
+        .substring(located.cleanStart, located.cleanEnd)
+        .includes('optical recognizance'),
+      'id30-class underline is optical recognizance phrase'
+    )
+  }
+
+  // Overlap: two flags on the same span — both must stay jumpable even if
+  // only one underline can paint (editor skips overlapping cleanHighlights).
+  {
+    const line = 'He went too the store.'
+    const ot = `1   Q.    ${line}\n`
+    const map = buildCleanContentMap(ot)
+    const entry = { id: 1, text: line }
+    const a1 = {
+      id: 'ov1',
+      status: 'open',
+      entry_id: 1,
+      original: 'too',
+      suggestion: 'to',
+      start: line.indexOf('too'),
+      end: line.indexOf('too') + 3,
+    }
+    const a2 = {
+      id: 'ov2',
+      status: 'open',
+      entry_id: 1,
+      original: 'too',
+      suggestion: 'to',
+      start: line.indexOf('too'),
+      end: line.indexOf('too') + 3,
+    }
+    const spans = []
+    const jump = {}
+    for (const ann of [a1, a2]) {
+      const loc = locateAnnotationWithAnchor(map.cleanContent, entry, ann, ann.original)
+      assert(!!loc, `overlap fixture locates ${ann.id}`)
+      const li = map.parsedLines.findIndex(
+        (pl) => pl.cleanStart <= loc.cleanStart && loc.cleanStart < pl.cleanEnd
+      )
+      if (li >= 0) jump[ann.id] = li
+      spans.push(loc)
+    }
+    spans.sort((a, b) => a.cleanStart - b.cleanStart)
+    let last = 0
+    let painted = 0
+    let skipped = 0
+    for (const h of spans) {
+      if (h.cleanStart < last) {
+        skipped++
+        continue
+      }
+      painted++
+      last = h.cleanEnd
+    }
+    assertEq(painted, 1, 'overlap paints one underline')
+    assertEq(skipped, 1, 'overlap skips one underline')
+    assertEq(Object.keys(jump).length, 2, 'overlap keeps jump line for both')
+  }
+}
+
+// --- 18d. Page-break span: locate across pages, don't treat inline digits as breaks ---
+{
+  console.log('\n18d. Cross-page flexFind + paint line filter')
+  const cross =
+    'getting material to\n\n' +
+    '                              126\n\n' +
+    'site.\n'
+  const hit = flexFind(cross, 'to site')
+  assert(!!hit, 'flexFind locates to site across page-break line')
+  assert(
+    compactSpanText(cross.substring(hit.start, hit.end))
+      .toLowerCase()
+      .includes('to') &&
+      compactSpanText(cross.substring(hit.start, hit.end))
+        .toLowerCase()
+        .includes('site'),
+    'compacted span keeps to + site'
+  )
+  assert(
+    !lineParticipatesInNeedle('                              126', 'to site'),
+    'page-number line does not participate in paint'
+  )
+  assert(
+    lineParticipatesInNeedle('40', '40 some odd'),
+    'bare content number line still paints'
+  )
+  assert(lineParticipatesInNeedle('getting material to', 'to site'), 'to-line paints')
+  assert(lineParticipatesInNeedle('site.', 'to site'), 'site-line paints')
+  assertEq(
+    compactSpanText('to\n\n                              126\n\nsite'),
+    'to site',
+    'compactSpanText drops padded page gutter only'
+  )
+  assertEq(
+    compactSpanText('40\n\nsome odd'),
+    '40 some odd',
+    'compactSpanText keeps content number line'
+  )
+
+  // Inline exhibit numbers must NOT be treated as page breaks
+  const inline = 'Please mark Exhibit Number 2 before? Yes.'
+  const bad = flexFind(inline, 'Exhibit Number before?')
+  assertEq(bad, null, 'inline digit is not a page-break gap')
+  const good = flexFind(inline, 'Exhibit Number 2 before?')
+  assert(!!good, 'full exhibit phrase still matches')
+}
+
+// --- 18f. Deposition timestamp gutters stripped so Exhibit Number locates ---
+{
+  console.log('\n18f. Timestamp+line gutters in buildCleanContentMap (category 1)')
+  const ot =
+    '    21          take a look at what\'s been marked as Exhibit\r\n' +
+    '\r\n' +
+    '08:03:24 22           Number 1, which should be at the top of your pile\r\n' +
+    '\r\n' +
+    '    5           to the second document which is marked as Exhibit\r\n' +
+    '\r\n' +
+    '08:04:00  6           Number 2, again, not going to go through it right\r\n'
+  const { cleanContent, parsedLines } = buildCleanContentMap(ot)
+  assert(
+    cleanContent.includes('Exhibit') && cleanContent.includes('Number 1'),
+    'clean keeps Exhibit / Number 1 words'
+  )
+  assert(
+    !cleanContent.includes('08:03:24'),
+    'clean strips deposition timestamp from content'
+  )
+  const g = parsedLines.find((pl) => pl.fullLine.includes('08:03:24'))
+  assert(!!g?.prefix?.includes('08:03:24'), 'timestamp kept on prefix for display')
+  assert(!!flexFind(cleanContent, 'Exhibit Number 1'), 'Exhibit Number 1 findable after strip')
+  assert(
+    !!flexFind(cleanContent, 'marked as Exhibit Number 2, again'),
+    'marked as Exhibit Number 2, again findable after strip'
+  )
+  const entry = {
+    id: 1,
+    text: 'take a look at what\'s been marked as Exhibit Number 1, which should be at the top of your pile',
+  }
+  const ann = {
+    id: 'ex1',
+    status: 'open',
+    entry_id: 1,
+    original: 'Exhibit Number 1',
+    suggestion: 'Exhibit No. 1',
+    start: entry.text.indexOf('Exhibit Number 1'),
+    end: entry.text.indexOf('Exhibit Number 1') + 'Exhibit Number 1'.length,
+    _anchorBefore: 'marked as ',
+    _anchorAfter: ', which',
+  }
+  const loc = locateAnnotationWithAnchor(cleanContent, entry, ann, ann.original)
+  assert(!!loc, 'locate places Exhibit Number 1 across former timestamp gap')
+}
+
+// --- 18h. Accept across timestamp+line# gutters must preserve the gutter ---
+{
+  console.log('\n18h. Accept preserves HH:MM:SS + line# gutters (Cusato)')
+  const before =
+    "08:03:23 21           take a look at what's been marked as Exhibit\r\n" +
+    '\r\n' +
+    '08:03:24 22           Number 1, which should be at the top of your pile\r\n'
+  const { cleanContent, cleanToOrig } = buildCleanContentMap(before)
+  const cm = flexFind(cleanContent, 'Exhibit Number 1')
+  assert(!!cm, 'find Exhibit Number 1 in clean content')
+  const detail = applyCorrectionDetailed(before, 'Exhibit Number 1', 'Exhibit No. 1', {
+    cleanStart: cm.start,
+    cleanEnd: cm.end,
+  })
+  assert(detail.start !== -1, 'accept applies across timestamp gap')
+  assert(
+    detail.text.includes('08:03:24 22'),
+    'timestamp+line gutter still present after accept'
+  )
+  assert(
+    detail.text.includes('08:03:23 21'),
+    'prior line timestamp still present'
+  )
+  assert(
+    !/Exhibit No\. 1\r?\n\r?\n\s+, which/.test(detail.text),
+    'does not orphan ", which" without its line gutter'
+  )
+  assert(
+    /No\.\s*1,\s*which should be at the top/.test(detail.text.replace(/\s+/g, ' ')) ||
+      /Exhibit No\. 1/.test(detail.text),
+    'suggestion words present'
+  )
+  // Plain line-number-only gutters still preserved (regression).
+  const plain =
+    'Q.    marked as Exhibit\n' +
+    '               16        Number 1, which should\n'
+  const plainDetail = applyCorrectionDetailed(plain, 'Exhibit Number 1', 'Exhibit No. 1')
+  assert(plainDetail.start !== -1, 'plain line# cross-line accept applies')
+  assert(plainDetail.text.includes('16'), 'plain line number preserved')
+  assert(plainDetail.matchedText.includes('\n'), 'plain match spanned newline')
+}
+
+// --- 18e. Nearby-anchor unique locate (timestamp gap) + reject wrong twin ---
+{
+  console.log('\n18e. Nearby-anchor locate across timestamps; reject wrong twin')
+
+  const cleanBurk =
+    'MR. BERGERON:  Keith Bergeron for                         11:09:02\n\n' +
+    'Burk-Klleinpeter, Inc.                                  \n'
+  const annBurk = {
+    id: 'burk',
+    status: 'open',
+    entry_id: 1,
+    original: 'Burk-Klleinpeter',
+    suggestion: 'Burk-Kleinpeter',
+    _anchorBefore: 'Bergeron for ',
+    _anchorAfter: ', Inc.',
+  }
+  const entryBurk = { id: 1, text: 'Keith Bergeron for Burk-Klleinpeter, Inc.' }
+  const locBurk = locateAnnotationWithAnchor(
+    cleanBurk,
+    entryBurk,
+    annBurk,
+    'Burk-Klleinpeter'
+  )
+  assert(!!locBurk, 'rescues Burk across timestamp gap via nearby anchors')
+  if (locBurk) {
+    assertEq(
+      cleanBurk.substring(locBurk.cleanStart, locBurk.cleanEnd),
+      'Burk-Klleinpeter',
+      'Burk underline is the firm name'
+    )
+  }
+
+  // Entry claims "marked as … again" but cleanContent only has a different
+  // "Exhibit Number 2" — must NOT paint the wrong occurrence.
+  const cleanWrong =
+    '08:04:06  9                  Have you seen Exhibit Number 2 before?\n'
+  const annWrong = {
+    id: 'ex2',
+    status: 'open',
+    entry_id: 1,
+    original: 'Exhibit Number 2',
+    suggestion: 'Exhibit No. 2',
+    start: 243,
+    end: 259,
+    _anchorBefore: 'marked as ',
+    _anchorAfter: ', again,',
+  }
+  const entryWrong = {
+    id: 1,
+    text: 'second document which is marked as Exhibit Number 2, again, not going through it',
+  }
+  const locWrong = locateAnnotationWithAnchor(
+    cleanWrong,
+    entryWrong,
+    annWrong,
+    'Exhibit Number 2'
+  )
+  assertEq(locWrong, null, 'does not paint wrong Exhibit Number 2 occurrence')
+}
+
+// --- 18g. Drop open flags that cannot be placed in the transcript file ---
+{
+  console.log('\n18g. dropTranscriptUnplaceableAnnotations')
+  const ot = '1   Q.    He went to the store.\n'
+  const entries = [{ id: 1, text: 'He went to the store.' }]
+  const anns = [
+    {
+      id: 'keep',
+      status: 'open',
+      entry_id: 1,
+      original: 'too',
+      suggestion: 'to',
+      start: 8,
+      end: 11,
+      // "too" is not in file — wait, use a placeable one
+    },
+    {
+      id: 'keep2',
+      status: 'open',
+      entry_id: 1,
+      original: 'store',
+      suggestion: 'store [sic]',
+      start: 15,
+      end: 20,
+      _anchorBefore: 'the ',
+      _anchorAfter: '.',
+    },
+    {
+      id: 'drop-me',
+      status: 'open',
+      entry_id: 1,
+      original: 'returning the tablets',
+      suggestion: 'returning the tablet',
+      start: 0,
+      end: 5,
+      _anchorBefore: 'you and ',
+      _anchorAfter: '.',
+    },
+    {
+      id: 'keep-accepted',
+      status: 'accepted',
+      entry_id: 1,
+      original: 'returning the tablets',
+      suggestion: 'returning the tablet',
+    },
+  ]
+  // Fix keep: use "went" which is in the file
+  anns[0].original = 'went'
+  anns[0].suggestion = 'went [sic]'
+  anns[0].start = 3
+  anns[0].end = 7
+  anns[0]._anchorBefore = 'He '
+  anns[0]._anchorAfter = ' to'
+
+  const { annotations: kept, droppedCount } = dropTranscriptUnplaceableAnnotations(
+    ot,
+    entries,
+    anns
+  )
+  assertEq(droppedCount, 1, 'drops one unplaceable open flag')
+  assert(
+    kept.some((a) => a.id === 'keep2') && kept.some((a) => a.id === 'keep'),
+    'keeps placeable open flags'
+  )
+  assert(
+    kept.some((a) => a.id === 'keep-accepted'),
+    'never drops accepted even if Found is missing'
+  )
+  assert(
+    !kept.some((a) => a.id === 'drop-me'),
+    'unplaceable open flag is gone from the list'
+  )
 }
 
 // --- 19. Accept must not treat store "the" as teh already-applied ---

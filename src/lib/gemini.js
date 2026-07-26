@@ -166,10 +166,15 @@ export function flexFind(text, search) {
     if (match) return { start: match.index, end: match.index + match[0].length }
   } catch (_) { /* regex safety */ }
 
-  // 4. Cross-page-break match: allows a standalone page number between words
+  // 4. Cross-page-break match: allow a standalone page-number LINE between
+  // words (newlines/form-feeds around the digits). Do NOT treat inline
+  // numbers like "Exhibit Number 2" as a page break — that painted the
+  // wrong span (and swallowed gutter digits into short needles).
   try {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const pattern = escaped.replace(/\s+/g, '(?:\\s+\\d+)?\\s+')
+    const pageBreakGap =
+      '(?:\\s+|\\s*[\\r\\n\\f]+[\\s\\r\\n\\f]*\\d{1,4}[\\s\\r\\n\\f]*[\\r\\n\\f]+\\s*)'
+    const pattern = escaped.replace(/\s+/g, pageBreakGap)
     const startsWord = /^\w/.test(search)
     const endsWord = /\w$/.test(search)
     const wrapped = `${startsWord ? '(?<![\\w])' : ''}${pattern}${endsWord ? '(?![\\w])' : ''}`
@@ -182,6 +187,52 @@ export function flexFind(text, search) {
 }
 
 /**
+ * True when a transcript line should receive underline paint for `needle`.
+ * Skips page-number-only lines and blank/junk lines inside a cross-page span
+ * so "to … 126 … site" underlines "to" and "site", not the page number.
+ */
+function isPageNumberOnlyLine(lineContent) {
+  // Real page gutters are right-justified (many leading spaces). A bare
+  // "40" content line must still be paint/jump eligible ("40 some odd").
+  return /^\s{10,}\d{1,4}\s*$/.test(lineContent || '')
+}
+
+export function lineParticipatesInNeedle(lineContent, needle) {
+  if (!lineContent || !needle) return false
+  if (!/\S/.test(lineContent)) return false
+  if (isPageNumberOnlyLine(lineContent)) return false
+  const words = String(needle)
+    .replace(/\s*\[sic\]\s*$/i, '')
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\w']/g, ''))
+    .filter((w) => w.length > 0)
+  if (words.length === 0) return false
+  return words.some((w) => {
+    try {
+      const re = new RegExp(
+        `${/^\w/.test(w) ? '(?<![\\w])' : ''}${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${/\w$/.test(w) ? '(?![\\w])' : ''}`,
+        'i'
+      )
+      return re.test(lineContent)
+    } catch (_) {
+      return lineContent.toLowerCase().includes(w.toLowerCase())
+    }
+  })
+}
+
+/** Drop page-number-only lines from a span for compare / diagnostics. */
+export function compactSpanText(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/\f/g, '\n')
+    .split(/\r?\n/)
+    .filter((line) => !isPageNumberOnlyLine(line))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
  * Builds a "clean content" version of originalText by stripping line-number
  * prefixes (e.g. " 1  ", " 12  ") from the start of each line.
  * Returns { cleanContent, parsedLines, cleanToOrig }.
@@ -189,6 +240,27 @@ export function flexFind(text, search) {
  * - parsedLines[i]: { prefix, content, fullLine, cleanStart, cleanEnd }
  * - cleanToOrig[i]: position in originalText of the i-th char in cleanContent
  */
+/**
+ * Leading gutter on a transcript line: plain line numbers, or deposition
+ * software "HH:MM:SS  12          " timestamps + line numbers. Stripped from
+ * cleanContent so "Exhibit\\n08:03:24 22  Number 1" becomes findable as
+ * "Exhibit Number 1". Still kept in parsedLines.prefix / fullLine for display.
+ */
+export function matchTranscriptLineGutterPrefix(line) {
+  if (!line) return ''
+  const patterns = [
+    /^(\s*\d{1,4}\s{2,})/, // "  12  " / "22          "
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s+\d{1,4}\s{2,})/, // "08:03:24 22          "
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s{2,})/, // "08:03:24  " timestamp-only pad
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s+)/, // "08:03:24 " lone timestamp prefix
+  ]
+  for (const re of patterns) {
+    const m = line.match(re)
+    if (m) return m[1]
+  }
+  return ''
+}
+
 export function buildCleanContentMap(text) {
   const rawLines = text.split('\n')
   const parsedLines = []
@@ -198,8 +270,7 @@ export function buildCleanContentMap(text) {
 
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i]
-    const m = line.match(/^(\s*\d{1,4}\s{2,})/)
-    const prefix = m ? m[1] : ''
+    const prefix = matchTranscriptLineGutterPrefix(line)
     const content = line.substring(prefix.length)
     const cleanStart = cleanContent.length
 
@@ -296,31 +367,45 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
     context = context.trim()
 
     if (context.length >= Math.min(searchWord.length, 3)) {
-      const ctxMatch = flexFind(cleanContent, context)
-      if (ctxMatch) {
+      const contextVariants = [context, toCleanContentNeedle(context)].filter(
+        (c, i, arr) => c && arr.indexOf(c) === i
+      )
+      const needleVariants = [searchWord, toCleanContentNeedle(searchWord)].filter(
+        (n, i, arr) => n && arr.indexOf(n) === i
+      )
+      for (const ctx of contextVariants) {
+        const ctxMatch = flexFind(cleanContent, ctx)
+        if (!ctxMatch) continue
         const region = cleanContent.substring(ctxMatch.start, ctxMatch.end)
         const relStart = coreStart - contextEntryStart
         const relEnd = coreEnd - contextEntryStart
-        if (relStart >= 0 && relEnd <= region.length && relEnd > relStart) {
-          const atCore = region.substring(relStart, relEnd)
-          const coreHit = flexFind(atCore, searchWord)
-          if (
-            atCore === searchWord ||
-            (coreHit && coreHit.start === 0 && coreHit.end === atCore.length)
-          ) {
-            return {
-              cleanStart: ctxMatch.start + relStart,
-              cleanEnd: ctxMatch.start + relEnd,
+        for (const needle of needleVariants) {
+          if (relStart >= 0 && relEnd <= region.length && relEnd > relStart) {
+            const atCore = region.substring(relStart, relEnd)
+            const coreHit = flexFind(atCore, needle)
+            if (
+              atCore === needle ||
+              (coreHit && coreHit.start === 0 && coreHit.end === atCore.length)
+            ) {
+              return {
+                cleanStart: ctxMatch.start + relStart,
+                cleanEnd: ctxMatch.start + relEnd,
+              }
             }
           }
-        }
-        // Fallback: first match at/after the core offset (never before it).
-        const from = Math.max(0, Math.min(relStart, region.length))
-        const inner = flexFind(region.substring(from), searchWord)
-        if (inner) {
-          return {
-            cleanStart: ctxMatch.start + from + inner.start,
-            cleanEnd: ctxMatch.start + from + inner.end,
+          // Fallback: first match at/after the core offset (never before it).
+          // When context was gutter-cleaned, relative byte offsets from entry
+          // no longer apply — search the whole region.
+          const from =
+            ctx === context
+              ? Math.max(0, Math.min(relStart, region.length))
+              : 0
+          const inner = flexFind(region.substring(from), needle)
+          if (inner) {
+            return {
+              cleanStart: ctxMatch.start + from + inner.start,
+              cleanEnd: ctxMatch.start + from + inner.end,
+            }
           }
         }
       }
@@ -329,14 +414,30 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
     // 2) Entry opening as anchor, then search forward from the core offset
     // within the entry (mapped via the anchor), not from the entry start —
     // otherwise "the" after accept latches onto an earlier "the".
-    const anchor = entry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
-    if (anchor) {
+    const anchorRaw = entry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
+    for (const anchor of [anchorRaw, toCleanContentNeedle(anchorRaw)].filter(
+      (a, i, arr) => a && arr.indexOf(a) === i
+    )) {
       const em = flexFind(cleanContent, anchor)
       if (em) {
         const from = Math.min(em.start + Math.max(0, coreStart), cleanContent.length)
         const hit = tryNeedleInRange(from)
         if (hit) return hit
+        const cleanedNeedle = toCleanContentNeedle(searchWord)
+        if (cleanedNeedle && cleanedNeedle !== searchWord) {
+          const m = flexFind(cleanContent.substring(from), cleanedNeedle)
+          if (m) {
+            return { cleanStart: from + m.start, cleanEnd: from + m.end }
+          }
+        }
       }
+    }
+
+    // 3) Last resort for gutter-polluted needles: whole-doc clean needle.
+    const cleanedNeedle = toCleanContentNeedle(searchWord)
+    if (cleanedNeedle && cleanedNeedle !== searchWord) {
+      const m = flexFind(cleanContent, cleanedNeedle)
+      if (m) return { cleanStart: m.start, cleanEnd: m.end }
     }
 
     return null
@@ -404,38 +505,139 @@ export function locateAtAnchorStrict(haystack, ann, searchWord) {
   if (typeof before !== 'string' || typeof after !== 'string' || !(before || after)) {
     return null
   }
-  const phrase = before + searchWord + after
-  const exactIdx = haystack.indexOf(phrase)
-  if (exactIdx !== -1) {
-    return {
-      cleanStart: exactIdx + before.length,
-      cleanEnd: exactIdx + before.length + searchWord.length,
-      start: exactIdx + before.length,
-      end: exactIdx + before.length + searchWord.length,
-    }
-  }
-  const flex = flexFind(haystack, phrase)
-  if (!flex) return null
-  const region = haystack.substring(flex.start, flex.end)
-  if (before) {
-    const b = flexFind(region, before)
-    if (b) {
-      const n = flexFind(region.substring(b.end), searchWord)
-      if (n) {
-        const start = flex.start + b.end + n.start
-        const end = flex.start + b.end + n.end
-        return { cleanStart: start, cleanEnd: end, start, end }
+
+  const tryWith = (b, needle, a) => {
+    if (!(b || a)) return null
+    const phrase = b + needle + a
+    const exactIdx = haystack.indexOf(phrase)
+    if (exactIdx !== -1) {
+      return {
+        cleanStart: exactIdx + b.length,
+        cleanEnd: exactIdx + b.length + needle.length,
+        start: exactIdx + b.length,
+        end: exactIdx + b.length + needle.length,
       }
     }
+    const flex = flexFind(haystack, phrase)
+    if (!flex) return null
+    const region = haystack.substring(flex.start, flex.end)
+    if (b) {
+      const bb = flexFind(region, b)
+      if (bb) {
+        const n = flexFind(region.substring(bb.end), needle)
+        if (n) {
+          const start = flex.start + bb.end + n.start
+          const end = flex.start + bb.end + n.end
+          return { cleanStart: start, cleanEnd: end, start, end }
+        }
+      }
+    }
+    const n = flexFind(region, needle)
+    if (!n) return null
+    return {
+      cleanStart: flex.start + n.start,
+      cleanEnd: flex.start + n.end,
+      start: flex.start + n.start,
+      end: flex.start + n.end,
+    }
   }
-  const n = flexFind(region, searchWord)
-  if (!n) return null
-  return {
-    cleanStart: flex.start + n.start,
-    cleanEnd: flex.start + n.end,
-    start: flex.start + n.start,
-    end: flex.start + n.end,
+
+  const hit = tryWith(before, searchWord, after)
+  if (hit) return hit
+
+  // Anchors/needles often still carry entry gutters; cleanContent does not.
+  const cleanBefore = toCleanContentNeedle(before)
+  const cleanAfter = toCleanContentNeedle(after)
+  const cleanNeedle = toCleanContentNeedle(searchWord)
+  if (
+    cleanNeedle &&
+    (cleanBefore !== before || cleanAfter !== after || cleanNeedle !== searchWord)
+  ) {
+    return tryWith(cleanBefore, cleanNeedle, cleanAfter)
   }
+  return null
+}
+
+/** All flexFind hits for needle in haystack (non-overlapping scan). */
+export function findAllFlexMatches(haystack, needle) {
+  if (!haystack || !needle) return []
+  const hits = []
+  let from = 0
+  while (from < haystack.length) {
+    const m = flexFind(haystack.substring(from), needle)
+    if (!m) break
+    hits.push({ start: from + m.start, end: from + m.end })
+    from = from + m.start + Math.max(1, m.end - m.start)
+  }
+  return hits
+}
+
+/** Soften clock stamps so "for  11:09:02\\n\\nBurk" still validates anchors. */
+function softenTimestamps(text) {
+  return String(text || '').replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ')
+}
+
+function nearbyHasPhrase(windowText, phrase) {
+  if (!phrase) return true
+  if (flexFind(windowText, phrase)) return true
+  // Soften clock stamps and mid-window line-number gutters so
+  // ",\\n08:30:26  3           and" still validates after=", and".
+  let soft = softenTimestamps(windowText)
+  soft = soft.replace(/(^|\n)\s*\d{1,4}\s+/g, '$1')
+  if (flexFind(soft, phrase)) return true
+  if (flexFind(toCleanContentNeedle(soft), phrase)) return true
+  // Word-order fallback across timestamp/layout gaps ("just … gathered").
+  const words = phrase
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\w']/g, ''))
+    .filter((w) => w.length > 1)
+  if (words.length < 2) return false
+  const lower = soft.toLowerCase()
+  let from = 0
+  for (const w of words) {
+    const at = lower.indexOf(w.toLowerCase(), from)
+    if (at === -1) return false
+    from = at + w.length
+  }
+  return true
+}
+
+/**
+ * Last-resort locate: unique (or uniquely anchor-validated) needle hit in
+ * cleanContent when entry layout/timestamps broke context mapping.
+ * Requires nearby before/after anchors when present so we never paint a
+ * different "Exhibit Number 2" than the one the flag claims.
+ */
+export function locateByNearbyAnchors(cleanContent, ann, searchWord, pad = 120) {
+  if (!cleanContent || !searchWord) return null
+  const hits = findAllFlexMatches(cleanContent, searchWord)
+  if (hits.length === 0) return null
+
+  const before = toCleanContentNeedle(ann?._anchorBefore || '').trim()
+  const after = toCleanContentNeedle(ann?._anchorAfter || '').trim()
+  const hasAnchors = !!(before || after)
+
+  const validated = []
+  for (const hit of hits) {
+    const wb = cleanContent.slice(Math.max(0, hit.start - pad), hit.start)
+    const wa = cleanContent.slice(hit.end, Math.min(cleanContent.length, hit.end + pad))
+    if (hasAnchors) {
+      const beforeOk = nearbyHasPhrase(wb, before)
+      const afterOk = nearbyHasPhrase(wa, after)
+      // When both anchors exist, both must match — rejects wrong twins.
+      if (before && after) {
+        if (beforeOk && afterOk) validated.push(hit)
+      } else if (beforeOk && afterOk) {
+        validated.push(hit)
+      }
+    } else if (hits.length === 1 && searchWord.trim().length >= 10) {
+      // No anchors: only long unique needles (never short "the"/"to").
+      validated.push(hit)
+    }
+  }
+
+  if (validated.length !== 1) return null
+  return { cleanStart: validated[0].start, cleanEnd: validated[0].end }
 }
 
 /**
@@ -445,25 +647,39 @@ export function locateAtAnchorStrict(haystack, ann, searchWord) {
 export function locateAnnotationWithAnchor(cleanContent, entry, ann, searchWord) {
   if (!cleanContent || !searchWord) return null
 
-  const strict = locateAtAnchorStrict(cleanContent, ann, searchWord)
-  if (strict) return strict
+  const attempt = (needle) => {
+    if (!needle) return null
+    const strict = locateAtAnchorStrict(cleanContent, ann, needle)
+    if (strict) return strict
 
-  // Anchors exist but phrase miss (e.g. accepted "the" while file still has
-  // "teh"): never fall back to the first twin of a short suggestion.
-  const hasAnchor =
-    typeof ann?._anchorBefore === 'string' &&
-    typeof ann?._anchorAfter === 'string' &&
-    !!(ann._anchorBefore || ann._anchorAfter)
-  if (hasAnchor && ann.status === 'accepted' && searchWord === ann.suggestion) {
-    const origStill = locateAtAnchorStrict(cleanContent, ann, ann.original)
-    if (origStill) return null
+    // Anchors exist but phrase miss (e.g. accepted "the" while file still has
+    // "teh"): never fall back to the first twin of a short suggestion.
+    const hasAnchor =
+      typeof ann?._anchorBefore === 'string' &&
+      typeof ann?._anchorAfter === 'string' &&
+      !!(ann._anchorBefore || ann._anchorAfter)
+    if (hasAnchor && ann.status === 'accepted' && needle === ann.suggestion) {
+      const origStill = locateAtAnchorStrict(cleanContent, ann, ann.original)
+      if (origStill) return null
+    }
+
+    const locateAnn =
+      ann?._appliedAt != null && ann?._appliedEnd != null
+        ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
+        : ann
+    const mapped = locateAnnotationInCleanContent(cleanContent, entry, locateAnn, needle)
+    if (mapped) return mapped
+
+    // Entry↔clean layout drift (timestamps, page wraps): unique needle +
+    // nearby anchors. Rejects wrong twins when anchors don't match.
+    return locateByNearbyAnchors(cleanContent, ann, needle)
   }
 
-  const locateAnn =
-    ann?._appliedAt != null && ann?._appliedEnd != null
-      ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
-      : ann
-  return locateAnnotationInCleanContent(cleanContent, entry, locateAnn, searchWord)
+  const hit = attempt(searchWord)
+  if (hit) return hit
+  const cleaned = toCleanContentNeedle(searchWord)
+  if (cleaned && cleaned !== searchWord) return attempt(cleaned)
+  return null
 }
 
 /**
@@ -530,6 +746,118 @@ export function ensureAnnotationAnchors(entries, annotations) {
   return changed ? next : annotations
 }
 
+/**
+ * Drop open annotations that still cannot be placed in the formatted
+ * transcript after gutter/timestamp cleaning (paraphrased / hallucinated
+ * Found strings). Never drops accepted/ignored. Logs count for monitoring.
+ */
+export function dropTranscriptUnplaceableAnnotations(originalText, entries, annotations) {
+  if (!Array.isArray(annotations) || annotations.length === 0) {
+    return { annotations: annotations || [], droppedCount: 0 }
+  }
+  if (!originalText) {
+    return { annotations, droppedCount: 0 }
+  }
+  const { cleanContent } = buildCleanContentMap(originalText)
+  const kept = []
+  let droppedCount = 0
+  for (const ann of annotations) {
+    if (ann.status === 'accepted' || ann.status === 'ignored') {
+      // Strip stale tag from older sessions if present
+      if (ann._transcriptUnplaceable) {
+        const { _transcriptUnplaceable, ...rest } = ann
+        kept.push(rest)
+      } else {
+        kept.push(ann)
+      }
+      continue
+    }
+    const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    // Open flags: Found (original) must be in the file. Do not treat a
+    // matching suggestion as placeable — that kept hallucinated Found cards.
+    const needles = []
+    if (ann.original) needles.push(ann.original)
+    const cleanedOrig = toCleanContentNeedle(ann.original)
+    if (cleanedOrig && cleanedOrig !== ann.original) needles.push(cleanedOrig)
+    let placeable = false
+    for (const needle of needles) {
+      if (locateAnnotationWithAnchor(cleanContent, entry, ann, needle)) {
+        placeable = true
+        break
+      }
+    }
+    if (!placeable) {
+      droppedCount++
+      console.warn(
+        `Transcript-unplaceable annotation dropped: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} severity=${ann.severity} original=${JSON.stringify(ann.original)}`
+      )
+      continue
+    }
+    if (ann._transcriptUnplaceable) {
+      const { _transcriptUnplaceable, ...rest } = ann
+      kept.push(rest)
+    } else {
+      kept.push(ann)
+    }
+  }
+  if (droppedCount > 0) {
+    console.warn(
+      `dropTranscriptUnplaceableAnnotations: dropped ${droppedCount}/${annotations.length} open annotation(s) (not in transcript file)`
+    )
+  }
+  return { annotations: kept, droppedCount }
+}
+
+/**
+ * Ordered needles for finding an annotation in transcript text (jump + paint).
+ * Accepted [sic] suggestions need both "word [sic]" and the bare original;
+ * open warnings should prefer original, then suggestion variants.
+ */
+export function jumpSearchNeedles(ann) {
+  if (!ann) return []
+  const out = []
+  const push = (s) => {
+    if (typeof s === 'string' && s.length > 0 && !out.includes(s)) out.push(s)
+  }
+  const stripSic = (s) => {
+    if (typeof s !== 'string') return ''
+    return s.replace(/\s*\[sic\]\s*$/i, '').trim()
+  }
+  if (ann.status === 'accepted') {
+    push(ann.suggestion)
+    push(stripSic(ann.suggestion))
+    push(ann.original)
+    push(ann._appliedMatchedText)
+  } else {
+    push(ann.original)
+    push(ann.suggestion)
+    push(stripSic(ann.suggestion))
+  }
+  // CleanContent variants of every needle (gutter digits stripped).
+  for (const s of [...out]) {
+    push(toCleanContentNeedle(s))
+  }
+  return out
+}
+
+/**
+ * Resolve a transcript line index for jump-to. Tries each needle with
+ * entry/context anchors. Returns -1 when nothing can be located.
+ */
+export function resolveJumpLineIndex(cleanContent, parsedLines, annotationEntry, ann, needles) {
+  if (!cleanContent || !Array.isArray(parsedLines) || !ann) return -1
+  const list = Array.isArray(needles) && needles.length ? needles : jumpSearchNeedles(ann)
+  for (const needle of list) {
+    const located = locateAnnotationWithAnchor(cleanContent, annotationEntry, ann, needle)
+    if (!located) continue
+    const lineIdx = parsedLines.findIndex(
+      (pl) => pl.cleanStart <= located.cleanStart && located.cleanStart < pl.cleanEnd
+    )
+    if (lineIdx >= 0) return lineIdx
+  }
+  return -1
+}
+
 const _tokenize = (s) => {
   const tokens = []
   let i = 0
@@ -547,6 +875,42 @@ const _tokenize = (s) => {
     }
   }
   return tokens
+}
+
+/** Deposition timestamp token: "08:03:24" or "11:09". */
+const _isTimestampToken = (value) => /^\d{1,2}:\d{2}(?::\d{2})?$/.test(value || '')
+
+/**
+ * Words that are transcript gutters inside a flexFind match — must not be
+ * treated as content when applying a correction (plain line# OR timestamp+line#).
+ * Example match: "Exhibit\\n\\n08:03:24 22           Number 1"
+ */
+const _isTranscriptGutterWord = (tokens, i) => {
+  if (!tokens[i] || tokens[i].type !== 'word') return false
+  const value = tokens[i].value
+  const prev = i > 0 ? tokens[i - 1] : null
+  const prevHasNewline = prev?.type === 'sep' && /\n/.test(prev.value)
+
+  // Plain line number after a newline: "as\\n  16        identified"
+  if (/^\d+$/.test(value) && prevHasNewline) return true
+
+  // Timestamp after a newline: "Exhibit\\n08:03:24 22  Number"
+  if (_isTimestampToken(value) && prevHasNewline) return true
+
+  // Line number immediately after a timestamp (spaces only between):
+  // "08:03:24 22           Number" — prev sep has no newline, so the plain
+  // digit rule above misses it.
+  if (/^\d+$/.test(value)) {
+    for (let j = i - 1; j >= 0; j--) {
+      const t = tokens[j]
+      if (t.type === 'sep') {
+        if (/\n/.test(t.value)) return false
+        continue
+      }
+      return _isTimestampToken(t.value)
+    }
+  }
+  return false
 }
 
 const _LINE_NUM_RE = /^(\s*\d{1,4}\s{2,})(.*)/s
@@ -656,11 +1020,7 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
     const contentIndices = []
     for (let i = 0; i < tokens.length; i++) {
       if (tokens[i].type !== 'word') continue
-      if (skipLineNums) {
-        const isLineNum = /^\d+$/.test(tokens[i].value) &&
-          i > 0 && tokens[i - 1].type === 'sep' && /\n/.test(tokens[i - 1].value)
-        if (isLineNum) continue
-      }
+      if (skipLineNums && _isTranscriptGutterWord(tokens, i)) continue
       contentIndices.push(i)
     }
 
@@ -1211,12 +1571,75 @@ export function stripInteriorLineNumberTokens(phrase) {
 }
 
 /**
+ * Normalize a needle/anchor for searching cleanContent (line gutters removed).
+ * Entry text still contains "\n\n            20          word"; cleanContent
+ * only has the words. Without this, locate/paint/jump miss cross-line flags.
+ */
+export function toCleanContentNeedle(phrase) {
+  if (!phrase || typeof phrase !== 'string') return phrase
+  // Preserve edge whitespace so before+needle+after still separates words
+  // after gutters are stripped (e.g. "\n\n 5 to" → " to", not "to").
+  const lead = /^\s/.test(phrase) ? ' ' : ''
+  // Only treat a trailing digit as a gutter leftover when the source looked
+  // like one ("word.\n\n 8 " / wide padding). Never strip "Exhibit 16" / "page 12".
+  const hadTrailingGutter =
+    /\n\s*\d{1,4}\s*$/.test(phrase) || /\s{5,}\d{1,4}\s*$/.test(phrase)
+  const trail = /\s$/.test(phrase) ? ' ' : ''
+  // Strip line-start gutters WHILE newlines remain. stripInterior collapses
+  // whitespace first, which would turn "\n\n 7 " into " 7" and leave the digit.
+  let out = phrase
+  let prev
+  do {
+    prev = out
+    out = out.replace(/(^|\n)\s*\d{1,4}\s+/g, '$1')
+  } while (out !== prev)
+  out = stripInteriorLineNumberTokens(out)
+  if (hadTrailingGutter) {
+    out = out.replace(/\s+\d{1,4}\s*$/g, '').trim()
+    // Gutter stood between this fragment and the next word/needle — keep a
+    // boundary space ("of\n\n 7 " → "of ", not "of" glued to the needle).
+    if (!out) return out
+    return `${lead}${out} `
+  }
+  out = out.trim()
+  if (!out) return out
+  return `${lead}${out}${trail}`
+}
+
+/**
  * If `phrase` already matches `entryText`, keep it. Otherwise try stripping
  * leaked line-number tokens and keep the stripped form only when that matches.
  */
+function looksLikeLeakedLineNumberGutter(phrase) {
+  if (!phrase || typeof phrase !== 'string') return false
+  // Real content like "Exhibit 16 was" stays; cross-line Gemini leaks look like
+  // "word\n\n            20          word" (newline and/or wide digit padding).
+  return /\n/.test(phrase) || /\s{5,}\d{1,4}\s{5,}/.test(phrase)
+}
+
 export function sanitizePhraseAgainstEntry(phrase, entryText) {
   if (!phrase || typeof phrase !== 'string') return phrase
+  const cleaned = toCleanContentNeedle(phrase).trim()
+  // Prefer clean form for gutter-shaped leaks even when the polluted phrase
+  // still flexFinds in entry text (gutters present there, absent in cleanContent).
+  if (
+    looksLikeLeakedLineNumberGutter(phrase) &&
+    cleaned &&
+    cleaned !== phrase &&
+    entryText &&
+    flexFind(entryText, cleaned)
+  ) {
+    return cleaned
+  }
   if (entryText && flexFind(entryText, phrase)) return phrase
+  if (
+    cleaned &&
+    cleaned !== phrase &&
+    entryText &&
+    flexFind(entryText, cleaned)
+  ) {
+    return cleaned
+  }
   const stripped = stripInteriorLineNumberTokens(phrase)
   if (
     stripped &&

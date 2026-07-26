@@ -8,9 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:export": "node scripts/test-export-integrity.mjs",
+    "test:highlight-jump": "node scripts/test-highlight-jump-coverage.mjs",
     "test:rtf-upload": "node scripts/test-rtf-upload-path.mjs",
     "seed:export-mock": "node scripts/seed-export-mock-case.mjs",
-    "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs"
+    "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs",
+    "seed:jump-highlight": "node scripts/seed-jump-highlight-case.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",

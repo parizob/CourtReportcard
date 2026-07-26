@@ -12,3 +12,6 @@ scripts/test-transcripts/results_*.json
 scripts/.proofread-pool-cache.json
 # Supabase CLI local link/cache (project-ref, pooler URL, versions)
 supabase/.temp/
+
+# Local repro artifacts (user transcripts)
+scripts/.repro/

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -30,6 +30,9 @@ export default function DashboardEditor() {
   const [jumpNotice, setJumpNotice] = useState('')
   const [title, setTitle] = useState('')
   const jumpNoticeTimerRef = useRef(null)
+  // ann.id → transcript-line index for jump even when underline paint is skipped
+  // (overlap) or the highlight span is missing. Refilled each originalText render.
+  const jumpLineByAnnIdRef = useRef({})
   const [originalText, setOriginalText] = useState(null)
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
@@ -186,11 +189,24 @@ export default function DashboardEditor() {
         // Context anchors disambiguate twin words; repair cleans legacy
         // _cleanStart drift from older saves.
         const anchored = ensureAnnotationAnchors(dedupedEntries, positioned)
-        const fixedAnnotations = repairAcceptedCleanSpans(
+        const repaired = repairAcceptedCleanSpans(
           parsed.originalText || null,
           dedupedEntries,
           anchored
         )
+        // Drop open flags whose Found text still cannot be placed in the
+        // formatted transcript (paraphrase / not in file). Count is logged.
+        const { annotations: fixedAnnotations, droppedCount: transcriptDropCount } =
+          dropTranscriptUnplaceableAnnotations(
+            parsed.originalText || null,
+            dedupedEntries,
+            repaired
+          )
+        if (transcriptDropCount > 0) {
+          console.info(
+            `Editor load: hid ${transcriptDropCount} suggestion(s) that could not be located in the transcript file`
+          )
+        }
         if (gen !== loadGenRef.current) return
 
         setTitle(parsed.title || '')
@@ -666,23 +682,42 @@ export default function DashboardEditor() {
     })
   }, [persistNow])
 
-  // Jump-to: prefer the exact highlight span; if the cleanContent highlight
-  // pass never created one, fall back to the entry / nearest transcript line
-  // so the button never dead-ends on long docs with repeated phrases.
+  // Jump-to: highlight span → precomputed line from last paint → entry
+  // anchor (entries view) → re-locate with multiple needles (original /
+  // suggestion / stripped [sic]). Anchors make locate reliable; this path
+  // makes the button always use that location even when underline paint
+  // skipped the flag (overlap) or accepted [sic] isn't the painted needle.
   const jumpToAnnotation = useCallback((ann) => {
+    const scrollToEl = (el, softNotice) => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (softNotice) showJumpNotice(softNotice)
+    }
+
     const highlight = document.getElementById(`ann-highlight-${ann.id}`)
     if (highlight) {
-      highlight.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      scrollToEl(highlight)
       return
     }
 
+    const cachedLineIdx = jumpLineByAnnIdRef.current[ann.id]
+    if (cachedLineIdx != null) {
+      const cachedLine = document.getElementById(`transcript-line-${cachedLineIdx}`)
+      if (cachedLine) {
+        scrollToEl(
+          cachedLine,
+          'Could not highlight the exact text; jumped to the nearby passage.'
+        )
+        return
+      }
+    }
+
     const entryEl = document.getElementById(`entry-anchor-${ann.entry_id}`)
+      || document.getElementById(`entry-anchor-${ann._appliedEntryId}`)
     if (entryEl) {
-      entryEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
       console.warn(
         `Jump fallback (entry): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)}`
       )
-      showJumpNotice('Could not highlight the exact text; jumped to the nearby passage.')
+      scrollToEl(entryEl, 'Could not highlight the exact text; jumped to the nearby passage.')
       return
     }
 
@@ -690,34 +725,24 @@ export default function DashboardEditor() {
     const curEntries = entriesRef.current
     if (curOriginalText) {
       const { cleanContent, parsedLines } = buildCleanContentMap(curOriginalText)
-      const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
-      const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
-      const located = locateAnnotationWithAnchor(cleanContent, annotationEntry, ann, searchWord)
-      // If the exact span still can't be underlined, at least land on the
-      // entry's region when the locator found something — or on an entry-
-      // prefix hit via a second locate using a wider context.
-      let targetPos = located?.cleanStart
-      if (targetPos == null && annotationEntry?.text) {
-        const anchor = annotationEntry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
-        if (anchor) {
-          const em = flexFind(cleanContent, anchor)
-          if (em) targetPos = em.start
-        }
-      }
-      if (targetPos != null) {
-        const lineIdx = parsedLines.findIndex(
-          (pl) => pl.cleanStart <= targetPos && targetPos < pl.cleanEnd
-        )
-        if (lineIdx >= 0) {
-          const lineEl = document.getElementById(`transcript-line-${lineIdx}`)
-          if (lineEl) {
-            lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            console.warn(
-              `Jump fallback (line): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} lineIdx=${lineIdx} located=${!!located}`
-            )
-            showJumpNotice('Could not highlight the exact text; jumped to the nearby passage.')
-            return
-          }
+      const annotationEntry = curEntries.find(
+        (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
+      )
+      const lineIdx = resolveJumpLineIndex(
+        cleanContent,
+        parsedLines,
+        annotationEntry,
+        ann,
+        jumpSearchNeedles(ann)
+      )
+      if (lineIdx >= 0) {
+        const lineEl = document.getElementById(`transcript-line-${lineIdx}`)
+        if (lineEl) {
+          console.warn(
+            `Jump fallback (line): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)} lineIdx=${lineIdx}`
+          )
+          scrollToEl(lineEl, 'Could not highlight the exact text; jumped to the nearby passage.')
+          return
         }
       }
     }
@@ -1075,9 +1100,11 @@ export default function DashboardEditor() {
     const resolved = []
     const used = new Set()
     for (const ann of entryAnnotations) {
-      const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
-      if (!searchWord) continue
-      const m = flexFind(entry.text, searchWord)
+      let m = null
+      for (const needle of jumpSearchNeedles(ann)) {
+        m = flexFind(entry.text, needle)
+        if (m) break
+      }
       if (!m) continue
       const key = `${m.start}-${m.end}`
       if (used.has(key)) continue
@@ -1628,37 +1655,58 @@ export default function DashboardEditor() {
 
             const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
-            // Paint from context anchors + current needle (open=original,
-            // accepted=suggestion). Do not trust cached _cleanStart indexes.
+            // Paint from context anchors + multi-needle locate (original /
+            // suggestion / stripped [sic]). Always record a jump line when
+            // locate succeeds — even if overlap skips the underline — so
+            // "jump to transcript" never depends on a painted span alone.
+            const nextJumpLines = {}
             const highlights = []
             for (const ann of allOpenAnnotations) {
-              const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
-              if (!searchWord) continue
+              const needles = jumpSearchNeedles(ann)
+              if (!needles.length) continue
 
               const annotationEntry = entries.find(
                 (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
               )
-              const located = locateAnnotationWithAnchor(
-                cleanContent,
-                annotationEntry,
-                ann,
-                searchWord
-              )
+              let located = null
+              let usedNeedle = null
+              for (const needle of needles) {
+                located = locateAnnotationWithAnchor(
+                  cleanContent,
+                  annotationEntry,
+                  ann,
+                  needle
+                )
+                if (located) {
+                  usedNeedle = needle
+                  break
+                }
+              }
               if (!located) {
                 console.warn(
-                  `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} searchWord=${JSON.stringify(searchWord)} hasEntry=${!!annotationEntry} hasAnchor=${typeof ann._anchorBefore === 'string'} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
+                  `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} needles=${JSON.stringify(needles)} hasEntry=${!!annotationEntry} hasAnchor=${typeof ann._anchorBefore === 'string'} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
                 )
                 continue
               }
-              highlights.push({ ...ann, cleanStart: located.cleanStart, cleanEnd: located.cleanEnd })
+              const lineIdx = parsedLines.findIndex(
+                (pl) => pl.cleanStart <= located.cleanStart && located.cleanStart < pl.cleanEnd
+              )
+              if (lineIdx >= 0) nextJumpLines[ann.id] = lineIdx
+              highlights.push({
+                ...ann,
+                cleanStart: located.cleanStart,
+                cleanEnd: located.cleanEnd,
+                _paintNeedle: usedNeedle,
+              })
             }
+            jumpLineByAnnIdRef.current = nextJumpLines
             highlights.sort((a, b) => a.cleanStart - b.cleanStart)
             const cleanHighlights = []
             let lastCleanEnd = 0
             for (const h of highlights) {
               if (h.cleanStart < lastCleanEnd) {
                 console.warn(
-                  `Transcript highlight skipped (overlap): id=${h.id} entry_id=${h.entry_id} type=${h.type} original=${JSON.stringify(h.original)} cleanStart=${h.cleanStart}`
+                  `Transcript highlight skipped (overlap): id=${h.id} entry_id=${h.entry_id} type=${h.type} original=${JSON.stringify(h.original)} cleanStart=${h.cleanStart} jumpLine=${nextJumpLines[h.id]}`
                 )
                 continue
               }
@@ -1703,9 +1751,17 @@ export default function DashboardEditor() {
                 )
               }
 
-              // Find highlights overlapping this line's clean content
+              // Find highlights overlapping this line's clean content.
+              // Cross-page spans may include the page-number line — skip paint
+              // on lines that don't carry any needle word (keeps "126" clean).
               const lineHighlights = cleanHighlights
                 .filter((h) => h.cleanStart < cleanEnd && h.cleanEnd > cleanStart)
+                .filter((h) =>
+                  lineParticipatesInNeedle(
+                    content,
+                    h._paintNeedle || (h.status === 'accepted' ? h.suggestion : h.original)
+                  )
+                )
                 .map((h) => ({
                   ...h,
                   localStart: Math.max(0, h.cleanStart - cleanStart),
