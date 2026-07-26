@@ -21,6 +21,9 @@ import {
   locateAnnotationWithAnchor,
   locateAtAnchorStrict,
   ensureAnnotationAnchors,
+  wouldFlattenTranscriptStructure,
+  missingCrossLineReopenBytes,
+  isCrossLineApplySiteIntact,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -835,6 +838,207 @@ console.log('\n=== Export integrity ===\n')
     detail.text.substring(detail.end)
   assert(ruined !== before, 'flat original would ruin formatting')
   assert(!ruined.includes('\n               16'), 'flat restore drops line 16 indent')
+}
+
+// --- 21. Legacy reopen guard (missing structured undo) ---
+{
+  console.log('\n21. Legacy reopen guard blocks flat restore over cross-line')
+  const before =
+    'Q.    Flora Weathers as\n' +
+    '               16        identified you as expert.\n'
+  const detail = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  const replacement = detail.text.substring(detail.start, detail.end)
+
+  assert(
+    wouldFlattenTranscriptStructure(replacement, 'as identified'),
+    'flat restore over multi-line span is flatten risk'
+  )
+  assert(
+    !wouldFlattenTranscriptStructure(replacement, detail.matchedText),
+    'structured matchedText is safe'
+  )
+  assert(
+    !wouldFlattenTranscriptStructure('has identified', 'as identified'),
+    'same-line span is not a flatten risk'
+  )
+
+  const legacyAnn = {
+    _appliedOriginalReplacement: replacement,
+    _appliedOriginalMatchedText: 'as identified', // flat — pre-fix accept
+  }
+  assert(missingCrossLineReopenBytes(legacyAnn), 'legacy flat matched triggers guard')
+
+  const goodAnn = {
+    _appliedOriginalReplacement: replacement,
+    _appliedOriginalMatchedText: detail.matchedText,
+  }
+  assert(!missingCrossLineReopenBytes(goodAnn), 'structured matched passes guard')
+
+  const missingMatched = {
+    _appliedOriginalReplacement: replacement,
+    _appliedOriginalMatchedText: null,
+  }
+  assert(missingCrossLineReopenBytes(missingMatched), 'null matched with cross-line repl triggers')
+}
+
+// --- 22. Sequential cross-line then same-line; reopen first ---
+{
+  console.log('\n22. Sequential accepts: reopen cross-line keeps later fix')
+  const before =
+    '   15          Q.  Flora Weathers as\n' +
+    '               16        identified you too as expert.\n'
+  const d1 = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  assert(d1.start !== -1, 'cross-line apply ok')
+  const repl1 = d1.text.substring(d1.start, d1.end)
+  const d2 = applyCorrectionDetailed(d1.text, 'too as', 'to as')
+  assert(d2.start !== -1, 'second apply ok')
+  assert(d2.start >= d1.end, 'second accept is after first region')
+
+  // Reopen first using stored offsets (unchanged when second is after).
+  const afterReopenFirst =
+    d2.text.substring(0, d1.start) + d1.matchedText + d2.text.substring(d1.start + repl1.length)
+  assert(afterReopenFirst.includes('Weathers as\n'), 'reopen restores line break')
+  assert(afterReopenFirst.includes('               16'), 'reopen keeps line 16')
+  assert(afterReopenFirst.includes('to as'), 'later too→to still applied')
+  assert(!afterReopenFirst.includes('too as'), 'too gone after second accept')
+}
+
+// --- 23. Export fails closed when cross-line apply site was flattened ---
+{
+  console.log('\n23. Export blocks flattened cross-line accept')
+  const before =
+    'Q.    Flora Weathers as\n' +
+    '               16        identified you as expert.\n'
+  const detail = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  const replacement = detail.text.substring(detail.start, detail.end)
+  const flatRuined =
+    detail.text.substring(0, detail.start) +
+    'has identified' +
+    detail.text.substring(detail.end)
+
+  const ann = {
+    id: 'a1',
+    entry_id: 1,
+    status: 'accepted',
+    original: 'as identified',
+    suggestion: 'has identified',
+    _appliedOriginalStart: detail.start,
+    _appliedOriginalEnd: detail.start + replacement.length,
+    _appliedOriginalMatchedText: detail.matchedText,
+    _appliedOriginalReplacement: replacement,
+    _anchorBefore: 'Weathers ',
+    _anchorAfter: ' you',
+  }
+
+  assert(isCrossLineApplySiteIntact(detail.text, ann), 'intact after proper accept')
+  assert(!isCrossLineApplySiteIntact(flatRuined, ann), 'flattened site is not intact')
+
+  const entries = [
+    { id: 1, text: 'Q. Flora Weathers has identified you as expert.' },
+  ]
+  const { text, failed } = ensureAcceptedCorrectionsInOriginalText(
+    flatRuined,
+    entries,
+    [ann]
+  )
+  assert(failed.length >= 1, 'export reports failed accept')
+  assertEq(text, flatRuined, 'export does not further mutate flattened text')
+}
+
+// --- 24. Persist-shaped metadata round-trip (JSON) still reopens exactly ---
+{
+  console.log('\n24. JSON round-trip keeps structured reopen bytes')
+  const before =
+    'Q.    Flora Weathers as\n' +
+    '               16        identified you as expert.\n'
+  const detail = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  const ann = {
+    id: 'a1',
+    status: 'accepted',
+    original: 'as identified',
+    suggestion: 'has identified',
+    _appliedOriginalStart: detail.start,
+    _appliedOriginalEnd: detail.end,
+    _appliedOriginalMatchedText: detail.matchedText,
+    _appliedOriginalReplacement: detail.text.substring(detail.start, detail.end),
+  }
+  const reloaded = JSON.parse(JSON.stringify(ann))
+  assert(
+    reloaded._appliedOriginalMatchedText.includes('\n'),
+    'matchedText survives JSON'
+  )
+  assert(!missingCrossLineReopenBytes(reloaded), 'reloaded ann still has undo bytes')
+  const restored =
+    detail.text.substring(0, reloaded._appliedOriginalStart) +
+    reloaded._appliedOriginalMatchedText +
+    detail.text.substring(reloaded._appliedOriginalEnd)
+  assertEq(restored, before, 'reopen after JSON round-trip is exact')
+}
+
+// --- 25. Flag spanning a page-break line ---
+{
+  console.log('\n25. Page-break spanning accept/reopen preserves structure')
+  // Court .txt style: right-justified page number between words of one flag.
+  const before =
+    '   27          Q.  Flora Weathers as\n' +
+    '                                5\n' +
+    '    1          identified you as expert.\n'
+  const detail = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  assert(detail.start !== -1, 'page-break apply found match')
+  assert(detail.matchedText.includes('\n'), 'matchedText keeps breaks')
+  assert(
+    /(?:^|\n)\s*5\s*(?:\n|$)/.test(detail.matchedText) ||
+      detail.matchedText.includes('5'),
+    'matchedText includes page number'
+  )
+  const replacement = detail.text.substring(detail.start, detail.end)
+  assert(replacement.includes('\n'), 'replacement keeps structure')
+  assert(
+    detail.text.includes('                                5\n'),
+    'page-break line still present after accept'
+  )
+  assert(detail.text.includes('has'), 'suggestion applied')
+
+  const restored =
+    detail.text.substring(0, detail.start) +
+    detail.matchedText +
+    detail.text.substring(detail.end)
+  assertEq(restored, before, 'exact reopen restores page-break formatting')
+
+  assert(
+    wouldFlattenTranscriptStructure(replacement, 'as identified'),
+    'flat restore over page-break span is flatten risk'
+  )
+  assert(
+    !wouldFlattenTranscriptStructure(replacement, detail.matchedText),
+    'structured matchedText is safe across page break'
+  )
+
+  const ann = {
+    id: 'a1',
+    entry_id: 1,
+    status: 'accepted',
+    original: 'as identified',
+    suggestion: 'has identified',
+    _appliedOriginalStart: detail.start,
+    _appliedOriginalEnd: detail.end,
+    _appliedOriginalMatchedText: detail.matchedText,
+    _appliedOriginalReplacement: replacement,
+  }
+  assert(!missingCrossLineReopenBytes(ann), 'page-break accept has undo bytes')
+  assert(isCrossLineApplySiteIntact(detail.text, ann), 'apply site intact after accept')
+
+  const flatRuined =
+    detail.text.substring(0, detail.start) +
+    'has identified' +
+    detail.text.substring(detail.end)
+  assert(!isCrossLineApplySiteIntact(flatRuined, ann), 'flattened page-break site fails intact')
+  const { failed } = ensureAcceptedCorrectionsInOriginalText(
+    flatRuined,
+    [{ id: 1, text: 'Q. Flora Weathers has identified you as expert.' }],
+    [ann]
+  )
+  assert(failed.length >= 1, 'export blocks flattened page-break accept')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

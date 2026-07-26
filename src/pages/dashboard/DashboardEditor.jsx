@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -449,11 +449,16 @@ export default function DashboardEditor() {
         _appliedOriginalStart = cleanToOrig[alreadyApplied.cleanStart]
         _appliedOriginalEnd =
           cleanToOrig[Math.min(alreadyApplied.cleanEnd - 1, cleanToOrig.length - 1)] + 1
-        _appliedOriginalMatchedText = ann.original
         _appliedOriginalReplacement = curOriginalText.substring(
           _appliedOriginalStart,
           _appliedOriginalEnd
         )
+        // Never store flat ann.original as undo bytes when the apply site is
+        // cross-line — reopen would flatten formatting. Leave matched null so
+        // reopen fails closed until a real apply records structured bytes.
+        _appliedOriginalMatchedText = /[\r\n]/.test(_appliedOriginalReplacement)
+          ? null
+          : ann.original
       } else if (
         !origAtAnchor &&
         isSuggestionAlreadyApplied(
@@ -478,11 +483,13 @@ export default function DashboardEditor() {
         _appliedOriginalStart = cleanToOrig[legacyAlready.cleanStart]
         _appliedOriginalEnd =
           cleanToOrig[Math.min(legacyAlready.cleanEnd - 1, cleanToOrig.length - 1)] + 1
-        _appliedOriginalMatchedText = ann.original
         _appliedOriginalReplacement = curOriginalText.substring(
           _appliedOriginalStart,
           _appliedOriginalEnd
         )
+        _appliedOriginalMatchedText = /[\r\n]/.test(_appliedOriginalReplacement)
+          ? null
+          : ann.original
       } else {
         const detail = located
           ? applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion, {
@@ -722,6 +729,85 @@ export default function DashboardEditor() {
 
     // If previously accepted, revert both entries and originalText.
     if (ann.status === 'accepted') {
+      // Probe originalText span first (no mutations) so a flatten risk can
+      // abort before entry/status diverge from the export source.
+      if (curOriginalText && ann.suggestion) {
+        if (missingCrossLineReopenBytes(ann)) {
+          console.warn(
+            `Reopen blocked: cross-line accept missing structured undo — id=${ann.id}`
+          )
+          showJumpNotice(
+            'Could not reopen this change safely because it spans a line break and undo data is missing. Leave it accepted, or re-upload if you need to undo it.'
+          )
+          return
+        }
+
+        const otSlice =
+          ann._appliedOriginalStart != null && ann._appliedOriginalEnd != null
+            ? curOriginalText.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd)
+            : null
+        const storedReplacement = ann._appliedOriginalReplacement
+        const offsetsMatchReplacement =
+          otSlice != null &&
+          (otSlice === storedReplacement ||
+            otSlice === ann.suggestion ||
+            (ann._appliedOriginalMatchedText != null &&
+              /[\r\n]/.test(ann._appliedOriginalMatchedText) &&
+              !!flexFind(otSlice, ann.suggestion)))
+
+        if (
+          ann._appliedOriginalStart != null &&
+          ann._appliedOriginalMatchedText != null &&
+          offsetsMatchReplacement
+        ) {
+          originalSpan = {
+            start: ann._appliedOriginalStart,
+            end: ann._appliedOriginalEnd,
+          }
+        } else {
+          const { cleanContent, cleanToOrig } = buildCleanContentMap(curOriginalText)
+          const entryForAnn = curEntries.find(
+            (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
+          )
+          const anchored = locateAnnotationWithAnchor(
+            cleanContent,
+            entryForAnn,
+            ann,
+            ann.suggestion
+          )
+          if (anchored) {
+            const oStart = cleanToOrig[anchored.cleanStart]
+            const oEnd = cleanToOrig[anchored.cleanEnd - 1] + 1
+            if (oStart != null && oEnd != null && oEnd > oStart) {
+              originalSpan = { start: oStart, end: oEnd }
+            }
+          }
+          if (!originalSpan && ann._appliedOriginalStart != null) {
+            originalSpan = locateNeedleNear(
+              curOriginalText,
+              ann.suggestion,
+              ann._appliedOriginalStart
+            )
+          }
+        }
+
+        if (
+          originalSpan &&
+          wouldFlattenTranscriptStructure(
+            curOriginalText.substring(originalSpan.start, originalSpan.end),
+            originalRestoreText
+          )
+        ) {
+          console.warn(
+            `Reopen blocked: flat restore would flatten formatting — id=${ann.id}`
+          )
+          showJumpNotice(
+            'Could not reopen this change safely because it spans a line break. Leave it accepted, or re-upload if you need to undo it.'
+          )
+          return
+        }
+      }
+
       // Revert entry: prefer context anchor (twin-safe), then stored offsets.
       if (ann._appliedEntryId != null && ann.suggestion) {
         curEntries = curEntries.map((e) => {
@@ -757,76 +843,15 @@ export default function DashboardEditor() {
         setEntries(curEntries)
       }
 
-      // Revert originalText. Prefer the exact post-accept byte range stored at
-      // accept — required when the flag spanned a line break (replacement ≠
-      // flat suggestion). Anchor locate is fallback for same-line only.
+      // Revert originalText using the probed span + structured restore bytes.
       if (curOriginalText && ann.suggestion) {
         let reverted = curOriginalText
-        const otSlice =
-          ann._appliedOriginalStart != null && ann._appliedOriginalEnd != null
-            ? curOriginalText.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd)
-            : null
-        const storedReplacement = ann._appliedOriginalReplacement
-        const offsetsMatchReplacement =
-          otSlice != null &&
-          (otSlice === storedReplacement ||
-            otSlice === ann.suggestion ||
-            // Legacy accepts: structured cross-line replacement still contains
-            // the suggestion words even when otSlice !== suggestion.
-            (ann._appliedOriginalMatchedText?.includes('\n') &&
-              !!flexFind(otSlice, ann.suggestion)))
-
-        if (
-          ann._appliedOriginalStart != null &&
-          ann._appliedOriginalMatchedText != null &&
-          offsetsMatchReplacement
-        ) {
-          originalSpan = {
-            start: ann._appliedOriginalStart,
-            end: ann._appliedOriginalEnd,
-          }
+        if (originalSpan) {
           reverted =
-            curOriginalText.substring(0, ann._appliedOriginalStart) +
+            curOriginalText.substring(0, originalSpan.start) +
             originalRestoreText +
-            curOriginalText.substring(ann._appliedOriginalEnd)
+            curOriginalText.substring(originalSpan.end)
         } else {
-          const { cleanContent, cleanToOrig } = buildCleanContentMap(curOriginalText)
-          const entryForAnn = curEntries.find(
-            (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
-          )
-          const anchored = locateAnnotationWithAnchor(
-            cleanContent,
-            entryForAnn,
-            ann,
-            ann.suggestion
-          )
-          if (anchored) {
-            const oStart = cleanToOrig[anchored.cleanStart]
-            const oEnd = cleanToOrig[anchored.cleanEnd - 1] + 1
-            if (oStart != null && oEnd != null && oEnd > oStart) {
-              originalSpan = { start: oStart, end: oEnd }
-              reverted =
-                curOriginalText.substring(0, oStart) +
-                originalRestoreText +
-                curOriginalText.substring(oEnd)
-            }
-          }
-          if (!originalSpan && ann._appliedOriginalStart != null) {
-            const span = locateNeedleNear(
-              curOriginalText,
-              ann.suggestion,
-              ann._appliedOriginalStart
-            )
-            if (span) {
-              originalSpan = span
-              reverted =
-                curOriginalText.substring(0, span.start) +
-                originalRestoreText +
-                curOriginalText.substring(span.end)
-            }
-          }
-        }
-        if (!originalSpan) {
           console.warn(
             `Reopen: could not safely revert originalText — id=${ann.id} suggestion=${JSON.stringify(ann.suggestion)}`
           )
@@ -915,7 +940,7 @@ export default function DashboardEditor() {
       console.error('Persist after reopen failed:', err)
       setError(err.message || 'Could not save that reopen. Click Save Changes and try again.')
     })
-  }, [persistNow])
+  }, [persistNow, showJumpNotice])
 
   const handleSave = async () => {
     if (!extractedFilePath || !hasChanges) return

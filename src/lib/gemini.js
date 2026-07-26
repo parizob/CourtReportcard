@@ -921,6 +921,68 @@ export function isSuggestionAlreadyApplied(text, suggestionHit, originalHit, ori
 }
 
 /**
+ * True when splicing `restoreText` over `spanText` would collapse transcript
+ * line structure (legacy reopen used flat ann.original over a multi-line span).
+ */
+export function wouldFlattenTranscriptStructure(spanText, restoreText) {
+  if (!spanText || restoreText == null) return false
+  return /[\r\n]/.test(spanText) && !/[\r\n]/.test(restoreText)
+}
+
+/**
+ * True when this accept was cross-line (stored replacement/matched has a
+ * break) but we lack structured undo bytes — reopen must not use flat original.
+ */
+export function missingCrossLineReopenBytes(ann) {
+  if (!ann) return false
+  const replacement = ann._appliedOriginalReplacement
+  const matched = ann._appliedOriginalMatchedText
+  if (replacement != null && /[\r\n]/.test(replacement)) {
+    return matched == null || !/[\r\n]/.test(matched)
+  }
+  return false
+}
+
+/**
+ * Fail-closed check for export: a cross-line accept's structured replacement
+ * must still be present. Flattened originalText (bad reopen) fails here even
+ * when clean-content still contains the suggestion words.
+ */
+export function isCrossLineApplySiteIntact(originalText, ann) {
+  if (!originalText || !ann) return true
+  const replacement = ann._appliedOriginalReplacement
+  const matched = ann._appliedOriginalMatchedText
+  const structured =
+    (replacement != null && /[\r\n]/.test(replacement)) ||
+    (matched != null && /[\r\n]/.test(matched))
+  if (!structured) return true
+
+  // Prefer exact stored replacement — length-based offset checks can still
+  // see a newline from a neighboring line after a flat splice.
+  if (replacement != null && /[\r\n]/.test(replacement)) {
+    const start = ann._appliedOriginalStart
+    const end = ann._appliedOriginalEnd
+    if (
+      start != null &&
+      end != null &&
+      end > start &&
+      end <= originalText.length &&
+      originalText.substring(start, end) === replacement
+    ) {
+      return true
+    }
+    return originalText.includes(replacement)
+  }
+
+  const start = ann._appliedOriginalStart
+  const end = ann._appliedOriginalEnd
+  if (start == null || end == null || end <= start || end > originalText.length) {
+    return false
+  }
+  return /[\r\n]/.test(originalText.substring(start, end))
+}
+
+/**
  * Ensures every accepted annotation's correction is present in originalText
  * (the export source). Repairs any that still contain the original flagged
  * text; reports any that can neither be confirmed fixed nor repaired.
@@ -944,6 +1006,13 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
   const failed = []
 
   for (const ann of accepted) {
+    // Cross-line accepts: refuse to export if the apply site was flattened
+    // (suggestion words may still exist in clean text).
+    if (!isCrossLineApplySiteIntact(text, ann)) {
+      failed.push(ann)
+      continue
+    }
+
     const entry = (entries || []).find((e) => e.id === ann.entry_id) || null
     const { cleanContent } = buildCleanContentMap(text)
 
