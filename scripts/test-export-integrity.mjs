@@ -17,6 +17,10 @@ import {
   locateNeedleNear,
   shiftAcceptedApplySites,
   repairAcceptedCleanSpans,
+  buildContextAnchor,
+  locateAnnotationWithAnchor,
+  locateAtAnchorStrict,
+  ensureAnnotationAnchors,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -660,6 +664,177 @@ console.log('\n=== Export integrity ===\n')
   assert(!before.endsWith('too '), 'green is not store the after reopen too')
   assert(line.includes('too the store'), 'too restored')
   assert(storeThe < annotations[0]._appliedAt, 'store the is still before receipt the')
+}
+
+// --- 18. Context anchors survive accept too + reopen too ---
+{
+  console.log('\n18. Context anchor keeps receipt the through too accept/reopen')
+  const openLine = 'He went too the store with teh receipt.'
+  const tehAt = openLine.indexOf('teh')
+  const anchor = buildContextAnchor(openLine, tehAt, tehAt + 3)
+  assert(!!anchor, 'anchor built')
+  assert(anchor.before.includes('with'), 'anchor before is near receipt')
+  assert(anchor.after.includes('receipt'), 'anchor after is receipt')
+
+  let ann = {
+    id: 'teh',
+    status: 'accepted',
+    entry_id: 1,
+    original: 'teh',
+    suggestion: 'the',
+    _anchorBefore: anchor.before,
+    _anchorAfter: anchor.after,
+    _appliedAt: tehAt,
+    _appliedEnd: tehAt + 3,
+  }
+
+  // After teh→the (same length)
+  let line = 'He went too the store with the receipt.'
+  let originalText = `1   Q.    ${line}\n`
+  let { cleanContent } = buildCleanContentMap(originalText)
+  let located = locateAnnotationWithAnchor(
+    cleanContent,
+    { id: 1, text: line },
+    ann,
+    'the'
+  )
+  assert(!!located, 'anchor locates accepted the')
+  let before = cleanContent.substring(
+    Math.max(0, located.cleanStart - 6),
+    located.cleanStart
+  )
+  assert(before.includes('with'), 'anchor hit is receipt the')
+
+  // After too→to (earlier shorten) — anchor before/after unchanged
+  line = 'He went to the store with the receipt.'
+  originalText = `1   Q.    ${line}\n`
+  ;({ cleanContent } = buildCleanContentMap(originalText))
+  located = locateAnnotationWithAnchor(
+    cleanContent,
+    { id: 1, text: line },
+    ann,
+    'the'
+  )
+  assert(!!located, 'anchor still locates after too→to')
+  before = cleanContent.substring(
+    Math.max(0, located.cleanStart - 6),
+    located.cleanStart
+  )
+  assert(before.includes('with'), 'still receipt after too→to')
+  assert(!before.endsWith('to '), 'not store the after too→to')
+
+  // After reopen too (to→too)
+  line = 'He went too the store with the receipt.'
+  originalText = `1   Q.    ${line}\n`
+  ;({ cleanContent } = buildCleanContentMap(originalText))
+  located = locateAnnotationWithAnchor(
+    cleanContent,
+    { id: 1, text: line },
+    ann,
+    'the'
+  )
+  assert(!!located, 'anchor still locates after reopen too')
+  before = cleanContent.substring(
+    Math.max(0, located.cleanStart - 6),
+    located.cleanStart
+  )
+  assert(before.includes('with'), 'still receipt after reopen too')
+
+  // ensureAnnotationAnchors fills missing anchors for open flags
+  const ensured = ensureAnnotationAnchors(
+    [{ id: 1, text: openLine }],
+    [
+      {
+        id: 'a1',
+        entry_id: 1,
+        status: 'open',
+        original: 'teh',
+        suggestion: 'the',
+        start: tehAt,
+        end: tehAt + 3,
+      },
+    ]
+  )
+  assert(typeof ensured[0]._anchorBefore === 'string', 'ensure sets before')
+  assert(typeof ensured[0]._anchorAfter === 'string', 'ensure sets after')
+  assert(ensured[0]._anchorBefore.includes('with'), 'ensured before near receipt')
+}
+
+// --- 19. Accept must not treat store "the" as teh already-applied ---
+{
+  console.log('\n19. Strict anchor: suggestion "the" miss while teh remains')
+  const line = 'He went to the store with teh receipt.'
+  const tehAt = line.indexOf('teh')
+  const anchor = buildContextAnchor(line, tehAt, tehAt + 3)
+  const ann = {
+    id: 'teh',
+    status: 'open',
+    entry_id: 1,
+    original: 'teh',
+    suggestion: 'the',
+    start: tehAt,
+    end: tehAt + 3,
+    _anchorBefore: anchor.before,
+    _anchorAfter: anchor.after,
+  }
+  const sugStrict = locateAtAnchorStrict(line, ann, 'the')
+  const origStrict = locateAtAnchorStrict(line, ann, 'teh')
+  assertEq(sugStrict, null, 'strict suggestion miss while teh present')
+  assert(!!origStrict, 'strict original finds teh')
+  assertEq(line.substring(origStrict.start, origStrict.end), 'teh', 'strict original is teh')
+
+  // Export repair: accepted + anchors + teh still in file must apply.
+  const originalText = `1   Q.    ${line}\n`
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    [{ id: 1, text: line }],
+    [
+      {
+        ...ann,
+        status: 'accepted',
+        _appliedAt: tehAt,
+        _appliedEnd: tehAt + 3,
+        _appliedMatchedText: 'teh',
+      },
+    ]
+  )
+  assertEq(fails.length, 0, 'export repair applies')
+  assert(text.includes('with the receipt'), 'teh repaired to the')
+  assert(!text.includes('teh'), 'teh gone')
+}
+
+// --- 20. Cross-line accept reopen restores raw matched bytes ---
+{
+  console.log('\n20. Cross-line reopen splices matchedText, not flat suggestion')
+  // Simulate transcript where flagged phrase spans a line number break.
+  const before =
+    'Q.    And we are here, plaintiff Flora Weathers as\n' +
+    '               16        identified you as a life care planner\n'
+  const detail = applyCorrectionDetailed(before, 'as identified', 'has identified')
+  assert(detail.start !== -1, 'cross-line apply found match')
+  assert(detail.matchedText.includes('\n'), 'matchedText keeps line break')
+  const replacement = detail.text.substring(detail.start, detail.end)
+  assert(replacement.includes('\n'), 'replacement keeps structure')
+  assert(flexFind(replacement, 'has identified') || replacement.includes('has'), 'suggestion words present')
+
+  // Reopen must put matchedText back at stored offsets (not flat "as identified"
+  // over a clean-only span, which drops indent / line numbers).
+  const restored =
+    detail.text.substring(0, detail.start) +
+    detail.matchedText +
+    detail.text.substring(detail.end)
+  assertEq(restored, before, 'exact reopen restores original formatting')
+
+  // Regression: entry restore uses flat original; originalText must use
+  // _appliedOriginalMatchedText (with newlines). Using flat ann.original
+  // collapses line 16 into line 15 — the reopen bug from the Weathers case.
+  const flatOriginal = 'as identified'
+  const ruined =
+    detail.text.substring(0, detail.start) +
+    flatOriginal +
+    detail.text.substring(detail.end)
+  assert(ruined !== before, 'flat original would ruin formatting')
+  assert(!ruined.includes('\n               16'), 'flat restore drops line 16 indent')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

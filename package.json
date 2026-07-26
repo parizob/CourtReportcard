@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:export": "node scripts/test-export-integrity.mjs",
-    "seed:export-mock": "node scripts/seed-export-mock-case.mjs"
+    "seed:export-mock": "node scripts/seed-export-mock-case.mjs",
+    "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",

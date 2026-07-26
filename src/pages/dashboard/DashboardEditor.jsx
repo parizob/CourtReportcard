@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -172,13 +172,17 @@ export default function DashboardEditor() {
 
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
-        const positioned = filterPhantomFixes(dedupedEntries, fixAnnotationPositions(dedupedEntries, dedupedAnnotations))
-        // Cached green spans drift when earlier accepts change file length;
-        // re-pin them to the suggestion text before first paint.
+        const positioned = filterPhantomFixes(
+          dedupedEntries,
+          fixAnnotationPositions(dedupedEntries, dedupedAnnotations)
+        )
+        // Context anchors disambiguate twin words; repair cleans legacy
+        // _cleanStart drift from older saves.
+        const anchored = ensureAnnotationAnchors(dedupedEntries, positioned)
         const fixedAnnotations = repairAcceptedCleanSpans(
           parsed.originalText || null,
           dedupedEntries,
-          positioned
+          anchored
         )
         if (gen !== loadGenRef.current) return
 
@@ -353,21 +357,40 @@ export default function DashboardEditor() {
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
 
-      // Already corrected (e.g. [sic] already present): keep as-is. Do NOT
-      // treat "to" inside "too" as already applied — that prefix trap would
-      // leave the error in the entry (and sometimes in export).
-      const already = flexFind(e.text, finalSuggestion)
-      const stillOrig = flexFind(e.text, ann.original)
-      if (isSuggestionAlreadyApplied(e.text, already, stillOrig, ann.original, finalSuggestion)) {
+      // Anchor-strict already check: "the" at store must not count as teh→the
+      // already applied while "teh" is still at receipt.
+      const sugAtAnchor = locateAtAnchorStrict(e.text, ann, finalSuggestion)
+      const origAtAnchor = locateAtAnchorStrict(e.text, ann, ann.original)
+      if (sugAtAnchor && !origAtAnchor) {
         appliedEntryId = e.id
-        appliedAt = already.start
-        appliedEnd = already.end
+        appliedAt = sugAtAnchor.start
+        appliedEnd = sugAtAnchor.end
         appliedMatchedText = ann.original
         return e
       }
 
-      const m = flexFind(e.text, ann.original)
-      if (!m) return e
+      // Apply at anchored original, then offsets, then flexFind(original).
+      const m =
+        origAtAnchor ||
+        (Number.isFinite(ann.start) &&
+        Number.isFinite(ann.end) &&
+        e.text.substring(ann.start, ann.end) === ann.original
+          ? { start: ann.start, end: ann.end }
+          : null) ||
+        flexFind(e.text, ann.original)
+      if (!m) {
+        // Last resort: legacy already-applied ([sic]) without anchors.
+        const already = flexFind(e.text, finalSuggestion)
+        const stillOrig = flexFind(e.text, ann.original)
+        if (isSuggestionAlreadyApplied(e.text, already, stillOrig, ann.original, finalSuggestion)) {
+          appliedEntryId = e.id
+          appliedAt = already.start
+          appliedEnd = already.end
+          appliedMatchedText = ann.original
+          return e
+        }
+        return e
+      }
       appliedEntryId = e.id
       appliedAt = m.start
       appliedEnd = m.start + finalSuggestion.length
@@ -399,35 +422,67 @@ export default function DashboardEditor() {
     let _appliedOriginalStart = null
     let _appliedOriginalEnd = null
     let _appliedOriginalMatchedText = null
+    let _appliedOriginalReplacement = null
     if (curOriginalText) {
       // Same locator as underlines — then apply at that exact range so export
       // gets "the cat" when they accepted "the cat".
       const { cleanContent: cc } = buildCleanContentMap(curOriginalText)
       const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
 
-      // If the suggestion is already present (e.g. reopen failed to revert
-      // originalText, or a prior accept left it in place), do not re-apply —
-      // that turns "thesis [sic]" into "thesis [sic] [sic]".
-      const alreadyApplied = locateAnnotationInCleanContent(
-        cc,
-        annotationEntry,
-        ann,
-        finalSuggestion
-      )
-      const located = locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original)
+      // Anchor-strict already / locate — never treat an earlier twin
+      // suggestion ("the store") as teh→the already applied.
+      const sugAtAnchor = locateAtAnchorStrict(cc, ann, finalSuggestion)
+      const origAtAnchor = locateAtAnchorStrict(cc, ann, ann.original)
+      const alreadyApplied =
+        sugAtAnchor && !origAtAnchor
+          ? sugAtAnchor
+          : null
+      const located =
+        origAtAnchor ||
+        locateAnnotationWithAnchor(cc, annotationEntry, ann, ann.original)
 
-      if (isSuggestionAlreadyApplied(cc, alreadyApplied, located, ann.original, finalSuggestion)) {
-        // Truly already applied ([sic]); not the to⊂too prefix trap.
+      if (alreadyApplied) {
         updatedOriginalText = curOriginalText
         _cleanStart = alreadyApplied.cleanStart
         _cleanEnd = alreadyApplied.cleanEnd
-        // Keep reopen able to splice: map clean → original offsets for the
-        // already-present suggestion span.
         const { cleanToOrig } = buildCleanContentMap(curOriginalText)
         _appliedOriginalStart = cleanToOrig[alreadyApplied.cleanStart]
         _appliedOriginalEnd =
           cleanToOrig[Math.min(alreadyApplied.cleanEnd - 1, cleanToOrig.length - 1)] + 1
         _appliedOriginalMatchedText = ann.original
+        _appliedOriginalReplacement = curOriginalText.substring(
+          _appliedOriginalStart,
+          _appliedOriginalEnd
+        )
+      } else if (
+        !origAtAnchor &&
+        isSuggestionAlreadyApplied(
+          cc,
+          locateAnnotationInCleanContent(cc, annotationEntry, ann, finalSuggestion),
+          locateAnnotationInCleanContent(cc, annotationEntry, ann, ann.original),
+          ann.original,
+          finalSuggestion
+        )
+      ) {
+        // Legacy [sic] path when anchors are missing.
+        const legacyAlready = locateAnnotationInCleanContent(
+          cc,
+          annotationEntry,
+          ann,
+          finalSuggestion
+        )
+        updatedOriginalText = curOriginalText
+        _cleanStart = legacyAlready.cleanStart
+        _cleanEnd = legacyAlready.cleanEnd
+        const { cleanToOrig } = buildCleanContentMap(curOriginalText)
+        _appliedOriginalStart = cleanToOrig[legacyAlready.cleanStart]
+        _appliedOriginalEnd =
+          cleanToOrig[Math.min(legacyAlready.cleanEnd - 1, cleanToOrig.length - 1)] + 1
+        _appliedOriginalMatchedText = ann.original
+        _appliedOriginalReplacement = curOriginalText.substring(
+          _appliedOriginalStart,
+          _appliedOriginalEnd
+        )
       } else {
         const detail = located
           ? applyCorrectionDetailed(curOriginalText, ann.original, finalSuggestion, {
@@ -451,81 +506,46 @@ export default function DashboardEditor() {
         _appliedOriginalStart = detail.start
         _appliedOriginalEnd = detail.end
         _appliedOriginalMatchedText = detail.matchedText
+        // Exact post-accept bytes (may include newlines / line numbers when the
+        // flag spanned a break). Reopen must splice these — not a flat suggestion.
+        _appliedOriginalReplacement = detail.text.substring(detail.start, detail.end)
       }
 
-      // Pin green highlight to the apply site. Prefer orig→clean map from the
-      // splice we just did so a common suggestion ("the") cannot latch onto an
-      // earlier copy ("the store"). Fall back to locate with appliedAt/End.
-      const { cleanContent: postCc, cleanToOrig } = buildCleanContentMap(updatedOriginalText)
-      let mappedFromApply = false
-      if (
-        _appliedOriginalStart != null &&
-        _appliedOriginalEnd != null &&
-        _appliedOriginalEnd > _appliedOriginalStart &&
-        Array.isArray(cleanToOrig)
-      ) {
+      // Optional legacy clean span (jump/debug). Paint uses context anchors.
+      if (_appliedOriginalStart != null && _appliedOriginalEnd != null) {
+        const { cleanContent: postCc, cleanToOrig } = buildCleanContentMap(updatedOriginalText)
         let cs = -1
         let ce = -1
         for (let i = 0; i < cleanToOrig.length; i++) {
           if (cs < 0 && cleanToOrig[i] === _appliedOriginalStart) cs = i
           if (cleanToOrig[i] === _appliedOriginalEnd - 1) ce = i + 1
         }
-        if (
-          cs >= 0 &&
-          ce > cs &&
-          postCc.substring(cs, ce) === finalSuggestion
-        ) {
+        if (cs >= 0 && ce > cs && postCc.substring(cs, ce) === finalSuggestion) {
           _cleanStart = cs
           _cleanEnd = ce
-          mappedFromApply = true
-        }
-      }
-      if (!mappedFromApply) {
-        const postEntry = newEntries.find((e) => e.id === appliedEntryId) || annotationEntry
-        const postLocated = locateAnnotationInCleanContent(
-          postCc,
-          postEntry,
-          { ...ann, suggestion: finalSuggestion, start: appliedAt, end: appliedEnd },
-          finalSuggestion
-        )
-        if (postLocated) {
-          _cleanStart = postLocated.cleanStart
-          _cleanEnd = postLocated.cleanEnd
-        } else if (_cleanStart !== null) {
-          const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
-          if (postM) {
-            _cleanStart = _cleanStart + postM.start
-            _cleanEnd = _cleanStart + (postM.end - postM.start)
-          } else {
-            _cleanEnd = _cleanStart + finalSuggestion.length
-          }
-          const exactEnd = _cleanStart + finalSuggestion.length
-          if (
-            exactEnd <= postCc.length &&
-            postCc.substring(_cleanStart, exactEnd) === finalSuggestion &&
-            exactEnd > _cleanEnd
-          ) {
-            _cleanEnd = exactEnd
-          }
         }
       }
     }
 
-    // A shorter/longer replace shifts later accepts on the same line — keep
-    // their reopen/highlight metadata pointed at the same words. Edit ends
-    // are pre-accept (start + oldLen) so a longer suggestion still moves
-    // neighbors that began immediately after the old span.
+    // Context anchor around the applied suggestion — stable across earlier
+    // accepts that change length (twin "the" on the same line).
+    const postEntry = newEntries.find((e) => e.id === appliedEntryId)
+    const appliedAnchor =
+      postEntry && appliedAt != null && appliedEnd != null
+        ? buildContextAnchor(postEntry.text, appliedAt, appliedEnd)
+        : ann._anchorBefore != null
+          ? { before: ann._anchorBefore, after: ann._anchorAfter }
+          : null
+
+    // Shift reopen splice offsets for later accepts on the same entry/doc.
+    // Highlights no longer depend on this — anchors do — but reopen/export do.
     const entryDelta =
       appliedMatchedText != null && appliedAt != null
         ? finalSuggestion.length - appliedMatchedText.length
         : 0
     const originalDelta =
-      _appliedOriginalMatchedText != null && _appliedOriginalStart != null
-        ? finalSuggestion.length - _appliedOriginalMatchedText.length
-        : 0
-    const cleanDelta =
-      _cleanStart != null && appliedMatchedText != null
-        ? finalSuggestion.length - appliedMatchedText.length
+      _appliedOriginalReplacement != null && _appliedOriginalMatchedText != null
+        ? _appliedOriginalReplacement.length - _appliedOriginalMatchedText.length
         : 0
     const shifted = shiftAcceptedApplySites(
       curAnnotations,
@@ -541,24 +561,41 @@ export default function DashboardEditor() {
             ? _appliedOriginalStart + _appliedOriginalMatchedText.length
             : null,
         originalDelta,
-        cleanEditEnd:
-          _cleanStart != null && appliedMatchedText != null
-            ? _cleanStart + appliedMatchedText.length
-            : null,
-        cleanDelta,
+        cleanEditEnd: null,
+        cleanDelta: 0,
       },
       annotationId
     )
 
     const updatedAnnotations = shifted.map((a) =>
       a.id === annotationId
-        ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _appliedMatchedText: appliedMatchedText, _cleanStart, _cleanEnd, _appliedOriginalStart, _appliedOriginalEnd, _appliedOriginalMatchedText }
+        ? {
+            ...a,
+            status: 'accepted',
+            suggestion: finalSuggestion,
+            _originalSuggestion: a._originalSuggestion ?? a.suggestion,
+            _appliedEntryId: appliedEntryId,
+            _appliedAt: appliedAt,
+            _appliedEnd: appliedEnd,
+            _appliedMatchedText: appliedMatchedText,
+            _cleanStart,
+            _cleanEnd,
+            _appliedOriginalStart,
+            _appliedOriginalEnd,
+            _appliedOriginalMatchedText,
+            _appliedOriginalReplacement,
+            _anchorBefore: appliedAnchor?.before ?? a._anchorBefore,
+            _anchorAfter: appliedAnchor?.after ?? a._anchorAfter,
+          }
         : a
     )
-    const fixedAnnotations = repairAcceptedCleanSpans(
-      updatedOriginalText,
+    const fixedAnnotations = ensureAnnotationAnchors(
       newEntries,
-      fixAnnotationPositions(newEntries, updatedAnnotations)
+      repairAcceptedCleanSpans(
+        updatedOriginalText,
+        newEntries,
+        fixAnnotationPositions(newEntries, updatedAnnotations)
+      )
     )
 
     entriesRef.current = newEntries
@@ -629,7 +666,7 @@ export default function DashboardEditor() {
       const { cleanContent, parsedLines } = buildCleanContentMap(curOriginalText)
       const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
       const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
-      const located = locateAnnotationInCleanContent(cleanContent, annotationEntry, ann, searchWord)
+      const located = locateAnnotationWithAnchor(cleanContent, annotationEntry, ann, searchWord)
       // If the exact span still can't be underlined, at least land on the
       // entry's region when the locator found something — or on an entry-
       // prefix hit via a second locate using a wider context.
@@ -675,23 +712,32 @@ export default function DashboardEditor() {
     // When reopen lengthens/shortens text (to→too), later accepts must shift
     // or their green span slides onto an earlier twin ("the store").
     let reopenShift = null
+    // Entry text is flat (no transcript line nums). originalText may include
+    // newlines / line numbers when the flag spanned a break — never use the
+    // entry restore bytes to splice originalText (that flattens formatting).
+    const entryRestoreText = ann._appliedMatchedText ?? ann.original
+    const originalRestoreText = ann._appliedOriginalMatchedText ?? ann.original
+    let entrySpan = null
+    let originalSpan = null
 
     // If previously accepted, revert both entries and originalText.
     if (ann.status === 'accepted') {
-      const restoreText = ann._appliedMatchedText ?? ann.original
-      let entrySpan = null
-      let originalSpan = null
-
-      // Revert entries at/near the stored apply site. Never whole-entry
-      // flexFind(suggestion) — that reverts the first "the" ("the store")
-      // when the accept was the later "the" ("teh" → receipt).
-      if (ann._appliedAt != null && ann._appliedEntryId != null && ann.suggestion) {
+      // Revert entry: prefer context anchor (twin-safe), then stored offsets.
+      if (ann._appliedEntryId != null && ann.suggestion) {
         curEntries = curEntries.map((e) => {
           if (e.id !== ann._appliedEntryId) return e
-          const span =
+          let span = null
+          const anchored = locateAnnotationWithAnchor(e.text, e, ann, ann.suggestion)
+          if (anchored) {
+            span = { start: anchored.cleanStart, end: anchored.cleanEnd }
+          } else if (
+            ann._appliedAt != null &&
             e.text.substring(ann._appliedAt, ann._appliedEnd) === ann.suggestion
-              ? { start: ann._appliedAt, end: ann._appliedEnd }
-              : locateNeedleNear(e.text, ann.suggestion, ann._appliedAt)
+          ) {
+            span = { start: ann._appliedAt, end: ann._appliedEnd }
+          } else if (ann._appliedAt != null) {
+            span = locateNeedleNear(e.text, ann.suggestion, ann._appliedAt)
+          }
           if (!span) {
             console.warn(
               `Reopen: could not safely revert entry — id=${ann.id} entry_id=${ann._appliedEntryId} suggestion=${JSON.stringify(ann.suggestion)}`
@@ -701,24 +747,39 @@ export default function DashboardEditor() {
           entrySpan = span
           return {
             ...e,
-            text: e.text.substring(0, span.start) + restoreText + e.text.substring(span.end),
+            text:
+              e.text.substring(0, span.start) +
+              entryRestoreText +
+              e.text.substring(span.end),
           }
         })
         entriesRef.current = curEntries
         setEntries(curEntries)
       }
 
-      // Revert originalText at/near the stored apply site (or cached clean span).
+      // Revert originalText. Prefer the exact post-accept byte range stored at
+      // accept — required when the flag spanned a line break (replacement ≠
+      // flat suggestion). Anchor locate is fallback for same-line only.
       if (curOriginalText && ann.suggestion) {
         let reverted = curOriginalText
         const otSlice =
           ann._appliedOriginalStart != null && ann._appliedOriginalEnd != null
             ? curOriginalText.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd)
             : null
+        const storedReplacement = ann._appliedOriginalReplacement
+        const offsetsMatchReplacement =
+          otSlice != null &&
+          (otSlice === storedReplacement ||
+            otSlice === ann.suggestion ||
+            // Legacy accepts: structured cross-line replacement still contains
+            // the suggestion words even when otSlice !== suggestion.
+            (ann._appliedOriginalMatchedText?.includes('\n') &&
+              !!flexFind(otSlice, ann.suggestion)))
+
         if (
           ann._appliedOriginalStart != null &&
           ann._appliedOriginalMatchedText != null &&
-          otSlice === ann.suggestion
+          offsetsMatchReplacement
         ) {
           originalSpan = {
             start: ann._appliedOriginalStart,
@@ -726,86 +787,119 @@ export default function DashboardEditor() {
           }
           reverted =
             curOriginalText.substring(0, ann._appliedOriginalStart) +
-            restoreText +
+            originalRestoreText +
             curOriginalText.substring(ann._appliedOriginalEnd)
         } else {
-          let span = null
-          if (ann._cleanStart != null && ann._cleanEnd != null) {
-            const { cleanContent, cleanToOrig } = buildCleanContentMap(curOriginalText)
-            if (cleanContent.substring(ann._cleanStart, ann._cleanEnd) === ann.suggestion) {
-              const oStart = cleanToOrig[ann._cleanStart]
-              const oEnd = cleanToOrig[ann._cleanEnd - 1] + 1
-              if (oStart != null && oEnd != null && oEnd > oStart) {
-                span = { start: oStart, end: oEnd }
-              }
+          const { cleanContent, cleanToOrig } = buildCleanContentMap(curOriginalText)
+          const entryForAnn = curEntries.find(
+            (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
+          )
+          const anchored = locateAnnotationWithAnchor(
+            cleanContent,
+            entryForAnn,
+            ann,
+            ann.suggestion
+          )
+          if (anchored) {
+            const oStart = cleanToOrig[anchored.cleanStart]
+            const oEnd = cleanToOrig[anchored.cleanEnd - 1] + 1
+            if (oStart != null && oEnd != null && oEnd > oStart) {
+              originalSpan = { start: oStart, end: oEnd }
+              reverted =
+                curOriginalText.substring(0, oStart) +
+                originalRestoreText +
+                curOriginalText.substring(oEnd)
             }
           }
-          if (!span && ann._appliedOriginalStart != null) {
-            span = locateNeedleNear(
+          if (!originalSpan && ann._appliedOriginalStart != null) {
+            const span = locateNeedleNear(
               curOriginalText,
               ann.suggestion,
               ann._appliedOriginalStart
             )
+            if (span) {
+              originalSpan = span
+              reverted =
+                curOriginalText.substring(0, span.start) +
+                originalRestoreText +
+                curOriginalText.substring(span.end)
+            }
           }
-          if (span) {
-            originalSpan = span
-            reverted =
-              curOriginalText.substring(0, span.start) +
-              restoreText +
-              curOriginalText.substring(span.end)
-          } else {
-            console.warn(
-              `Reopen: could not safely revert originalText — id=${ann.id} suggestion=${JSON.stringify(ann.suggestion)}`
-            )
-          }
+        }
+        if (!originalSpan) {
+          console.warn(
+            `Reopen: could not safely revert originalText — id=${ann.id} suggestion=${JSON.stringify(ann.suggestion)}`
+          )
         }
         curOriginalText = reverted
         originalTextRef.current = reverted
         setOriginalText(reverted)
       }
 
-      const sugLen = ann.suggestion?.length ?? 0
-      const restoreLen = restoreText.length
-      const delta = restoreLen - sugLen
-      if (delta !== 0 && (entrySpan || originalSpan || ann._cleanEnd != null)) {
+      const entryRemoved = entrySpan ? entrySpan.end - entrySpan.start : 0
+      const originalRemoved = originalSpan ? originalSpan.end - originalSpan.start : 0
+      const entryDelta = entrySpan ? entryRestoreText.length - entryRemoved : 0
+      const originalDelta = originalSpan
+        ? originalRestoreText.length - originalRemoved
+        : 0
+      if ((entryDelta !== 0 || originalDelta !== 0) && (entrySpan || originalSpan)) {
         reopenShift = {
           entryId: ann._appliedEntryId ?? ann.entry_id,
           entryEditEnd: entrySpan?.end ?? null,
-          entryDelta: entrySpan ? delta : 0,
+          entryDelta,
           originalEditEnd: originalSpan?.end ?? null,
-          originalDelta: originalSpan ? delta : 0,
-          // Pre-reopen end of the green suggestion span in cleanContent.
-          cleanEditEnd: ann._cleanEnd ?? null,
-          cleanDelta: ann._cleanEnd != null ? delta : 0,
+          originalDelta,
+          cleanEditEnd: null,
+          cleanDelta: 0,
         }
       }
     }
 
-    let updated = curAnnotations.map((a) =>
-      a.id === annotationId
-        ? {
-            ...a,
-            status: 'open',
-            // Restore the original AI suggestion so the Accept button doesn't
-            // show the user's previous custom correction on reopen.
-            suggestion: a._originalSuggestion ?? a.suggestion,
-            _originalSuggestion: undefined,
-            _appliedEntryId: undefined,
-            _appliedAt: undefined,
-            _appliedEnd: undefined,
-            _appliedMatchedText: undefined,
-            _cleanStart: undefined,
-            _cleanEnd: undefined,
-            _appliedOriginalStart: undefined,
-            _appliedOriginalEnd: undefined,
-            _appliedOriginalMatchedText: undefined,
-          }
-        : a
-    )
+    let updated = curAnnotations.map((a) => {
+      if (a.id !== annotationId) return a
+      const openSuggestion = a._originalSuggestion ?? a.suggestion
+      // Rebuild anchor around restored original so paint stays twin-safe.
+      let openAnchor = {
+        before: a._anchorBefore,
+        after: a._anchorAfter,
+      }
+      if (entrySpan && entryRestoreText) {
+        const e = curEntries.find((row) => row.id === (a._appliedEntryId ?? a.entry_id))
+        if (e) {
+          const rebuilt = buildContextAnchor(
+            e.text,
+            entrySpan.start,
+            entrySpan.start + entryRestoreText.length
+          )
+          if (rebuilt) openAnchor = rebuilt
+        }
+      }
+      return {
+        ...a,
+        status: 'open',
+        suggestion: openSuggestion,
+        _originalSuggestion: undefined,
+        _appliedEntryId: undefined,
+        _appliedAt: undefined,
+        _appliedEnd: undefined,
+        _appliedMatchedText: undefined,
+        _cleanStart: undefined,
+        _cleanEnd: undefined,
+        _appliedOriginalStart: undefined,
+        _appliedOriginalEnd: undefined,
+        _appliedOriginalMatchedText: undefined,
+        _appliedOriginalReplacement: undefined,
+        _anchorBefore: openAnchor.before,
+        _anchorAfter: openAnchor.after,
+      }
+    })
     if (reopenShift) {
       updated = shiftAcceptedApplySites(updated, reopenShift, annotationId)
     }
-    updated = repairAcceptedCleanSpans(curOriginalText, curEntries, updated)
+    updated = ensureAnnotationAnchors(
+      curEntries,
+      repairAcceptedCleanSpans(curOriginalText, curEntries, updated)
+    )
 
     annotationsRef.current = updated
     setAnnotations(updated)
@@ -1490,10 +1584,8 @@ export default function DashboardEditor() {
 
             const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
-            // Find highlights by searching in cleanContent (which matches Gemini's extracted text).
-            // For accepted annotations, prefer cached clean offsets only when that
-            // span still equals the suggestion — stale caches after earlier accepts
-            // (or hard refresh) otherwise paint green on the wrong word ("collar").
+            // Paint from context anchors + current needle (open=original,
+            // accepted=suggestion). Do not trust cached _cleanStart indexes.
             const highlights = []
             for (const ann of allOpenAnnotations) {
               const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
@@ -1502,33 +1594,15 @@ export default function DashboardEditor() {
               const annotationEntry = entries.find(
                 (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
               )
-              // Accepted + apply-site: always locate from those offsets so a
-              // cache that still spells "the" cannot sit on an earlier twin.
-              const locateAnn =
-                ann.status === 'accepted' && ann._appliedAt != null && ann._appliedEnd != null
-                  ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
-                  : ann
-
-              if (
-                ann.status === 'accepted' &&
-                ann._appliedAt == null &&
-                ann._cleanStart != null &&
-                ann._cleanEnd != null &&
-                cleanContent.substring(ann._cleanStart, ann._cleanEnd) === ann.suggestion
-              ) {
-                highlights.push({ ...ann, cleanStart: ann._cleanStart, cleanEnd: ann._cleanEnd })
-                continue
-              }
-
-              const located = locateAnnotationInCleanContent(
+              const located = locateAnnotationWithAnchor(
                 cleanContent,
                 annotationEntry,
-                locateAnn,
+                ann,
                 searchWord
               )
               if (!located) {
                 console.warn(
-                  `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} searchWord=${JSON.stringify(searchWord)} hasEntry=${!!annotationEntry} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
+                  `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} searchWord=${JSON.stringify(searchWord)} hasEntry=${!!annotationEntry} hasAnchor=${typeof ann._anchorBefore === 'string'} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
                 )
                 continue
               }

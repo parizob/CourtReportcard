@@ -346,6 +346,190 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
   return tryNeedleInRange(0)
 }
 
+/**
+ * Capture tight before/after text around a span (up to `maxWords` on each
+ * side). Keep this short so an earlier edit (too→to) does not invalidate
+ * the anchor for a later flag on the same line.
+ */
+export function buildContextAnchor(text, start, end, maxWords = 2) {
+  if (
+    !text ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    start < 0 ||
+    end > text.length ||
+    start >= end
+  ) {
+    return null
+  }
+
+  const beforeRaw = text.substring(0, start)
+  const afterRaw = text.substring(end)
+  const wordRe = /\S+/g
+
+  const beforeWords = []
+  let m
+  while ((m = wordRe.exec(beforeRaw))) {
+    beforeWords.push({ start: m.index, end: m.index + m[0].length })
+  }
+  const afterWords = []
+  wordRe.lastIndex = 0
+  while ((m = wordRe.exec(afterRaw))) {
+    afterWords.push({ start: m.index, end: m.index + m[0].length })
+  }
+
+  const takeBefore = beforeWords.slice(-Math.max(1, maxWords))
+  const takeAfter = afterWords.slice(0, Math.max(1, maxWords))
+  const before =
+    takeBefore.length > 0
+      ? beforeRaw.substring(takeBefore[0].start, beforeRaw.length)
+      : ''
+  const after =
+    takeAfter.length > 0
+      ? afterRaw.substring(0, takeAfter[takeAfter.length - 1].end)
+      : ''
+
+  return { before, after }
+}
+
+/**
+ * Find searchWord only via before+needle+after. No whole-doc fallback.
+ * Critical for accept: looking up suggestion "the" while the file still has
+ * "teh" must return null — not the earlier store "the".
+ */
+export function locateAtAnchorStrict(haystack, ann, searchWord) {
+  if (!haystack || !searchWord) return null
+  const before = ann?._anchorBefore
+  const after = ann?._anchorAfter
+  if (typeof before !== 'string' || typeof after !== 'string' || !(before || after)) {
+    return null
+  }
+  const phrase = before + searchWord + after
+  const exactIdx = haystack.indexOf(phrase)
+  if (exactIdx !== -1) {
+    return {
+      cleanStart: exactIdx + before.length,
+      cleanEnd: exactIdx + before.length + searchWord.length,
+      start: exactIdx + before.length,
+      end: exactIdx + before.length + searchWord.length,
+    }
+  }
+  const flex = flexFind(haystack, phrase)
+  if (!flex) return null
+  const region = haystack.substring(flex.start, flex.end)
+  if (before) {
+    const b = flexFind(region, before)
+    if (b) {
+      const n = flexFind(region.substring(b.end), searchWord)
+      if (n) {
+        const start = flex.start + b.end + n.start
+        const end = flex.start + b.end + n.end
+        return { cleanStart: start, cleanEnd: end, start, end }
+      }
+    }
+  }
+  const n = flexFind(region, searchWord)
+  if (!n) return null
+  return {
+    cleanStart: flex.start + n.start,
+    cleanEnd: flex.start + n.end,
+    start: flex.start + n.start,
+    end: flex.start + n.end,
+  }
+}
+
+/**
+ * Find searchWord using saved anchors when present; fall back to offset /
+ * entry locate. Prefer locateAtAnchorStrict for accept already-applied checks.
+ */
+export function locateAnnotationWithAnchor(cleanContent, entry, ann, searchWord) {
+  if (!cleanContent || !searchWord) return null
+
+  const strict = locateAtAnchorStrict(cleanContent, ann, searchWord)
+  if (strict) return strict
+
+  // Anchors exist but phrase miss (e.g. accepted "the" while file still has
+  // "teh"): never fall back to the first twin of a short suggestion.
+  const hasAnchor =
+    typeof ann?._anchorBefore === 'string' &&
+    typeof ann?._anchorAfter === 'string' &&
+    !!(ann._anchorBefore || ann._anchorAfter)
+  if (hasAnchor && ann.status === 'accepted' && searchWord === ann.suggestion) {
+    const origStill = locateAtAnchorStrict(cleanContent, ann, ann.original)
+    if (origStill) return null
+  }
+
+  const locateAnn =
+    ann?._appliedAt != null && ann?._appliedEnd != null
+      ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
+      : ann
+  return locateAnnotationInCleanContent(cleanContent, entry, locateAnn, searchWord)
+}
+
+/**
+ * Ensure each annotation has a tight _anchorBefore/_anchorAfter. Rebuilds
+ * from a verified needle span when possible so older wide anchors (that
+ * included earlier words like "too") get replaced on load.
+ */
+export function ensureAnnotationAnchors(entries, annotations) {
+  if (!Array.isArray(annotations)) return annotations
+  let changed = false
+  const next = annotations.map((ann) => {
+    const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    if (!entry?.text) return ann
+    const needle =
+      ann.status === 'accepted' ? ann.suggestion : ann.original
+    if (!needle) return ann
+
+    let start =
+      ann.status === 'accepted' && ann._appliedAt != null ? ann._appliedAt : ann.start
+    let end =
+      ann.status === 'accepted' && ann._appliedEnd != null ? ann._appliedEnd : ann.end
+    if (
+      start == null ||
+      end == null ||
+      entry.text.substring(start, end) !== needle
+    ) {
+      if (
+        Number.isFinite(ann.start) &&
+        Number.isFinite(ann.end) &&
+        entry.text.substring(ann.start, ann.end) === needle
+      ) {
+        start = ann.start
+        end = ann.end
+      } else if (
+        typeof ann._anchorBefore === 'string' &&
+        typeof ann._anchorAfter === 'string'
+      ) {
+        // Keep existing anchor if we cannot verify a span (still better than
+        // a whole-entry first-match for twin words).
+        return ann
+      } else {
+        const located = locateAnnotationInCleanContent(entry.text, entry, ann, needle)
+        if (!located) return ann
+        start = located.cleanStart
+        end = located.cleanEnd
+      }
+    }
+
+    const anchor = buildContextAnchor(entry.text, start, end)
+    if (!anchor) return ann
+    if (
+      ann._anchorBefore === anchor.before &&
+      ann._anchorAfter === anchor.after
+    ) {
+      return ann
+    }
+    changed = true
+    return {
+      ...ann,
+      _anchorBefore: anchor.before,
+      _anchorAfter: anchor.after,
+    }
+  })
+  return changed ? next : annotations
+}
+
 const _tokenize = (s) => {
   const tokens = []
   let i = 0
@@ -782,32 +966,33 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       }
     }
 
-    // Check suggestion first so [sic] ("thesis [sic]") is not re-applied just
-    // because "thesis" still flex-matches inside it. Prefix traps (to⊂too) are
-    // rejected by isSuggestionAlreadyApplied.
-    let hasSuggestion = locateAnnotationInCleanContent(
-      cleanContent,
-      entry,
-      ann,
-      ann.suggestion
-    )
-    let stillOriginal = locateAnnotationInCleanContent(
-      cleanContent,
-      locateEntry,
-      locateAnn,
-      ann.original
-    )
+    // Prefer anchor-strict suggestion checks so store "the" never counts as
+    // teh→the already applied while "teh" remains.
+    const hasAnchor =
+      typeof ann._anchorBefore === 'string' &&
+      typeof ann._anchorAfter === 'string' &&
+      !!(ann._anchorBefore || ann._anchorAfter)
+    let hasSuggestion = hasAnchor
+      ? locateAtAnchorStrict(cleanContent, ann, ann.suggestion)
+      : locateAnnotationInCleanContent(cleanContent, entry, ann, ann.suggestion)
+    let stillOriginal =
+      (hasAnchor ? locateAtAnchorStrict(cleanContent, ann, ann.original) : null) ||
+      locateAnnotationInCleanContent(
+        cleanContent,
+        locateEntry,
+        locateAnn,
+        ann.original
+      )
 
     // After an earlier accept on the same line, entry offsets / locator
-    // context can miss a still-present original. Fall back to flexFind so
-    // multi-accept export repair does not fail-closed incorrectly — and so
-    // we never treat a common word elsewhere ("the") as "already applied"
-    // while "teh" is still in the file but unlocated.
+    // context can miss a still-present original. Fall back to flexFind for
+    // the original only (usually unique). Never flexFind a short suggestion
+    // when anchors exist — that latches onto an earlier twin.
     if (!stillOriginal) {
       const m = flexFind(cleanContent, ann.original)
       if (m) stillOriginal = { cleanStart: m.start, cleanEnd: m.end }
     }
-    if (!hasSuggestion) {
+    if (!hasSuggestion && !hasAnchor) {
       const m = flexFind(cleanContent, ann.suggestion)
       if (m) hasSuggestion = { cleanStart: m.start, cleanEnd: m.end }
     }
