@@ -19,12 +19,42 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Mirrored from src/lib/stuckCaseResume.js — keep in sync.
+function decideStuckAction(
+  hasExtracted: boolean,
+  extractingNames: string[],
+  restartCount: number,
+): 'recover_analyzed' | 'resume_proofread' | 're_kick_extract' | 'fail' {
+  if (hasExtracted) return 'recover_analyzed'
+  const hasMergedEntries = extractingNames.some((n) => typeof n === 'string' && n.endsWith('_entries.json'))
+  if ((restartCount || 0) < 1) {
+    return hasMergedEntries ? 'resume_proofread' : 're_kick_extract'
+  }
+  return 'fail'
+}
+
 async function clearExtracting(admin: any, userId: string, caseId: string): Promise<void> {
   const prefix = `${userId}/${caseId}/extracting`
   const { data: files } = await admin.storage.from('case-files').list(prefix)
   if (!files?.length) return
   const paths = files.map((f: { name: string }) => `${prefix}/${f.name}`)
   await admin.storage.from('case-files').remove(paths)
+}
+
+async function invokeAnalyze(
+  SUPABASE_URL: string,
+  SERVICE_ROLE_KEY: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify(body),
+  })
 }
 
 Deno.serve(async (req: Request) => {
@@ -89,20 +119,62 @@ Deno.serve(async (req: Request) => {
     const files = (c as any).case_files || []
     const hasExtracted = files.some((f: any) => f.file_type === 'extracted')
 
-    // Extracted JSON exists but status never flipped — recover without re-billing.
-    if (hasExtracted) {
+    const extractingPrefix = `${c.user_id}/${c.id}/extracting`
+    const { data: extractingFiles } = await admin.storage.from('case-files').list(extractingPrefix)
+    const extractingNames = (extractingFiles || []).map((f: { name: string }) => f.name)
+
+    const action = decideStuckAction(hasExtracted, extractingNames, c.analysis_restart_count || 0)
+
+    if (action === 'recover_analyzed') {
       const { error: upErr } = await admin
         .from('cases')
-        .update({ status: 'analyzed', updated_at: new Date().toISOString() })
+        .update({ status: 'analyzed', analysis_stage: 'analyzed', updated_at: new Date().toISOString() })
         .eq('id', c.id)
         .eq('status', 'processing')
       results.push({ case_id: c.id, action: upErr ? `recover_failed:${upErr.message}` : 'recovered_analyzed' })
       continue
     }
 
-    const restarts = c.analysis_restart_count || 0
+    if (action === 'resume_proofread') {
+      // Extract finished; don't wipe entries. One resume attempt, then fail.
+      try {
+        const { error: bumpErr } = await admin
+          .from('cases')
+          .update({
+            analysis_restart_count: Math.max(c.analysis_restart_count || 0, 1),
+            updated_at: new Date().toISOString(),
+            last_error: null,
+            analysis_stage: 'resume_proofread',
+          })
+          .eq('id', c.id)
+          .eq('status', 'processing')
+        if (bumpErr) {
+          results.push({ case_id: c.id, action: `resume_bump_failed:${bumpErr.message}` })
+          continue
+        }
 
-    if (restarts < 1) {
+        const resp = await invokeAnalyze(SUPABASE_URL, SERVICE_ROLE_KEY, {
+          case_id: c.id,
+          pass: 'proofread',
+          file_index: 0,
+          batch_index: 0,
+          attempt: 0,
+          internal: true,
+        })
+        results.push({
+          case_id: c.id,
+          action: resp.ok ? 'resumed_proofread' : `resume_proofread_http_${resp.status}`,
+        })
+      } catch (err) {
+        results.push({
+          case_id: c.id,
+          action: `resume_proofread_error:${(err as Error)?.message || err}`,
+        })
+      }
+      continue
+    }
+
+    if (action === 're_kick_extract') {
       try {
         await clearExtracting(admin, c.user_id, c.id)
         const { error: bumpErr } = await admin
@@ -111,6 +183,7 @@ Deno.serve(async (req: Request) => {
             analysis_restart_count: 1,
             updated_at: new Date().toISOString(),
             last_error: null,
+            analysis_stage: 're_kick_extract',
           })
           .eq('id', c.id)
           .eq('status', 'processing')
@@ -119,14 +192,10 @@ Deno.serve(async (req: Request) => {
           continue
         }
 
-        const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            apikey: SERVICE_ROLE_KEY,
-          },
-          body: JSON.stringify({ case_id: c.id, pass: 'extract', internal: true }),
+        const resp = await invokeAnalyze(SUPABASE_URL, SERVICE_ROLE_KEY, {
+          case_id: c.id,
+          pass: 'extract',
+          internal: true,
         })
         results.push({
           case_id: c.id,
@@ -141,21 +210,13 @@ Deno.serve(async (req: Request) => {
       continue
     }
 
-    // Already re-kicked once — fail + refund via analyze-case handleFailure.
+    // Already re-kicked / resumed once — fail + refund via analyze-case handleFailure.
     try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-case`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-          apikey: SERVICE_ROLE_KEY,
-        },
-        body: JSON.stringify({
-          case_id: c.id,
-          pass: 'fail',
-          stage: 'stuck sweeper (after one re-kick)',
-          reason: 'STUCK_ANALYSIS_TIMEOUT',
-        }),
+      const resp = await invokeAnalyze(SUPABASE_URL, SERVICE_ROLE_KEY, {
+        case_id: c.id,
+        pass: 'fail',
+        stage: 'stuck sweeper (after one re-kick)',
+        reason: 'STUCK_ANALYSIS_TIMEOUT',
       })
       results.push({
         case_id: c.id,

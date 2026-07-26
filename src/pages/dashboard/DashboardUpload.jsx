@@ -3,9 +3,8 @@ import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { countPages } from '../../lib/pageCount'
-import { stripRtf } from '../../lib/rtf'
 import { sha256Hex } from '../../lib/fileHash'
+import { prepareTranscriptUpload } from '../../lib/prepareTranscriptUpload'
 
 // After this many failures for the same file contents, block further uploads
 // of that file and point the user to support (Gemini cost on doomed retries).
@@ -195,8 +194,7 @@ export default function DashboardUpload() {
       let totalPages = 0
       for (const file of transcriptFiles) {
         const text = await file.text()
-        const isRtf = file.name.toLowerCase().endsWith('.rtf')
-        totalPages += countPages(isRtf ? stripRtf(text) : text)
+        totalPages += prepareTranscriptUpload(file.name, text).pages
       }
       setPendingPages(totalPages)
       setPhiCertified(false)
@@ -240,11 +238,17 @@ export default function DashboardUpload() {
       setUploadPhase('Uploading files...')
 
       for (const file of transcriptFiles) {
-        const storagePath = `${user.id}/${caseRow.id}/transcript/${safeStorageFileName(file.name)}`
+        // Strip RTF in the browser and store plain text. Edge RTF stripping has
+        // never successfully finished a real case (silent stuck failures).
+        const text = await file.text()
+        const prepared = prepareTranscriptUpload(file.name, text)
+        const storageName = safeStorageFileName(prepared.uploadFileName)
+        const storagePath = `${user.id}/${caseRow.id}/transcript/${storageName}`
+        const blob = new Blob([prepared.plainText], { type: prepared.mimeType })
 
         const { error: storageErr } = await supabase.storage
           .from('case-files')
-          .upload(storagePath, file)
+          .upload(storagePath, blob, { contentType: prepared.mimeType })
         if (storageErr) throw storageErr
         uploadedPaths.push(storagePath)
 
@@ -253,11 +257,11 @@ export default function DashboardUpload() {
           .insert({
             case_id: caseRow.id,
             file_type: 'transcript',
-            // Original name for UI; storage_path uses the sanitized key above.
-            file_name: file.name,
-            file_size: file.size,
+            // .rtf uploads become .txt after strip; storage_path is sanitized.
+            file_name: prepared.uploadFileName,
+            file_size: blob.size,
             storage_path: storagePath,
-            mime_type: file.type || null,
+            mime_type: prepared.mimeType,
           })
         if (fileErr) throw fileErr
       }

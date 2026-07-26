@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:export": "node scripts/test-export-integrity.mjs",
+    "test:rtf-upload": "node scripts/test-rtf-upload-path.mjs",
     "seed:export-mock": "node scripts/seed-export-mock-case.mjs",
     "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs"
   },

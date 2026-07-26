@@ -92,18 +92,16 @@ export default function DashboardLayout() {
                 </Link>
               </Tooltip>
               <div className="ml-auto">
-                <Tooltip text="Hide menu" placement="left">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(false)}
-                    data-track-id="dash_nav_collapse"
-                    aria-label="Hide menu"
-                    aria-expanded="true"
-                    className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-xl">left_panel_close</span>
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  data-track-id="dash_nav_collapse"
+                  aria-label="Hide menu"
+                  aria-expanded="true"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-tertiary-fixed hover:bg-tertiary-fixed transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xl">left_panel_close</span>
+                </button>
               </div>
             </div>
             <div className="mt-3 mb-4 mx-2 border-t border-outline-variant/25" role="separator" aria-hidden="true" />

@@ -1059,12 +1059,13 @@ function runInBackground(work: Promise<void>): void {
   else work
 }
 
-/** Keeps stuck-case sweeper from treating an in-flight analysis as abandoned. */
-async function touchHeartbeat(admin: any, caseId: string): Promise<void> {
-  const { error } = await admin
-    .from('cases')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', caseId)
+/** Keeps stuck-case sweeper from treating an in-flight analysis as abandoned.
+ *  Optional `stage` writes cases.analysis_stage so silent Edge kills leave a
+ *  durable breadcrumb (downloaded / extracting / proofreading / …). */
+async function touchHeartbeat(admin: any, caseId: string, stage?: string): Promise<void> {
+  const patch: Record<string, string> = { updated_at: new Date().toISOString() }
+  if (stage) patch.analysis_stage = stage
+  const { error } = await admin.from('cases').update(patch).eq('id', caseId)
   if (error) console.warn('analysis heartbeat failed', caseId, error.message)
 }
 
@@ -1268,7 +1269,7 @@ Deno.serve(async (req: Request) => {
     const work = (async () => {
       const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
       try {
-        await touchHeartbeat(admin, caseId)
+        await touchHeartbeat(admin, caseId, 'downloading')
         const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(dbFile.storage_path)
         if (dlErr || !blob) {
           throw new Error(
@@ -1277,7 +1278,6 @@ Deno.serve(async (req: Request) => {
         }
 
         const isPdf = dbFile.file_name.toLowerCase().endsWith('.pdf')
-        const isRtf = dbFile.file_name.toLowerCase().endsWith('.rtf')
 
         let finalResult: { title: string; entries: any[]; originalText?: string } | null = null
         let mergedChunkPaths: string[] | null = null
@@ -1285,15 +1285,20 @@ Deno.serve(async (req: Request) => {
         if (isPdf) {
           // PDFs are sent as a binary file part — not text-splittable, so
           // they always take the single-call path regardless of size.
+          await touchHeartbeat(admin, caseId, 'extracting')
           finalResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt)
         } else {
           const rawContent = await blob.text()
-          const plainText = isRtf ? stripRtf(rawContent) : rawContent
+          // Content-based (not extension): client now uploads stripped .txt for
+          // former .rtf picks; still safe if a legacy .rtf object remains.
+          const plainText = isRtf(rawContent) ? stripRtf(rawContent) : rawContent
+          if (isRtf(rawContent)) await touchHeartbeat(admin, caseId, 'stripped')
           const totalPages = countPages(plainText)
 
           if (totalPages <= CHUNK_THRESHOLD_PAGES) {
             // Below the threshold — identical to the original single-call
             // behavior, byte for byte. This is the majority of current traffic.
+            await touchHeartbeat(admin, caseId, `extracting file ${fileIndex}`)
             finalResult = await extractContent(plainText, undefined, deadlineAt)
           } else {
             const chunks = splitIntoChunks(plainText, PAGES_PER_CHUNK)
@@ -1306,6 +1311,7 @@ Deno.serve(async (req: Request) => {
             } else {
               const chunkText = chunks[chunkIndex]
               const trailingContext = chunkIndex > 0 ? extractTrailingContext(chunks[chunkIndex - 1]) : ''
+              await touchHeartbeat(admin, caseId, `extracting file ${fileIndex} chunk ${chunkIndex}`)
               const chunkResult = await extractContent(chunkText, undefined, deadlineAt, {
                 index: chunkIndex,
                 total: chunks.length,
@@ -1328,6 +1334,7 @@ Deno.serve(async (req: Request) => {
         const finalBytes = new TextEncoder().encode(JSON.stringify(finalResult, null, 2))
         const { error: upErr } = await admin.storage.from('case-files').upload(finalEntriesPath, finalBytes, { upsert: true, contentType: 'application/json' })
         if (upErr) throw new Error(`Failed to save entries for ${dbFile.file_name}: ${upErr.message}`)
+        await touchHeartbeat(admin, caseId, `extract_saved file ${fileIndex}`)
 
         // Only clean up per-chunk files once the merged result they fed into
         // is durably saved — see mergeExtractionChunks' note on why deletion
@@ -1396,7 +1403,7 @@ Deno.serve(async (req: Request) => {
           last_reviewed_at: new Date().toISOString(),
         }, { onConflict: 'case_id' })
 
-        await admin.from('cases').update({ status: 'analyzed' }).eq('id', caseId)
+        await admin.from('cases').update({ status: 'analyzed', analysis_stage: 'analyzed' }).eq('id', caseId)
 
         const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
         const userEmail = u?.user?.email
@@ -1556,7 +1563,7 @@ Deno.serve(async (req: Request) => {
   const work = (async () => {
     const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
     try {
-      await touchHeartbeat(admin, caseId)
+      await touchHeartbeat(admin, caseId, `proofreading file ${fileIndex} batch ${batchIndex}`)
       // A handful of leading entries from the previous batch are included as
       // context (not owned by this batch) so a judgment call right at the
       // seam still has surrounding text to reason from — see ownIdRange /
