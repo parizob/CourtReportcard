@@ -2,7 +2,7 @@
  * Seed a Dev case from the real sample_transcript analysis — no Gemini.
  *
  * Suggestions (from Test UI / sample_transcript.txt):
- *   1. Weathers as identified → Weathers has identified  (cross-line)
+ *   1. Weathers as 16 identified → …has…  (leaked line #; load sanitizer strips 16)
  *   2. longer, we forfeited → longer. We forfeited  (spans page 4→5 break)
  *   3. thesis → thesis [sic]
  *

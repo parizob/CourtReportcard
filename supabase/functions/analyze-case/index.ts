@@ -396,6 +396,73 @@ function fixAnnotationPositions(entries: any[], annotations: any[]): { annotatio
   return { annotations: fixed, droppedCount: unresolvedCount }
 }
 
+/** Mirrored in src/lib/gemini.js — strip leaked gutter digits from phrases. */
+function stripInteriorLineNumberTokens(phrase: string): string {
+  if (!phrase || typeof phrase !== 'string') return phrase
+  let out = phrase
+  let prev = ''
+  do {
+    prev = out
+    out = out.replace(/(\S)\s+\d{1,4}\s+(?=\S)/g, '$1 ')
+  } while (out !== prev)
+  return out.replace(/\s+/g, ' ').trim()
+}
+
+function sanitizePhraseAgainstEntry(phrase: string, entryText: string): string {
+  if (!phrase || typeof phrase !== 'string') return phrase
+  if (entryText && flexFind(entryText, phrase)) return phrase
+  const stripped = stripInteriorLineNumberTokens(phrase)
+  if (
+    stripped &&
+    stripped !== phrase &&
+    entryText &&
+    flexFind(entryText, stripped)
+  ) {
+    return stripped
+  }
+  return phrase
+}
+
+function sanitizeAnnotationLeakedLineNumbers(ann: any, entryText: string): any {
+  if (!ann || ann.status === 'accepted' || ann.status === 'ignored') return ann
+  if (!ann.original) return ann
+
+  const original = sanitizePhraseAgainstEntry(ann.original, entryText)
+  let suggestion = ann.suggestion
+  if (suggestion && typeof suggestion === 'string') {
+    if (entryText && flexFind(entryText, suggestion)) {
+      // already present
+    } else if (original !== ann.original) {
+      // Only when original changed — avoids mangling real amounts like "1500".
+      suggestion = stripInteriorLineNumberTokens(suggestion)
+    }
+  }
+
+  if (original === ann.original && suggestion === ann.suggestion) return ann
+
+  const next = { ...ann, original, suggestion }
+  if (entryText && original !== ann.original) {
+    const m = flexFind(entryText, original)
+    if (m) {
+      next.start = m.start
+      next.end = m.end
+    }
+  }
+  return next
+}
+
+function sanitizeAnnotationsLeakedLineNumbers(entries: any[], annotations: any[]): any[] {
+  if (!Array.isArray(annotations) || annotations.length === 0) return annotations
+  let changed = false
+  const next = annotations.map((ann) => {
+    const entry = (entries || []).find((e) => e.id === ann.entry_id)
+    const cleaned = sanitizeAnnotationLeakedLineNumbers(ann, entry?.text ?? '')
+    if (cleaned !== ann) changed = true
+    return cleaned
+  })
+  return changed ? next : annotations
+}
+
 // Catches "phantom" annotations the model occasionally produces where the
 // claimed error doesn't actually exist in the entry text — these are
 // code-detectable bugs (a deterministic string comparison proves them
@@ -475,6 +542,7 @@ function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entr
     return { ...a, entry_id: targetId }
   })
 
+  annots = sanitizeAnnotationsLeakedLineNumbers(deduped, annots)
   annots = fixAnnotationPositions(deduped, annots).annotations
 
   const entryIds = new Set(deduped.map((e) => e.id))
@@ -659,6 +727,7 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     status: 'open',
   }))
 
+  annots = sanitizeAnnotationsLeakedLineNumbers(entries, annots)
   const { annotations: repaired, droppedCount: unplaceableCount } = fixAnnotationPositions(entries, annots)
   const { annotations: real, droppedCount: phantomCount } = filterPhantomFixes(entries, repaired)
   annots = real

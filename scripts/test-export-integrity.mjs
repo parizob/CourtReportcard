@@ -24,6 +24,10 @@ import {
   wouldFlattenTranscriptStructure,
   missingCrossLineReopenBytes,
   isCrossLineApplySiteIntact,
+  stripInteriorLineNumberTokens,
+  sanitizePhraseAgainstEntry,
+  sanitizeAnnotationsLeakedLineNumbers,
+  fixAnnotationPositions,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -1039,6 +1043,71 @@ console.log('\n=== Export integrity ===\n')
     [ann]
   )
   assert(failed.length >= 1, 'export blocks flattened page-break accept')
+}
+
+// --- 26. Leaked line-number sanitizer (Alison's "numeral in suggestions") ---
+{
+  console.log('\n26. Sanitize leaked line numbers from Found/Suggest')
+  assertEq(
+    stripInteriorLineNumberTokens('as 16 identified'),
+    'as identified',
+    'strips interior line number'
+  )
+  assertEq(
+    stripInteriorLineNumberTokens('Weathers as 16 identified'),
+    'Weathers as identified',
+    'strips from longer phrase'
+  )
+
+  const entryText =
+    'Q. And we are here, plaintiff Flora Weathers as identified you as a life care planner.'
+  assertEq(
+    sanitizePhraseAgainstEntry('as 16 identified', entryText),
+    'as identified',
+    'polluted phrase sanitizes when stripped form is in entry'
+  )
+  assertEq(
+    sanitizePhraseAgainstEntry('Exhibit 16 was marked', 'Then Exhibit 16 was marked for ID.'),
+    'Exhibit 16 was marked',
+    'keeps real content numbers that match entry'
+  )
+  assertEq(
+    sanitizePhraseAgainstEntry('as 16 identified', 'no match here at all'),
+    'as 16 identified',
+    'does not strip when stripped form is not in entry'
+  )
+
+  const entries = [{ id: 13, text: entryText }]
+  const polluted = [
+    {
+      id: 1,
+      entry_id: 13,
+      status: 'open',
+      type: 'missing_word',
+      original: 'Weathers as 16 identified',
+      suggestion: 'Weathers has 16 identified',
+      start: 0,
+      end: 0,
+    },
+  ]
+  const cleaned = sanitizeAnnotationsLeakedLineNumbers(entries, polluted)
+  assertEq(cleaned[0].original, 'Weathers as identified', 'annotation original cleaned')
+  assertEq(cleaned[0].suggestion, 'Weathers has identified', 'annotation suggestion cleaned')
+  assert(cleaned[0].start > 0 || entryText.includes('Weathers as'), 'offsets repaired or phrase present')
+
+  // Without sanitizer, polluted original is unplaceable → dropped.
+  const dropped = fixAnnotationPositions(entries, polluted)
+  assertEq(dropped.length, 0, 'unsanitized polluted flag is unplaceable')
+  // With sanitizer first, it survives and can be applied.
+  const placed = fixAnnotationPositions(entries, cleaned)
+  assertEq(placed.length, 1, 'sanitized flag is placeable')
+  const detail = applyCorrectionDetailed(
+    '   15   Weathers as\n               16        identified you\n',
+    placed[0].original,
+    placed[0].suggestion
+  )
+  assert(detail.start !== -1, 'cleaned phrase applies across real line break')
+  assert(detail.text.includes('has'), 'suggestion applied after sanitize')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -170,11 +170,18 @@ export default function DashboardEditor() {
         const { entries: dedupedEntries, annotations: dedupedAnnotations } =
           deduplicateTranscript(parsed.entries || [], parsed.annotations || [])
 
+        // Strip leaked transcript line numbers from Found/Suggest ("as 16
+        // identified") BEFORE position repair — otherwise unplaceable drops.
+        const sanitizedAnnotations = sanitizeAnnotationsLeakedLineNumbers(
+          dedupedEntries,
+          dedupedAnnotations
+        )
+
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
         const positioned = filterPhantomFixes(
           dedupedEntries,
-          fixAnnotationPositions(dedupedEntries, dedupedAnnotations)
+          fixAnnotationPositions(dedupedEntries, sanitizedAnnotations)
         )
         // Context anchors disambiguate twin words; repair cleans legacy
         // _cleanStart drift from older saves.
@@ -342,8 +349,20 @@ export default function DashboardEditor() {
     const curEntries = entriesRef.current
     const curOriginalText = originalTextRef.current
 
-    const ann = curAnnotations.find((a) => a.id === annotationId)
-    if (!ann || ann.status !== 'open') return
+    const rawAnn = curAnnotations.find((a) => a.id === annotationId)
+    if (!rawAnn || rawAnn.status !== 'open') return
+
+    // Last-chance strip of leaked line nums if load sanitizer missed them.
+    const entryForSanitize = curEntries.find((e) => e.id === rawAnn.entry_id)
+    const ann = sanitizeAnnotationLeakedLineNumbers(
+      rawAnn,
+      entryForSanitize?.text ?? ''
+    )
+    if (ann !== rawAnn) {
+      const patched = curAnnotations.map((a) => (a.id === ann.id ? ann : a))
+      annotationsRef.current = patched
+      setAnnotations(patched)
+    }
 
     const finalSuggestion = customSuggestion ?? ann.suggestion
 
