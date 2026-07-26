@@ -3,7 +3,7 @@
  *
  * Suggestions (from Test UI / sample_transcript.txt):
  *   1. Weathers as identified → Weathers has identified  (cross-line)
- *   2. longer, we → longer. We
+ *   2. longer, we forfeited → longer. We forfeited  (spans page 4→5 break)
  *   3. thesis → thesis [sic]
  *
  * Usage (from repo root, against whatever VITE_SUPABASE_* is in .env):

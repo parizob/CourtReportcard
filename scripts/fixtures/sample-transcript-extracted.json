@@ -213,15 +213,15 @@
       "entry_id": 18,
       "type": "punctuation",
       "severity": "warning",
-      "original": "longer, we",
-      "suggestion": "longer. We",
+      "original": "longer, we forfeited",
+      "suggestion": "longer. We forfeited",
       "explanation": "This is a comma splice. Two independent clauses are joined by only a comma. A period should be used to separate them, and the following word should be capitalized.",
       "confidence": 0.95,
       "status": "open",
       "start": 195,
-      "end": 205,
+      "end": 215,
       "_anchorBefore": "office any ",
-      "_anchorAfter": " forfeited a"
+      "_anchorAfter": " a physical"
     },
     {
       "id": 3,
