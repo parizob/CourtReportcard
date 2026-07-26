@@ -99,7 +99,7 @@ export default function DashboardLayout() {
                     data-track-id="dash_nav_collapse"
                     aria-label="Hide menu"
                     aria-expanded="true"
-                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-tertiary-fixed text-on-tertiary-fixed hover:brightness-[0.97] transition-[filter]"
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                   >
                     <span className="material-symbols-outlined text-xl">left_panel_close</span>
                   </button>
