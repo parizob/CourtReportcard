@@ -1,0 +1,89 @@
+{
+  "title": "Export Integrity Mock",
+  "extracted_at": "2026-07-26T00:00:00.000Z",
+  "originalText": "               1\n\n\n               1   Q.    He went too the store with teh receipt.\n\n               2   A.    That was your book, not mine.\n\n               3   Q.    What was the thesis of the argument?\n\n               4   A.    The dog lost its collar yesterday.\n\n",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "Q",
+      "text": "He went too the store with teh receipt."
+    },
+    {
+      "id": 2,
+      "speaker": "A",
+      "text": "That was your book, not mine."
+    },
+    {
+      "id": 3,
+      "speaker": "Q",
+      "text": "What was the thesis of the argument?"
+    },
+    {
+      "id": 4,
+      "speaker": "A",
+      "text": "The dog lost its collar yesterday."
+    }
+  ],
+  "annotations": [
+    {
+      "id": "mock-a1",
+      "entry_id": 1,
+      "type": "homophone",
+      "severity": "critical",
+      "original": "too",
+      "suggestion": "to",
+      "explanation": "Mock: too → to (prefix trap).",
+      "status": "open",
+      "start": 8,
+      "end": 11
+    },
+    {
+      "id": "mock-a2",
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "critical",
+      "original": "teh",
+      "suggestion": "the",
+      "explanation": "Mock: second accept on the same line.",
+      "status": "open",
+      "start": 27,
+      "end": 30
+    },
+    {
+      "id": "mock-a3",
+      "entry_id": 2,
+      "type": "homophone",
+      "severity": "critical",
+      "original": "your",
+      "suggestion": "you",
+      "explanation": "Mock: your → you (prefix trap).",
+      "status": "open",
+      "start": 10,
+      "end": 14
+    },
+    {
+      "id": "mock-a4",
+      "entry_id": 3,
+      "type": "grammar",
+      "severity": "style",
+      "original": "thesis",
+      "suggestion": "thesis [sic]",
+      "explanation": "Mock: [sic] note.",
+      "status": "open",
+      "start": 13,
+      "end": 19
+    },
+    {
+      "id": "mock-a5",
+      "entry_id": 4,
+      "type": "grammar",
+      "severity": "critical",
+      "original": "its",
+      "suggestion": "it's",
+      "explanation": "Mock: its → it's.",
+      "status": "open",
+      "start": 13,
+      "end": 16
+    }
+  ]
+}

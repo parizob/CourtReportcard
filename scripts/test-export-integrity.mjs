@@ -12,6 +12,10 @@ import {
   applyCorrectionDetailed,
   flexFind,
   isSuggestionAlreadyApplied,
+  locateAnnotationInCleanContent,
+  buildCleanContentMap,
+  locateNeedleNear,
+  shiftAcceptedApplySites,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -286,6 +290,226 @@ console.log('\n=== Export integrity ===\n')
   assert(text.includes('has too'), 'ignored left alone')
   assert(text.includes('has their'), 'open left alone')
   assert(!text.includes('has teh'), 'accepted original gone')
+}
+
+// --- 10. your → you (you⊂your prefix trap) ---
+{
+  console.log('\n10. Prefix trap: your → you')
+  const originalText = 'Is this your book on the table?\n'
+  const entries = [{ id: 1, text: 'Is this you book on the table?' }]
+  const annotations = [
+    {
+      id: 'a1',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'your',
+      suggestion: 'you',
+      _appliedAt: 8,
+      _appliedEnd: 11,
+      _appliedMatchedText: 'your',
+    },
+  ]
+  const sample = 'Is this your book?'
+  assert(
+    !isSuggestionAlreadyApplied(
+      sample,
+      flexFind(sample, 'you'),
+      flexFind(sample, 'your'),
+      'your',
+      'you'
+    ),
+    'helper: you inside your is not already-applied'
+  )
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    annotations
+  )
+  assertEq(fails.length, 0, 'no failures')
+  assert(text.includes('this you book'), 'accepted you present')
+  assert(!text.includes('this your book'), 'your gone')
+}
+
+// --- 11. its → it's (longer suggestion, like [sic]) ---
+{
+  console.log('\n11. Longer suggestion: its → it\'s (apply once, no double)')
+  const originalText = 'The dog lost its collar yesterday.\n'
+  const entryAfter = "The dog lost it's collar yesterday."
+  const appliedAt = entryAfter.indexOf("it's")
+  const suggestion = "it's"
+  const entries = [{ id: 1, text: entryAfter }]
+  const annotations = [
+    {
+      id: 'a1',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'its',
+      suggestion,
+      _appliedAt: appliedAt,
+      _appliedEnd: appliedAt + suggestion.length,
+      _appliedMatchedText: 'its',
+    },
+  ]
+  const missing = ensureAcceptedCorrectionsInOriginalText(originalText, entries, annotations)
+  assertEq(missing.failed.length, 0, 'applies when missing')
+  assert(missing.text.includes("it's"), "it's applied")
+  assertEq((missing.text.match(/it's/g) || []).length, 1, 'exactly one it\'s')
+
+  const already = ensureAcceptedCorrectionsInOriginalText(missing.text, entries, annotations)
+  assertEq(already.failed.length, 0, 'idempotent ok')
+  assertEq(already.text, missing.text, 'no double apostrophe apply')
+}
+
+// --- 12. Two accepts on the same sentence ---
+{
+  console.log('\n12. Two accepts on the same sentence')
+  // Both errors still in originalText (and matching entry text). Status is
+  // accepted — export safety net must apply both. Avoid mixed
+  // post-accept entry + pre-accept originalText fixtures; that breaks locate
+  // context when a second error still differs between entry and file.
+  const originalText = 'He went too the store with teh receipt.\n'
+  const entries = [{ id: 1, text: 'He went too the store with teh receipt.' }]
+  const annotations = [
+    {
+      id: 'a1',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'too',
+      suggestion: 'to',
+      start: 8,
+      end: 11,
+    },
+    {
+      id: 'a2',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'teh',
+      suggestion: 'the',
+      start: 27,
+      end: 30,
+    },
+  ]
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    annotations
+  )
+  assertEq(fails.length, 0, 'no failures')
+  assert(text.includes('went to the store'), 'first accept applied')
+  assert(text.includes('with the receipt'), 'second accept applied')
+  assert(!text.includes('went too '), 'too gone')
+  assert(!text.includes('teh receipt'), 'teh gone')
+}
+
+// --- 13. Added terminal punctuation (longer suggestion) ---
+{
+  console.log('\n13. Longer suggestion: add question mark once')
+  const originalText = 'What time is the hearing\n'
+  const entryAfter = 'What time is the hearing?'
+  const appliedAt = 0
+  const suggestion = 'What time is the hearing?'
+  const original = 'What time is the hearing'
+  const entries = [{ id: 1, text: entryAfter }]
+  const annotations = [
+    {
+      id: 'a1',
+      entry_id: 1,
+      status: 'accepted',
+      original,
+      suggestion,
+      _appliedAt: appliedAt,
+      _appliedEnd: suggestion.length,
+      _appliedMatchedText: original,
+    },
+  ]
+  const once = ensureAcceptedCorrectionsInOriginalText(originalText, entries, annotations)
+  assertEq(once.failed.length, 0, 'applies ?')
+  assert(once.text.includes('hearing?'), 'question mark present')
+  const twice = ensureAcceptedCorrectionsInOriginalText(once.text, entries, annotations)
+  assertEq(twice.failed.length, 0, 'idempotent')
+  assertEq((twice.text.match(/\?/g) || []).length, 1, 'exactly one ?')
+}
+
+// --- 14. Accepted highlight must not jump to an earlier "the" ---
+{
+  console.log('\n14. Locate after teh→the prefers applied offsets, not earlier "the"')
+  const line = 'He went to the store with the receipt.'
+  const originalText = `1               Q.    ${line}\n`
+  const { cleanContent } = buildCleanContentMap(originalText)
+  const receiptThe = line.lastIndexOf('the')
+  const storeThe = line.indexOf('the')
+  assert(storeThe >= 0 && receiptThe > storeThe, 'fixture has two "the"s')
+
+  const located = locateAnnotationInCleanContent(
+    cleanContent,
+    { id: 1, text: line },
+    { start: receiptThe, end: receiptThe + 3 },
+    'the'
+  )
+  assert(!!located, 'locate returns a span')
+  const painted = cleanContent.substring(located.cleanStart, located.cleanEnd)
+  assertEq(painted, 'the', 'span text is the')
+  // Must be the receipt "the", not "the store"
+  const before = cleanContent.substring(
+    Math.max(0, located.cleanStart - 12),
+    located.cleanStart
+  )
+  assert(before.includes('with '), `highlight is receipt the (before=${JSON.stringify(before)})`)
+  assert(!before.endsWith('to '), 'highlight is not store the')
+}
+
+// --- 15. Reopen after a later accept must not revert the wrong "the" ---
+{
+  console.log('\n15. Reopen teh after too→to still targets receipt "the"')
+  // Fixture mirrors export-mock: store "the" is already correct; teh is receipt.
+  let entry = 'He went too the store with teh receipt.'
+  const tehAt = entry.indexOf('teh')
+  entry = entry.substring(0, tehAt) + 'the' + entry.substring(tehAt + 3)
+  let annotations = [
+    {
+      id: 'teh',
+      status: 'accepted',
+      entry_id: 1,
+      original: 'teh',
+      suggestion: 'the',
+      _appliedEntryId: 1,
+      _appliedAt: tehAt,
+      _appliedEnd: tehAt + 3,
+      _appliedMatchedText: 'teh',
+    },
+  ]
+
+  // Later accept: too → to (shortens by 1 before the receipt "the").
+  const tooAt = entry.indexOf('too')
+  const tooOldLen = 3
+  entry = entry.substring(0, tooAt) + 'to' + entry.substring(tooAt + tooOldLen)
+  annotations = shiftAcceptedApplySites(
+    annotations,
+    {
+      entryId: 1,
+      entryEditEnd: tooAt + tooOldLen,
+      entryDelta: -1,
+    },
+    'too'
+  )
+
+  assertEq(annotations[0]._appliedAt, tehAt - 1, 'teh apply site shifted left by 1')
+  const spanExact = entry.substring(annotations[0]._appliedAt, annotations[0]._appliedEnd)
+  assertEq(spanExact, 'the', 'shifted offsets still land on receipt the')
+
+  // Simulate stale offsets (shift not applied) — near-search must still win.
+  const staleAt = tehAt
+  const near = locateNeedleNear(entry, 'the', staleAt)
+  assert(!!near, 'near locate finds a the')
+  const nearBefore = entry.substring(Math.max(0, near.start - 6), near.start)
+  assert(nearBefore.includes('with'), `near locate is receipt the (before=${JSON.stringify(nearBefore)})`)
+  assert(!entry.substring(0, near.start).endsWith('to '), 'near locate is not store the')
+
+  const reverted =
+    entry.substring(0, near.start) + 'teh' + entry.substring(near.end)
+  assert(reverted.includes('with teh receipt'), 'reopen restores teh receipt')
+  assert(!reverted.includes('teh store'), 'reopen did not create teh store')
+  assert(reverted.includes('went to the store'), 'store the left intact')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

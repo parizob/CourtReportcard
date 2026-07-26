@@ -247,52 +247,94 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
     return null
   }
 
-  // Prefer flexFind offsets for the real needle inside the entry; fall back
-  // to ann.start/end only for building a location context window.
+  // Prefer ann.start/end when that span still is the needle. After accept,
+  // searching the entry for a common suggestion ("the") hits an earlier
+  // occurrence ("the store") and paints the wrong green underline.
   let coreStart = null
   let coreEnd = null
   if (entry?.text) {
-    const entryMatch = flexFind(entry.text, searchWord)
-    if (entryMatch) {
-      coreStart = entryMatch.start
-      coreEnd = entryMatch.end
-    } else if (Number.isFinite(ann.start) && Number.isFinite(ann.end) && ann.start < ann.end) {
-      coreStart = ann.start
-      coreEnd = ann.end
+    if (Number.isFinite(ann?.start) && Number.isFinite(ann?.end) && ann.start < ann.end) {
+      const slice = entry.text.substring(ann.start, ann.end)
+      const sliceHit = flexFind(slice, searchWord)
+      if (
+        slice === searchWord ||
+        (sliceHit && sliceHit.start === 0 && sliceHit.end === slice.length)
+      ) {
+        coreStart = ann.start
+        coreEnd = ann.end
+      }
+    }
+    if (coreStart == null) {
+      const entryMatch = flexFind(entry.text, searchWord)
+      if (entryMatch) {
+        coreStart = entryMatch.start
+        coreEnd = entryMatch.end
+      }
     }
   }
 
   if (entry?.text && coreStart != null && coreEnd != null) {
-    // 1) Context window around the core span — unique enough to avoid
-    // latching onto an earlier repeat of a short flagged word.
+    // 1) Context window around the core span. Track the trimmed window's
+    // start in the entry so we can place searchWord at the *same* relative
+    // offset inside the cleanContent hit — not the first repeat of a short
+    // word like "the".
     const pad = 48
     const rawCtxStart = Math.max(0, coreStart - pad)
     const rawCtxEnd = Math.min(entry.text.length, coreEnd + pad)
     let context = entry.text.substring(rawCtxStart, rawCtxEnd)
-    if (rawCtxStart > 0) context = context.replace(/^\S*\s+/, '')
+    let contextEntryStart = rawCtxStart
+    if (rawCtxStart > 0) {
+      const lead = context.match(/^\S*\s+/)
+      if (lead) {
+        context = context.substring(lead[0].length)
+        contextEntryStart += lead[0].length
+      }
+    }
     if (rawCtxEnd < entry.text.length) context = context.replace(/\s+\S*$/, '')
+    const leadWs = context.length - context.trimStart().length
+    contextEntryStart += leadWs
     context = context.trim()
 
     if (context.length >= Math.min(searchWord.length, 3)) {
       const ctxMatch = flexFind(cleanContent, context)
       if (ctxMatch) {
         const region = cleanContent.substring(ctxMatch.start, ctxMatch.end)
-        const inner = flexFind(region, searchWord)
+        const relStart = coreStart - contextEntryStart
+        const relEnd = coreEnd - contextEntryStart
+        if (relStart >= 0 && relEnd <= region.length && relEnd > relStart) {
+          const atCore = region.substring(relStart, relEnd)
+          const coreHit = flexFind(atCore, searchWord)
+          if (
+            atCore === searchWord ||
+            (coreHit && coreHit.start === 0 && coreHit.end === atCore.length)
+          ) {
+            return {
+              cleanStart: ctxMatch.start + relStart,
+              cleanEnd: ctxMatch.start + relEnd,
+            }
+          }
+        }
+        // Fallback: first match at/after the core offset (never before it).
+        const from = Math.max(0, Math.min(relStart, region.length))
+        const inner = flexFind(region.substring(from), searchWord)
         if (inner) {
           return {
-            cleanStart: ctxMatch.start + inner.start,
-            cleanEnd: ctxMatch.start + inner.end,
+            cleanStart: ctxMatch.start + from + inner.start,
+            cleanEnd: ctxMatch.start + from + inner.end,
           }
         }
       }
     }
 
-    // 2) Entry opening as anchor, then search forward only.
+    // 2) Entry opening as anchor, then search forward from the core offset
+    // within the entry (mapped via the anchor), not from the entry start —
+    // otherwise "the" after accept latches onto an earlier "the".
     const anchor = entry.text.trim().substring(0, 60).replace(/\s+\S*$/, '')
     if (anchor) {
       const em = flexFind(cleanContent, anchor)
       if (em) {
-        const hit = tryNeedleInRange(em.start)
+        const from = Math.min(em.start + Math.max(0, coreStart), cleanContent.length)
+        const hit = tryNeedleInRange(from)
         if (hit) return hit
       }
     }
@@ -523,6 +565,95 @@ export function applyCorrection(text, original, suggestion) {
 }
 
 /**
+ * Find `needle` at/near `expectedStart`. Used on reopen when a later accept
+ * shifted offsets by a few chars — never scan the whole string (that paints
+ * "the store" when reverting the receipt "the").
+ */
+export function locateNeedleNear(text, needle, expectedStart, radius = 12) {
+  if (!text || !needle || expectedStart == null || expectedStart < 0) return null
+  for (let d = 0; d <= radius; d++) {
+    const candidates = d === 0 ? [expectedStart] : [expectedStart - d, expectedStart + d]
+    for (const s of candidates) {
+      if (s < 0 || s + needle.length > text.length) continue
+      if (text.substring(s, s + needle.length) === needle) {
+        return { start: s, end: s + needle.length }
+      }
+    }
+  }
+  const from = Math.max(0, expectedStart - radius)
+  const to = Math.min(text.length, expectedStart + radius + needle.length)
+  const m = flexFind(text.substring(from, to), needle)
+  if (!m) return null
+  return { start: from + m.start, end: from + m.end }
+}
+
+/**
+ * After an accept splices text, shift other accepted annotations' stored
+ * apply sites that sit strictly after the edit.
+ */
+export function shiftAcceptedApplySites(annotations, edit, skipId) {
+  if (!Array.isArray(annotations) || !edit) return annotations
+  const {
+    entryId,
+    entryEditEnd,
+    entryDelta = 0,
+    originalEditEnd,
+    originalDelta = 0,
+    cleanEditEnd,
+    cleanDelta = 0,
+  } = edit
+
+  return annotations.map((a) => {
+    if (!a || a.id === skipId || a.status !== 'accepted') return a
+    let next = a
+
+    if (
+      entryDelta !== 0 &&
+      entryId != null &&
+      (a._appliedEntryId ?? a.entry_id) === entryId &&
+      a._appliedAt != null &&
+      a._appliedAt >= entryEditEnd
+    ) {
+      next = {
+        ...next,
+        _appliedAt: a._appliedAt + entryDelta,
+        _appliedEnd: (a._appliedEnd ?? a._appliedAt) + entryDelta,
+        start: (a.start ?? a._appliedAt) + entryDelta,
+        end: (a.end ?? a._appliedEnd ?? a._appliedAt) + entryDelta,
+      }
+    }
+
+    if (
+      originalDelta !== 0 &&
+      originalEditEnd != null &&
+      a._appliedOriginalStart != null &&
+      a._appliedOriginalStart >= originalEditEnd
+    ) {
+      next = {
+        ...next,
+        _appliedOriginalStart: a._appliedOriginalStart + originalDelta,
+        _appliedOriginalEnd: (a._appliedOriginalEnd ?? a._appliedOriginalStart) + originalDelta,
+      }
+    }
+
+    if (
+      cleanDelta !== 0 &&
+      cleanEditEnd != null &&
+      a._cleanStart != null &&
+      a._cleanStart >= cleanEditEnd
+    ) {
+      next = {
+        ...next,
+        _cleanStart: a._cleanStart + cleanDelta,
+        _cleanEnd: (a._cleanEnd ?? a._cleanStart) + cleanDelta,
+      }
+    }
+
+    return next
+  })
+}
+
+/**
  * True when `suggestion` is truly already applied — not when it only matches
  * as a prefix of the still-present `original` (e.g. "to" inside "too").
  *
@@ -601,18 +732,32 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
     // Check suggestion first so [sic] ("thesis [sic]") is not re-applied just
     // because "thesis" still flex-matches inside it. Prefix traps (to⊂too) are
     // rejected by isSuggestionAlreadyApplied.
-    const hasSuggestion = locateAnnotationInCleanContent(
+    let hasSuggestion = locateAnnotationInCleanContent(
       cleanContent,
       entry,
       ann,
       ann.suggestion
     )
-    const stillOriginal = locateAnnotationInCleanContent(
+    let stillOriginal = locateAnnotationInCleanContent(
       cleanContent,
       locateEntry,
       locateAnn,
       ann.original
     )
+
+    // After an earlier accept on the same line, entry offsets / locator
+    // context can miss a still-present original. Fall back to flexFind so
+    // multi-accept export repair does not fail-closed incorrectly — and so
+    // we never treat a common word elsewhere ("the") as "already applied"
+    // while "teh" is still in the file but unlocated.
+    if (!stillOriginal) {
+      const m = flexFind(cleanContent, ann.original)
+      if (m) stillOriginal = { cleanStart: m.start, cleanEnd: m.end }
+    }
+    if (!hasSuggestion) {
+      const m = flexFind(cleanContent, ann.suggestion)
+      if (m) hasSuggestion = { cleanStart: m.start, cleanEnd: m.end }
+    }
 
     if (
       isSuggestionAlreadyApplied(

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrection, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -446,39 +446,104 @@ export default function DashboardEditor() {
         _appliedOriginalMatchedText = detail.matchedText
       }
 
-      // Recompute highlight from the post-accept entry + clean content so the
-      // green span is the suggestion itself (not a stale pre-accept offset).
-      const { cleanContent: postCc } = buildCleanContentMap(updatedOriginalText)
-      const postEntry = newEntries.find((e) => e.id === appliedEntryId) || annotationEntry
-      const postLocated = locateAnnotationInCleanContent(
-        postCc,
-        postEntry,
-        { ...ann, suggestion: finalSuggestion, start: appliedAt, end: appliedEnd },
-        finalSuggestion
-      )
-      if (postLocated) {
-        _cleanStart = postLocated.cleanStart
-        _cleanEnd = postLocated.cleanEnd
-      } else if (_cleanStart !== null) {
-        const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
-        if (postM) {
-          _cleanStart = _cleanStart + postM.start
-          _cleanEnd = _cleanStart + (postM.end - postM.start)
-        } else {
-          _cleanEnd = _cleanStart + finalSuggestion.length
+      // Pin green highlight to the apply site. Prefer orig→clean map from the
+      // splice we just did so a common suggestion ("the") cannot latch onto an
+      // earlier copy ("the store"). Fall back to locate with appliedAt/End.
+      const { cleanContent: postCc, cleanToOrig } = buildCleanContentMap(updatedOriginalText)
+      let mappedFromApply = false
+      if (
+        _appliedOriginalStart != null &&
+        _appliedOriginalEnd != null &&
+        _appliedOriginalEnd > _appliedOriginalStart &&
+        Array.isArray(cleanToOrig)
+      ) {
+        let cs = -1
+        let ce = -1
+        for (let i = 0; i < cleanToOrig.length; i++) {
+          if (cs < 0 && cleanToOrig[i] === _appliedOriginalStart) cs = i
+          if (cleanToOrig[i] === _appliedOriginalEnd - 1) ce = i + 1
         }
-        const exactEnd = _cleanStart + finalSuggestion.length
         if (
-          exactEnd <= postCc.length &&
-          postCc.substring(_cleanStart, exactEnd) === finalSuggestion &&
-          exactEnd > _cleanEnd
+          cs >= 0 &&
+          ce > cs &&
+          postCc.substring(cs, ce) === finalSuggestion
         ) {
-          _cleanEnd = exactEnd
+          _cleanStart = cs
+          _cleanEnd = ce
+          mappedFromApply = true
+        }
+      }
+      if (!mappedFromApply) {
+        const postEntry = newEntries.find((e) => e.id === appliedEntryId) || annotationEntry
+        const postLocated = locateAnnotationInCleanContent(
+          postCc,
+          postEntry,
+          { ...ann, suggestion: finalSuggestion, start: appliedAt, end: appliedEnd },
+          finalSuggestion
+        )
+        if (postLocated) {
+          _cleanStart = postLocated.cleanStart
+          _cleanEnd = postLocated.cleanEnd
+        } else if (_cleanStart !== null) {
+          const postM = flexFind(postCc.substring(_cleanStart), finalSuggestion)
+          if (postM) {
+            _cleanStart = _cleanStart + postM.start
+            _cleanEnd = _cleanStart + (postM.end - postM.start)
+          } else {
+            _cleanEnd = _cleanStart + finalSuggestion.length
+          }
+          const exactEnd = _cleanStart + finalSuggestion.length
+          if (
+            exactEnd <= postCc.length &&
+            postCc.substring(_cleanStart, exactEnd) === finalSuggestion &&
+            exactEnd > _cleanEnd
+          ) {
+            _cleanEnd = exactEnd
+          }
         }
       }
     }
 
-    const updatedAnnotations = curAnnotations.map((a) =>
+    // A shorter/longer replace shifts later accepts on the same line — keep
+    // their reopen/highlight metadata pointed at the same words. Edit ends
+    // are pre-accept (start + oldLen) so a longer suggestion still moves
+    // neighbors that began immediately after the old span.
+    const entryDelta =
+      appliedMatchedText != null && appliedAt != null
+        ? finalSuggestion.length - appliedMatchedText.length
+        : 0
+    const originalDelta =
+      _appliedOriginalMatchedText != null && _appliedOriginalStart != null
+        ? finalSuggestion.length - _appliedOriginalMatchedText.length
+        : 0
+    const cleanDelta =
+      _cleanStart != null && appliedMatchedText != null
+        ? finalSuggestion.length - appliedMatchedText.length
+        : 0
+    const shifted = shiftAcceptedApplySites(
+      curAnnotations,
+      {
+        entryId: appliedEntryId,
+        entryEditEnd:
+          appliedAt != null && appliedMatchedText != null
+            ? appliedAt + appliedMatchedText.length
+            : null,
+        entryDelta,
+        originalEditEnd:
+          _appliedOriginalStart != null && _appliedOriginalMatchedText != null
+            ? _appliedOriginalStart + _appliedOriginalMatchedText.length
+            : null,
+        originalDelta,
+        cleanEditEnd:
+          _cleanStart != null && appliedMatchedText != null
+            ? _cleanStart + appliedMatchedText.length
+            : null,
+        cleanDelta,
+      },
+      annotationId
+    )
+
+    const updatedAnnotations = shifted.map((a) =>
       a.id === annotationId
         ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _appliedMatchedText: appliedMatchedText, _cleanStart, _cleanEnd, _appliedOriginalStart, _appliedOriginalEnd, _appliedOriginalMatchedText }
         : a
@@ -600,41 +665,34 @@ export default function DashboardEditor() {
     if (ann.status === 'accepted') {
       const restoreText = ann._appliedMatchedText ?? ann.original
 
-      // Revert entries: only splice at stored offsets when that span still is
-      // the suggestion. Stale offsets (another accept shifted the document)
-      // or a short end would otherwise eat/duplicate letters (e.g. "wee").
-      if (ann._appliedAt != null && ann._appliedEntryId != null) {
+      // Revert entries at/near the stored apply site. Never whole-entry
+      // flexFind(suggestion) — that reverts the first "the" ("the store")
+      // when the accept was the later "the" ("teh" → receipt).
+      if (ann._appliedAt != null && ann._appliedEntryId != null && ann.suggestion) {
         curEntries = curEntries.map((e) => {
           if (e.id !== ann._appliedEntryId) return e
-          const slice = e.text.substring(ann._appliedAt, ann._appliedEnd)
-          if (ann.suggestion && slice === ann.suggestion) {
-            return {
-              ...e,
-              text:
-                e.text.substring(0, ann._appliedAt) +
-                restoreText +
-                e.text.substring(ann._appliedEnd),
-            }
+          const span =
+            e.text.substring(ann._appliedAt, ann._appliedEnd) === ann.suggestion
+              ? { start: ann._appliedAt, end: ann._appliedEnd }
+              : locateNeedleNear(e.text, ann.suggestion, ann._appliedAt)
+          if (!span) {
+            console.warn(
+              `Reopen: could not safely revert entry — id=${ann.id} entry_id=${ann._appliedEntryId} suggestion=${JSON.stringify(ann.suggestion)}`
+            )
+            return e
           }
-          const sm = ann.suggestion ? flexFind(e.text, ann.suggestion) : null
-          if (sm) {
-            return {
-              ...e,
-              text: e.text.substring(0, sm.start) + restoreText + e.text.substring(sm.end),
-            }
+          return {
+            ...e,
+            text: e.text.substring(0, span.start) + restoreText + e.text.substring(span.end),
           }
-          console.warn(
-            `Reopen: could not safely revert entry — id=${ann.id} entry_id=${ann._appliedEntryId} suggestion=${JSON.stringify(ann.suggestion)}`
-          )
-          return e
         })
         entriesRef.current = curEntries
         setEntries(curEntries)
       }
 
-      // Revert originalText — acceptAnnotation applied the correction here too.
+      // Revert originalText at/near the stored apply site (or cached clean span).
       const curOriginalText = originalTextRef.current
-      if (curOriginalText) {
+      if (curOriginalText && ann.suggestion) {
         let reverted = curOriginalText
         const otSlice =
           ann._appliedOriginalStart != null && ann._appliedOriginalEnd != null
@@ -649,9 +707,35 @@ export default function DashboardEditor() {
             curOriginalText.substring(0, ann._appliedOriginalStart) +
             ann._appliedOriginalMatchedText +
             curOriginalText.substring(ann._appliedOriginalEnd)
-        } else if (ann.suggestion) {
-          // Offsets stale or span mismatch — search for the suggestion near the entry.
-          reverted = applyCorrection(curOriginalText, ann.suggestion, ann.original)
+        } else {
+          let span = null
+          if (ann._cleanStart != null && ann._cleanEnd != null) {
+            const { cleanContent, cleanToOrig } = buildCleanContentMap(curOriginalText)
+            if (cleanContent.substring(ann._cleanStart, ann._cleanEnd) === ann.suggestion) {
+              const oStart = cleanToOrig[ann._cleanStart]
+              const oEnd = cleanToOrig[ann._cleanEnd - 1] + 1
+              if (oStart != null && oEnd != null && oEnd > oStart) {
+                span = { start: oStart, end: oEnd }
+              }
+            }
+          }
+          if (!span && ann._appliedOriginalStart != null) {
+            span = locateNeedleNear(
+              curOriginalText,
+              ann.suggestion,
+              ann._appliedOriginalStart
+            )
+          }
+          if (span) {
+            reverted =
+              curOriginalText.substring(0, span.start) +
+              restoreText +
+              curOriginalText.substring(span.end)
+          } else {
+            console.warn(
+              `Reopen: could not safely revert originalText — id=${ann.id} suggestion=${JSON.stringify(ann.suggestion)}`
+            )
+          }
         }
         originalTextRef.current = reverted
         setOriginalText(reverted)
