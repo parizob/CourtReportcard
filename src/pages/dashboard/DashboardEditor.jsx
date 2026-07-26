@@ -718,6 +718,8 @@ export default function DashboardEditor() {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       if (softNotice) showJumpNotice(softNotice)
     }
+    const isAcceptedDeletion =
+      ann.status === 'accepted' && ann.suggestion === ''
 
     const highlight = document.getElementById(`ann-highlight-${ann.id}`)
     if (highlight) {
@@ -731,7 +733,9 @@ export default function DashboardEditor() {
       if (cachedLine) {
         scrollToEl(
           cachedLine,
-          'Could not highlight the exact text; jumped to the nearby passage.'
+          isAcceptedDeletion
+            ? 'Jumped to where that word was removed.'
+            : 'Could not highlight the exact text; jumped to the nearby passage.'
         )
         return
       }
@@ -743,7 +747,12 @@ export default function DashboardEditor() {
       console.warn(
         `Jump fallback (entry): no highlight span — id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} original=${JSON.stringify(ann.original)}`
       )
-      scrollToEl(entryEl, 'Could not highlight the exact text; jumped to the nearby passage.')
+      scrollToEl(
+        entryEl,
+        isAcceptedDeletion
+          ? 'Jumped to where that word was removed.'
+          : 'Could not highlight the exact text; jumped to the nearby passage.'
+      )
       return
     }
 
@@ -876,6 +885,18 @@ export default function DashboardEditor() {
           )
           return
         }
+
+        // Accepted removal: must have a caret/span to splice the word back,
+        // or entry and export transcript would diverge.
+        if (ann.suggestion === '' && !originalSpan) {
+          console.warn(
+            `Reopen blocked: deletion missing apply caret — id=${ann.id}`
+          )
+          showJumpNotice(
+            'Could not put that word back safely. Leave it accepted, or re-upload if you need to undo it.'
+          )
+          return
+        }
       }
 
       // Revert entry: prefer context anchor (twin-safe), then stored offsets.
@@ -896,6 +917,7 @@ export default function DashboardEditor() {
             ann._appliedEnd != null &&
             e.text.substring(ann._appliedAt, ann._appliedEnd) === ann.suggestion
           ) {
+            // Zero-width caret is valid for deletions (start === end).
             span = { start: ann._appliedAt, end: ann._appliedEnd }
           } else if (!span && ann.suggestion !== '' && ann._appliedAt != null) {
             span = locateNeedleNear(e.text, ann.suggestion, ann._appliedAt)
@@ -1136,6 +1158,8 @@ export default function DashboardEditor() {
     const resolved = []
     const used = new Set()
     for (const ann of entryAnnotations) {
+      // Accepted removal: nothing left to underline in the entry.
+      if (ann.status === 'accepted' && ann.suggestion === '') continue
       let m = null
       for (const needle of jumpSearchNeedles(ann)) {
         m = flexFind(entry.text, needle)
@@ -1426,30 +1450,55 @@ export default function DashboardEditor() {
           </p>
           <div className="px-4 pb-4 space-y-2">
             {resolvedAnnotations.map((ann) => (
-              <button
+              <div
                 key={ann.id}
                 id={`ann-card-${ann.id}`}
-                onClick={() => jumpToAnnotation(ann)}
-                className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-container group ${
+                className={`w-full rounded-lg px-3 py-2.5 flex items-center gap-2 transition-colors ${
                   ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
                 }`}
               >
-                <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
-                  {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  {ann.status === 'accepted' ? (
-                    <p className="text-xs truncate">
-                      <span className="text-on-surface-variant line-through">{ann.original}</span>
-                      <span className="text-on-surface-variant mx-1">→</span>
-                      <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
-                    </p>
-                  ) : (
-                    <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
-                  )}
-                </div>
-                <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">open_in_new</span>
-              </button>
+                <Tooltip
+                  className="flex-1 min-w-0"
+                  text={
+                    ann.status === 'accepted'
+                      ? `"${ann.original}" → ${ann.suggestion === '' ? '(remove)' : `"${ann.suggestion}"`}`
+                      : `"${ann.original}" — kept as-is`
+                  }
+                  placement="left"
+                >
+                  <button
+                    type="button"
+                    onClick={() => jumpToAnnotation(ann)}
+                    className="w-full min-w-0 text-left flex items-center gap-3 hover:opacity-90 transition-opacity group"
+                  >
+                    <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
+                      {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      {ann.status === 'accepted' ? (
+                        <p className="text-xs truncate">
+                          <span className="text-on-surface-variant line-through">{ann.original}</span>
+                          <span className="text-on-surface-variant mx-1">→</span>
+                          <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">my_location</span>
+                  </button>
+                </Tooltip>
+                {ann.status === 'accepted' && (
+                  <button
+                    type="button"
+                    onClick={() => reopenAnnotation(ann.id)}
+                    className="shrink-0 text-[10px] font-bold text-primary hover:underline px-1.5 py-1 rounded hover:bg-primary/5 transition-colors"
+                    title="Undo this accept and put the suggestion back in the open list"
+                  >
+                    Reopen
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1687,7 +1736,7 @@ export default function DashboardEditor() {
           {originalText ? (() => {
             // ─── Original-text rendering (preserves exact formatting) ───
             // Build clean content (line numbers stripped) for annotation searching
-            const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+            const { cleanContent, parsedLines, cleanToOrig } = buildCleanContentMap(originalText)
 
             const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
@@ -1698,6 +1747,28 @@ export default function DashboardEditor() {
             const nextJumpLines = {}
             const highlights = []
             for (const ann of allOpenAnnotations) {
+              // Accepted deletion: the Found text is gone. Never re-search
+              // original (that paints a twin elsewhere in green). Keep jump
+              // via the stored apply caret; Reopen splices matchedText back.
+              if (ann.status === 'accepted' && ann.suggestion === '') {
+                if (ann._appliedOriginalStart != null && cleanToOrig.length) {
+                  let cs = cleanToOrig.length
+                  for (let i = 0; i < cleanToOrig.length; i++) {
+                    if (cleanToOrig[i] >= ann._appliedOriginalStart) {
+                      cs = i
+                      break
+                    }
+                  }
+                  const lineIdx = parsedLines.findIndex(
+                    (pl) =>
+                      pl.cleanStart <= cs &&
+                      (cs < pl.cleanEnd || (cs === pl.cleanEnd && pl.cleanStart < pl.cleanEnd))
+                  )
+                  if (lineIdx >= 0) nextJumpLines[ann.id] = lineIdx
+                }
+                continue
+              }
+
               const needles = jumpSearchNeedles(ann)
               if (!needles.length) continue
 

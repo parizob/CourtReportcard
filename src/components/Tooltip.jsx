@@ -8,7 +8,7 @@ const VIEW_MARGIN = 8
 //   "left" — above, prefers extending left (near right edge)
 //   "right" — above, prefers extending right (near left edge)
 // After open, position is clamped so the bubble never leaves the viewport.
-export default function Tooltip({ text, children, placement = 'center' }) {
+export default function Tooltip({ text, children, placement = 'center', className = '' }) {
   const [visible, setVisible] = useState(false)
   const [pos, setPos] = useState(null)
   const [arrowOffset, setArrowOffset] = useState(null)
@@ -108,7 +108,7 @@ export default function Tooltip({ text, children, placement = 'center' }) {
         ref={triggerRef}
         onMouseEnter={show}
         onMouseLeave={hide}
-        className="inline-flex"
+        className={className ? `inline-flex ${className}` : 'inline-flex'}
       >
         {children}
       </div>
@@ -116,7 +116,9 @@ export default function Tooltip({ text, children, placement = 'center' }) {
         <div className="fixed z-[9999] pointer-events-none" style={pos}>
           <div
             ref={bubbleRef}
-            className="relative bg-[#1a1a2e] text-white px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap shadow-xl"
+            // inline-block + w-max: shrink-wrap short labels (Jump / Ignore).
+            // max-w: long Found → Suggest copy wraps inside the viewport.
+            className="relative inline-block w-max max-w-[min(18rem,calc(100vw-1rem))] bg-[#1a1a2e] text-white px-3 py-1.5 rounded-lg text-[11px] font-medium shadow-xl whitespace-normal break-words text-left leading-snug"
           >
             {text}
             <div

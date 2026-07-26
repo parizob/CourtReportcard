@@ -1,0 +1,86 @@
+{
+  "title": "Extra Word Glue + Twin Seed",
+  "extracted_at": "2026-07-26T20:58:00.000Z",
+  "source_note": "Spaced Found (Melanie glue) + repeated the/that so Jump after remove must not land on a twin. Reopen must put the exact removed text back.",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. He went to the the store by the river yesterday."
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. She said that that that was near the river too."
+    },
+    {
+      "id": 3,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Please mark the exhibit for the record at the end."
+    },
+    {
+      "id": 4,
+      "speaker": "THE WITNESS",
+      "text": "A. The clerk already stamped the exhibit this morning."
+    }
+  ],
+  "annotations": [
+    {
+      "status": "open",
+      "id": 1,
+      "entry_id": 1,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "the ",
+      "suggestion": "",
+      "explanation": "Spaced Found: extra the before store. Twins: the river later. After Accept, Jump must stay on this line — not river/the on line 4.",
+      "start": 14,
+      "end": 18,
+      "_anchorBefore": "went to ",
+      "_anchorAfter": "the store"
+    },
+    {
+      "status": "open",
+      "id": 2,
+      "entry_id": 2,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": " that",
+      "suggestion": "",
+      "explanation": "Leading-space Found: middle that in that that that. Twins elsewhere. Reopen must restore this that.",
+      "start": 16,
+      "end": 21,
+      "_anchorBefore": "said that",
+      "_anchorAfter": " that was"
+    },
+    {
+      "status": "open",
+      "id": 3,
+      "entry_id": 3,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "the",
+      "suggestion": "",
+      "explanation": "Bare the before record. Line also has the exhibit / the end. Jump/paint must not pick those twins after remove.",
+      "start": 28,
+      "end": 31,
+      "_anchorBefore": "for ",
+      "_anchorAfter": " record"
+    },
+    {
+      "status": "open",
+      "id": 4,
+      "entry_id": 4,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "The ",
+      "suggestion": "",
+      "explanation": "Leading-capital The with trailing space. Twin the exhibit later on same line. Accept → Reopen round-trip.",
+      "start": 3,
+      "end": 7,
+      "_anchorBefore": "A. ",
+      "_anchorAfter": "clerk already"
+    }
+  ],
+  "originalText": "     1           Q.  He went to the the store by the river yesterday.\r\n\r\n     2                  A.  She said that that that was near the river too.\r\n\r\n     3                  Q.  Please mark the exhibit for the record at the end.\r\n\r\n     4                  A.  The clerk already stamped the exhibit this morning.\r\n"
+}
