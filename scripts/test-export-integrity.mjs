@@ -16,6 +16,7 @@ import {
   buildCleanContentMap,
   locateNeedleNear,
   shiftAcceptedApplySites,
+  repairAcceptedCleanSpans,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -510,6 +511,155 @@ console.log('\n=== Export integrity ===\n')
   assert(reverted.includes('with teh receipt'), 'reopen restores teh receipt')
   assert(!reverted.includes('teh store'), 'reopen did not create teh store')
   assert(reverted.includes('went to the store'), 'store the left intact')
+}
+
+// --- 16. Stale accepted clean spans repair after earlier shortens ---
+{
+  console.log('\n16. repairAcceptedCleanSpans re-pins its→it\'s after too/your')
+  let originalText =
+    '1   Q.    He went too the store with teh receipt.\n' +
+    '2   A.    That was your book, not mine.\n' +
+    '4   A.    The dog lost its collar yesterday.\n'
+  const itsEntry = { id: 4, text: 'The dog lost its collar yesterday.' }
+  const { cleanContent: cc0 } = buildCleanContentMap(originalText)
+  const itsLoc = locateAnnotationInCleanContent(
+    cc0,
+    itsEntry,
+    { start: 13, end: 16 },
+    'its'
+  )
+  const itsApply = applyCorrectionDetailed(originalText, 'its', "it's", {
+    cleanStart: itsLoc.cleanStart,
+    cleanEnd: itsLoc.cleanEnd,
+  })
+  originalText = itsApply.text
+  const { cleanContent: cc1, cleanToOrig } = buildCleanContentMap(originalText)
+  let cs = -1
+  let ce = -1
+  for (let i = 0; i < cleanToOrig.length; i++) {
+    if (cs < 0 && cleanToOrig[i] === itsApply.start) cs = i
+    if (cleanToOrig[i] === itsApply.end - 1) ce = i + 1
+  }
+  assertEq(cc1.substring(cs, ce), "it's", 'initial clean span is it\'s')
+
+  // Earlier shortens without shifting metadata (simulates drifted save).
+  for (const [orig, sug] of [
+    ['too', 'to'],
+    ['your', 'you'],
+  ]) {
+    const { cleanContent } = buildCleanContentMap(originalText)
+    const m = flexFind(cleanContent, orig)
+    const d = applyCorrectionDetailed(originalText, orig, sug, {
+      cleanStart: m.start,
+      cleanEnd: m.end,
+    })
+    originalText = d.text
+  }
+
+  const { cleanContent: drifted } = buildCleanContentMap(originalText)
+  assert(
+    drifted.substring(cs, ce) !== "it's",
+    'stale span no longer matches it\'s'
+  )
+
+  const entries = [
+    { id: 1, text: 'He went to the store with teh receipt.' },
+    { id: 2, text: 'That was you book, not mine.' },
+    {
+      id: 4,
+      text: "The dog lost it's collar yesterday.",
+    },
+  ]
+  const annotations = [
+    {
+      id: 'a5',
+      status: 'accepted',
+      entry_id: 4,
+      original: 'its',
+      suggestion: "it's",
+      _appliedEntryId: 4,
+      _appliedAt: 13,
+      _appliedEnd: 17,
+      _cleanStart: cs,
+      _cleanEnd: ce,
+    },
+  ]
+  const repaired = repairAcceptedCleanSpans(originalText, entries, annotations)
+  assert(
+    repaired[0]._cleanStart !== cs || repaired[0]._cleanEnd !== ce,
+    'repair changed offsets'
+  )
+  const { cleanContent: finalCc } = buildCleanContentMap(originalText)
+  assertEq(
+    finalCc.substring(repaired[0]._cleanStart, repaired[0]._cleanEnd),
+    "it's",
+    'repaired span is it\'s again'
+  )
+  assert(
+    !finalCc
+      .substring(repaired[0]._cleanStart, repaired[0]._cleanEnd)
+      .includes('coll'),
+    'repaired span is not collar'
+  )
+}
+
+// --- 17. Reopen earlier accept must reverse-shift later "the" highlight ---
+{
+  console.log('\n17. Reopen too→too keeps receipt "the" green, not store "the"')
+  // After teh→the and too→to: "He went to the store with the receipt."
+  // Reopen too (to→too, +1). Without reverse-shift, receipt clean span
+  // slides onto store "the".
+  let line = 'He went to the store with the receipt.'
+  const receiptThe = line.lastIndexOf('the')
+  const storeThe = line.indexOf('the')
+  let annotations = [
+    {
+      id: 'teh',
+      status: 'accepted',
+      entry_id: 1,
+      original: 'teh',
+      suggestion: 'the',
+      _appliedEntryId: 1,
+      _appliedAt: receiptThe,
+      _appliedEnd: receiptThe + 3,
+      _cleanStart: receiptThe,
+      _cleanEnd: receiptThe + 3,
+    },
+  ]
+  // Reopen too at index 8 ("to"), restore "too" — pre-reopen end of "to" is 10.
+  const toStart = line.indexOf('to ')
+  const toEnd = toStart + 2
+  line = line.substring(0, toStart) + 'too' + line.substring(toEnd)
+  annotations = shiftAcceptedApplySites(
+    annotations,
+    {
+      entryId: 1,
+      entryEditEnd: toEnd,
+      entryDelta: 1,
+      cleanEditEnd: toEnd,
+      cleanDelta: 1,
+    },
+    'too'
+  )
+  assertEq(annotations[0]._appliedAt, receiptThe + 1, 'receipt the shifted +1')
+  assertEq(line.substring(annotations[0]._appliedAt, annotations[0]._appliedEnd), 'the', 'still receipt the')
+  assert(
+    annotations[0]._appliedAt > line.indexOf('the'),
+    'apply site is not the store the'
+  )
+  assertEq(
+    line.substring(annotations[0]._cleanStart, annotations[0]._cleanEnd),
+    'the',
+    'clean span text still the'
+  )
+  const before = line.substring(
+    Math.max(0, annotations[0]._cleanStart - 6),
+    annotations[0]._cleanStart
+  )
+  assert(before.includes('with'), `green stays on receipt (before=${JSON.stringify(before)})`)
+  assert(!before.endsWith('too '), 'green is not store the after reopen too')
+  assert(line.includes('too the store'), 'too restored')
+  assert(storeThe < annotations[0]._appliedAt, 'store the is still before receipt the')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

@@ -588,6 +588,59 @@ export function locateNeedleNear(text, needle, expectedStart, radius = 12) {
 }
 
 /**
+ * Recompute accepted `_cleanStart`/`_cleanEnd` when the cached span no longer
+ * matches `suggestion` in cleanContent (common after earlier accepts shortened
+ * the file, or after reload with drifted offsets). Returns same array
+ * reference when nothing changes.
+ */
+export function repairAcceptedCleanSpans(originalText, entries, annotations) {
+  if (!originalText || !Array.isArray(annotations) || annotations.length === 0) {
+    return annotations
+  }
+  const { cleanContent } = buildCleanContentMap(originalText)
+  let changed = false
+  const next = annotations.map((ann) => {
+    if (ann.status !== 'accepted' || !ann.suggestion) return ann
+    const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    const locateAnn =
+      ann._appliedAt != null && ann._appliedEnd != null
+        ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
+        : ann
+    // Prefer relocate from apply-site offsets. A stale cache can still
+    // substring-equal "the" while sitting on the wrong twin ("the store").
+    const located = locateAnnotationInCleanContent(
+      cleanContent,
+      entry,
+      locateAnn,
+      ann.suggestion
+    )
+    if (located) {
+      if (
+        located.cleanStart === ann._cleanStart &&
+        located.cleanEnd === ann._cleanEnd
+      ) {
+        return ann
+      }
+      changed = true
+      return {
+        ...ann,
+        _cleanStart: located.cleanStart,
+        _cleanEnd: located.cleanEnd,
+      }
+    }
+    if (
+      ann._cleanStart != null &&
+      ann._cleanEnd != null &&
+      cleanContent.substring(ann._cleanStart, ann._cleanEnd) === ann.suggestion
+    ) {
+      return ann
+    }
+    return ann
+  })
+  return changed ? next : annotations
+}
+
+/**
  * After an accept splices text, shift other accepted annotations' stored
  * apply sites that sit strictly after the edit.
  */

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -172,7 +172,14 @@ export default function DashboardEditor() {
 
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
-        const fixedAnnotations = filterPhantomFixes(dedupedEntries, fixAnnotationPositions(dedupedEntries, dedupedAnnotations))
+        const positioned = filterPhantomFixes(dedupedEntries, fixAnnotationPositions(dedupedEntries, dedupedAnnotations))
+        // Cached green spans drift when earlier accepts change file length;
+        // re-pin them to the suggestion text before first paint.
+        const fixedAnnotations = repairAcceptedCleanSpans(
+          parsed.originalText || null,
+          dedupedEntries,
+          positioned
+        )
         if (gen !== loadGenRef.current) return
 
         setTitle(parsed.title || '')
@@ -548,7 +555,11 @@ export default function DashboardEditor() {
         ? { ...a, status: 'accepted', suggestion: finalSuggestion, _originalSuggestion: a._originalSuggestion ?? a.suggestion, _appliedEntryId: appliedEntryId, _appliedAt: appliedAt, _appliedEnd: appliedEnd, _appliedMatchedText: appliedMatchedText, _cleanStart, _cleanEnd, _appliedOriginalStart, _appliedOriginalEnd, _appliedOriginalMatchedText }
         : a
     )
-    const fixedAnnotations = fixAnnotationPositions(newEntries, updatedAnnotations)
+    const fixedAnnotations = repairAcceptedCleanSpans(
+      updatedOriginalText,
+      newEntries,
+      fixAnnotationPositions(newEntries, updatedAnnotations)
+    )
 
     entriesRef.current = newEntries
     annotationsRef.current = fixedAnnotations
@@ -660,10 +671,16 @@ export default function DashboardEditor() {
     if (!ann || ann.status === 'open') return
 
     let curEntries = entriesRef.current
+    let curOriginalText = originalTextRef.current
+    // When reopen lengthens/shortens text (to→too), later accepts must shift
+    // or their green span slides onto an earlier twin ("the store").
+    let reopenShift = null
 
     // If previously accepted, revert both entries and originalText.
     if (ann.status === 'accepted') {
       const restoreText = ann._appliedMatchedText ?? ann.original
+      let entrySpan = null
+      let originalSpan = null
 
       // Revert entries at/near the stored apply site. Never whole-entry
       // flexFind(suggestion) — that reverts the first "the" ("the store")
@@ -681,6 +698,7 @@ export default function DashboardEditor() {
             )
             return e
           }
+          entrySpan = span
           return {
             ...e,
             text: e.text.substring(0, span.start) + restoreText + e.text.substring(span.end),
@@ -691,7 +709,6 @@ export default function DashboardEditor() {
       }
 
       // Revert originalText at/near the stored apply site (or cached clean span).
-      const curOriginalText = originalTextRef.current
       if (curOriginalText && ann.suggestion) {
         let reverted = curOriginalText
         const otSlice =
@@ -703,9 +720,13 @@ export default function DashboardEditor() {
           ann._appliedOriginalMatchedText != null &&
           otSlice === ann.suggestion
         ) {
+          originalSpan = {
+            start: ann._appliedOriginalStart,
+            end: ann._appliedOriginalEnd,
+          }
           reverted =
             curOriginalText.substring(0, ann._appliedOriginalStart) +
-            ann._appliedOriginalMatchedText +
+            restoreText +
             curOriginalText.substring(ann._appliedOriginalEnd)
         } else {
           let span = null
@@ -727,6 +748,7 @@ export default function DashboardEditor() {
             )
           }
           if (span) {
+            originalSpan = span
             reverted =
               curOriginalText.substring(0, span.start) +
               restoreText +
@@ -737,12 +759,29 @@ export default function DashboardEditor() {
             )
           }
         }
+        curOriginalText = reverted
         originalTextRef.current = reverted
         setOriginalText(reverted)
       }
+
+      const sugLen = ann.suggestion?.length ?? 0
+      const restoreLen = restoreText.length
+      const delta = restoreLen - sugLen
+      if (delta !== 0 && (entrySpan || originalSpan || ann._cleanEnd != null)) {
+        reopenShift = {
+          entryId: ann._appliedEntryId ?? ann.entry_id,
+          entryEditEnd: entrySpan?.end ?? null,
+          entryDelta: entrySpan ? delta : 0,
+          originalEditEnd: originalSpan?.end ?? null,
+          originalDelta: originalSpan ? delta : 0,
+          // Pre-reopen end of the green suggestion span in cleanContent.
+          cleanEditEnd: ann._cleanEnd ?? null,
+          cleanDelta: ann._cleanEnd != null ? delta : 0,
+        }
+      }
     }
 
-    const updated = curAnnotations.map((a) =>
+    let updated = curAnnotations.map((a) =>
       a.id === annotationId
         ? {
             ...a,
@@ -763,6 +802,11 @@ export default function DashboardEditor() {
           }
         : a
     )
+    if (reopenShift) {
+      updated = shiftAcceptedApplySites(updated, reopenShift, annotationId)
+    }
+    updated = repairAcceptedCleanSpans(curOriginalText, curEntries, updated)
+
     annotationsRef.current = updated
     setAnnotations(updated)
     setInlinePopover(null)
@@ -1447,22 +1491,41 @@ export default function DashboardEditor() {
             const allOpenAnnotations = annotations.filter((a) => a.status === 'open' || a.status === 'accepted' || a.status === 'ignored')
 
             // Find highlights by searching in cleanContent (which matches Gemini's extracted text).
-            // For accepted annotations, prefer the cached clean-content position stored at accept
-            // time — this avoids matching the first occurrence of the accepted word in the document
-            // when the same word already exists elsewhere (e.g. "Plaintiff" on page 1 vs the
-            // corrected "plaintiff" → "Plaintiff" on page 6).
+            // For accepted annotations, prefer cached clean offsets only when that
+            // span still equals the suggestion — stale caches after earlier accepts
+            // (or hard refresh) otherwise paint green on the wrong word ("collar").
             const highlights = []
             for (const ann of allOpenAnnotations) {
-              if (ann.status === 'accepted' && ann._cleanStart != null) {
+              const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
+              if (!searchWord) continue
+
+              const annotationEntry = entries.find(
+                (e) => e.id === (ann._appliedEntryId ?? ann.entry_id)
+              )
+              // Accepted + apply-site: always locate from those offsets so a
+              // cache that still spells "the" cannot sit on an earlier twin.
+              const locateAnn =
+                ann.status === 'accepted' && ann._appliedAt != null && ann._appliedEnd != null
+                  ? { ...ann, start: ann._appliedAt, end: ann._appliedEnd }
+                  : ann
+
+              if (
+                ann.status === 'accepted' &&
+                ann._appliedAt == null &&
+                ann._cleanStart != null &&
+                ann._cleanEnd != null &&
+                cleanContent.substring(ann._cleanStart, ann._cleanEnd) === ann.suggestion
+              ) {
                 highlights.push({ ...ann, cleanStart: ann._cleanStart, cleanEnd: ann._cleanEnd })
                 continue
               }
-              const searchWord = ann.status === 'accepted' ? ann.suggestion : ann.original
-              if (!searchWord) continue
-              // Reuse the panel's already-resolved entry offsets when placing
-              // the underline — do not re-derive from a separate whole-doc search.
-              const annotationEntry = entries.find((e) => e.id === ann.entry_id)
-              const located = locateAnnotationInCleanContent(cleanContent, annotationEntry, ann, searchWord)
+
+              const located = locateAnnotationInCleanContent(
+                cleanContent,
+                annotationEntry,
+                locateAnn,
+                searchWord
+              )
               if (!located) {
                 console.warn(
                   `Transcript highlight miss: id=${ann.id} entry_id=${ann.entry_id} type=${ann.type} status=${ann.status} original=${JSON.stringify(ann.original)} searchWord=${JSON.stringify(searchWord)} hasEntry=${!!annotationEntry} hasOffsets=${Number.isFinite(ann.start) && Number.isFinite(ann.end)}`
