@@ -1,0 +1,86 @@
+{
+  "title": "Extra Word Delete Seed",
+  "extracted_at": "2026-07-26T20:17:00.000Z",
+  "source_note": "Manual seed: empty-suggestion Accept must remove Found text (extra_word).",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. He went to the the store yesterday."
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. She said that that that was correct."
+    },
+    {
+      "id": 3,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Please mark the document as Exhibit Number 1."
+    },
+    {
+      "id": 4,
+      "speaker": "THE WITNESS",
+      "text": "A. I already already signed it this morning."
+    }
+  ],
+  "annotations": [
+    {
+      "status": "open",
+      "id": 1,
+      "entry_id": 1,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "the",
+      "suggestion": "",
+      "explanation": "Extra the. Accept with empty suggestion must REMOVE it (leave one the).",
+      "start": 14,
+      "end": 17,
+      "_anchorBefore": "the ",
+      "_anchorAfter": " store"
+    },
+    {
+      "status": "open",
+      "id": 2,
+      "entry_id": 2,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "that",
+      "suggestion": "",
+      "explanation": "Triple that — remove the middle extra. Accept must delete, not no-op.",
+      "start": 17,
+      "end": 21,
+      "_anchorBefore": "that ",
+      "_anchorAfter": " that"
+    },
+    {
+      "status": "open",
+      "id": 3,
+      "entry_id": 4,
+      "type": "extra_word",
+      "severity": "critical",
+      "original": "already",
+      "suggestion": "",
+      "explanation": "Doubled already. Accept (remove) must leave a single already.",
+      "start": 12,
+      "end": 19,
+      "_anchorBefore": "already ",
+      "_anchorAfter": " signed"
+    },
+    {
+      "status": "open",
+      "id": 4,
+      "entry_id": 3,
+      "type": "legal_term",
+      "severity": "warning",
+      "original": "Exhibit Number 1",
+      "suggestion": "Exhibit No. 1",
+      "explanation": "Control: normal non-empty Accept still works.",
+      "start": 28,
+      "end": 44,
+      "_anchorBefore": "as ",
+      "_anchorAfter": "."
+    }
+  ],
+  "originalText": "     1           Q.  He went to the the store yesterday.\r\n\r\n     2                  A.  She said that that that was correct.\r\n\r\n     3                  Q.  Please mark the document as Exhibit\r\n\r\n     4           Number 1.\r\n\r\n     5                  A.  I already already signed it this morning.\r\n"
+}

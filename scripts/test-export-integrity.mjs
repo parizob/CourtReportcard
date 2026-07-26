@@ -1644,5 +1644,70 @@ console.log('\n=== Export integrity ===\n')
   assert(detail.text.includes('has'), 'suggestion applied after sanitize')
 }
 
+// --- 27. Empty suggestion = delete extra word (Accept must remove Found) ---
+{
+  console.log('\n27. Empty suggestion deletes extra word (extra_word Accept)')
+  const before = 'Q. He went to the the store yesterday.'
+  const detail = applyCorrectionDetailed(before, 'the', '')
+  // flexFind first "the" — not ideal twin, but proves empty apply works.
+  assert(detail.start !== -1, 'empty suggestion applies (not a no-op)')
+  assert(!detail.text.includes('the the'), 'duplicate the removed somehow')
+
+  // Anchored delete of the second "the" (the real extra word).
+  const { cleanContent } = buildCleanContentMap(before)
+  const second = (() => {
+    const first = flexFind(cleanContent, 'the')
+    return flexFind(cleanContent.substring(first.end), 'the')
+      ? { start: first.end + flexFind(cleanContent.substring(first.end), 'the').start,
+          end: first.end + flexFind(cleanContent.substring(first.end), 'the').end }
+      : null
+  })()
+  assert(!!second, 'second the found')
+  const del = applyCorrectionDetailed(before, 'the', '', {
+    cleanStart: second.start,
+    cleanEnd: second.end,
+  })
+  assertEq(del.text, 'Q. He went to the store yesterday.', 'anchored delete + space collapse')
+  assertEq(del.end, del.start, 'deletion apply site is zero-width')
+
+  const annotations = [
+    {
+      id: 'x1',
+      entry_id: 1,
+      status: 'accepted',
+      type: 'extra_word',
+      original: 'the',
+      suggestion: '',
+      start: 18,
+      end: 21,
+      _anchorBefore: 'the ',
+      _anchorAfter: ' store',
+    },
+  ]
+  // Export repair: still-present original with empty suggestion → delete it.
+  const unrepaired = 'Q. He went to the the store yesterday.'
+  const { text: fixed, failed } = ensureAcceptedCorrectionsInOriginalText(
+    unrepaired,
+    [{ id: 1, text: unrepaired }],
+    annotations
+  )
+  assertEq(failed.length, 0, 'empty-suggestion accept does not fail export')
+  assertEq(fixed, 'Q. He went to the store yesterday.', 'export repair deletes extra word')
+
+  // Already deleted: must not fail closed.
+  const { text: again, failed: failed2 } = ensureAcceptedCorrectionsInOriginalText(
+    fixed,
+    [{ id: 1, text: fixed }],
+    annotations
+  )
+  assertEq(failed2.length, 0, 'already-deleted empty suggestion is success')
+  assertEq(again, fixed, 'no further mutation once deleted')
+
+  const caret = buildContextAnchor('Q. He went to the store yesterday.', 18, 18)
+  assert(!!caret, 'zero-width caret builds context anchors')
+  assert(caret.before.includes('the'), 'before anchor present')
+  assert(caret.after.includes('store'), 'after anchor present')
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
 process.exit(failed > 0 ? 1 : 0)

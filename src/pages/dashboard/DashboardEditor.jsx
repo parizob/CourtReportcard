@@ -415,22 +415,35 @@ export default function DashboardEditor() {
         flexFind(e.text, ann.original)
       if (!m) {
         // Last resort: legacy already-applied ([sic]) without anchors.
-        const already = flexFind(e.text, finalSuggestion)
-        const stillOrig = flexFind(e.text, ann.original)
-        if (isSuggestionAlreadyApplied(e.text, already, stillOrig, ann.original, finalSuggestion)) {
-          appliedEntryId = e.id
-          appliedAt = already.start
-          appliedEnd = already.end
-          appliedMatchedText = ann.original
-          return e
+        // Empty suggestion = deletion; cannot "find" the suggestion span.
+        if (finalSuggestion !== '') {
+          const already = flexFind(e.text, finalSuggestion)
+          const stillOrig = flexFind(e.text, ann.original)
+          if (isSuggestionAlreadyApplied(e.text, already, stillOrig, ann.original, finalSuggestion)) {
+            appliedEntryId = e.id
+            appliedAt = already.start
+            appliedEnd = already.end
+            appliedMatchedText = ann.original
+            return e
+          }
         }
         return e
       }
+      let from = m.start
+      let to = m.end
+      // Match applyCorrectionDetailed: deleting a word also eats one space.
+      if (finalSuggestion === '') {
+        if (to < e.text.length && /[ \t]/.test(e.text[to])) to += 1
+        else if (from > 0 && /[ \t]/.test(e.text[from - 1])) from -= 1
+      }
       appliedEntryId = e.id
-      appliedAt = m.start
-      appliedEnd = m.start + finalSuggestion.length
-      appliedMatchedText = e.text.substring(m.start, m.end)
-      return { ...e, text: e.text.substring(0, m.start) + finalSuggestion + e.text.substring(m.end) }
+      appliedAt = from
+      appliedEnd = from + finalSuggestion.length
+      appliedMatchedText = e.text.substring(from, to)
+      return {
+        ...e,
+        text: e.text.substring(0, from) + finalSuggestion + e.text.substring(to),
+      }
     })
 
     // Entry apply is required — otherwise the visible edit and (when there is
@@ -556,15 +569,28 @@ export default function DashboardEditor() {
       // Optional legacy clean span (jump/debug). Paint uses context anchors.
       if (_appliedOriginalStart != null && _appliedOriginalEnd != null) {
         const { cleanContent: postCc, cleanToOrig } = buildCleanContentMap(updatedOriginalText)
-        let cs = -1
-        let ce = -1
-        for (let i = 0; i < cleanToOrig.length; i++) {
-          if (cs < 0 && cleanToOrig[i] === _appliedOriginalStart) cs = i
-          if (cleanToOrig[i] === _appliedOriginalEnd - 1) ce = i + 1
-        }
-        if (cs >= 0 && ce > cs && postCc.substring(cs, ce) === finalSuggestion) {
+        if (finalSuggestion === '') {
+          // Zero-width caret at the deletion site in post-accept clean text.
+          let cs = cleanToOrig.length
+          for (let i = 0; i < cleanToOrig.length; i++) {
+            if (cleanToOrig[i] >= _appliedOriginalStart) {
+              cs = i
+              break
+            }
+          }
           _cleanStart = cs
-          _cleanEnd = ce
+          _cleanEnd = cs
+        } else {
+          let cs = -1
+          let ce = -1
+          for (let i = 0; i < cleanToOrig.length; i++) {
+            if (cs < 0 && cleanToOrig[i] === _appliedOriginalStart) cs = i
+            if (cleanToOrig[i] === _appliedOriginalEnd - 1) ce = i + 1
+          }
+          if (cs >= 0 && ce > cs && postCc.substring(cs, ce) === finalSuggestion) {
+            _cleanStart = cs
+            _cleanEnd = ce
+          }
         }
       }
     }
@@ -775,7 +801,7 @@ export default function DashboardEditor() {
     if (ann.status === 'accepted') {
       // Probe originalText span first (no mutations) so a flatten risk can
       // abort before entry/status diverge from the export source.
-      if (curOriginalText && ann.suggestion) {
+      if (curOriginalText && typeof ann.suggestion === 'string') {
         if (missingCrossLineReopenBytes(ann)) {
           console.warn(
             `Reopen blocked: cross-line accept missing structured undo — id=${ann.id}`
@@ -853,19 +879,25 @@ export default function DashboardEditor() {
       }
 
       // Revert entry: prefer context anchor (twin-safe), then stored offsets.
-      if (ann._appliedEntryId != null && ann.suggestion) {
+      // Empty suggestion = deletion (zero-width apply site); use stored offsets.
+      if (ann._appliedEntryId != null && typeof ann.suggestion === 'string') {
         curEntries = curEntries.map((e) => {
           if (e.id !== ann._appliedEntryId) return e
           let span = null
-          const anchored = locateAnnotationWithAnchor(e.text, e, ann, ann.suggestion)
-          if (anchored) {
-            span = { start: anchored.cleanStart, end: anchored.cleanEnd }
-          } else if (
+          if (ann.suggestion !== '') {
+            const anchored = locateAnnotationWithAnchor(e.text, e, ann, ann.suggestion)
+            if (anchored) {
+              span = { start: anchored.cleanStart, end: anchored.cleanEnd }
+            }
+          }
+          if (
+            !span &&
             ann._appliedAt != null &&
+            ann._appliedEnd != null &&
             e.text.substring(ann._appliedAt, ann._appliedEnd) === ann.suggestion
           ) {
             span = { start: ann._appliedAt, end: ann._appliedEnd }
-          } else if (ann._appliedAt != null) {
+          } else if (!span && ann.suggestion !== '' && ann._appliedAt != null) {
             span = locateNeedleNear(e.text, ann.suggestion, ann._appliedAt)
           }
           if (!span) {
@@ -888,7 +920,7 @@ export default function DashboardEditor() {
       }
 
       // Revert originalText using the probed span + structured restore bytes.
-      if (curOriginalText && ann.suggestion) {
+      if (curOriginalText && typeof ann.suggestion === 'string') {
         let reverted = curOriginalText
         if (originalSpan) {
           reverted =
@@ -1091,6 +1123,10 @@ export default function DashboardEditor() {
     return map
   }, [annotations, entries])
 
+  // Empty suggestion = delete the Found text (extra word). Show a clear label
+  // so Accept is not a blank quote pair.
+  const suggestionLabel = (s) => (s === '' ? '(remove)' : s)
+
   const renderHighlightedText = (entry) => {
     const entryAnnotations = annotationsByEntry[entry.id]
     if (!entryAnnotations || entryAnnotations.length === 0) {
@@ -1148,7 +1184,7 @@ export default function DashboardEditor() {
           key={`a-${ann.id}`}
           id={`ann-highlight-${ann.id}`}
           className={cls}
-          title={ann.status === 'accepted' ? `Accepted: "${ann.original}" → "${ann.suggestion}"` : `${ann.type}: ${ann.explanation}`}
+          title={ann.status === 'accepted' ? `Accepted: "${ann.original}" → "${suggestionLabel(ann.suggestion)}"` : `${ann.type}: ${ann.explanation}`}
           onClick={ann.status === 'open' ? () => {
             const el = document.getElementById(`ann-card-${ann.id}`)
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -1349,7 +1385,7 @@ export default function DashboardEditor() {
                   : 'bg-surface-container-lowest text-on-surface hover:shadow-sm'
               }`}
             >
-              Accept: &quot;{ann.suggestion}&quot;
+              Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
             </button>
             <div className="mt-2 relative">
               <input
@@ -1406,7 +1442,7 @@ export default function DashboardEditor() {
                     <p className="text-xs truncate">
                       <span className="text-on-surface-variant line-through">{ann.original}</span>
                       <span className="text-on-surface-variant mx-1">→</span>
-                      <span className="text-green-700 font-semibold">{ann.suggestion}</span>
+                      <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
                     </p>
                   ) : (
                     <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
@@ -2077,7 +2113,7 @@ export default function DashboardEditor() {
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-on-surface-variant line-through">{ann.original}</span>
                         <span className="material-symbols-outlined text-sm text-green-600">arrow_forward</span>
-                        <span className="text-green-700 font-semibold">{ann.suggestion}</span>
+                        <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
                       </div>
                     ) : (
                       <p className="text-xs text-on-surface-variant/70">
@@ -2116,7 +2152,7 @@ export default function DashboardEditor() {
                         : 'bg-surface-container text-on-surface hover:shadow-sm'
                     }`}
                   >
-                    Accept: &quot;{ann.suggestion}&quot;
+                    Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
                   </button>
                   <div className="mt-2 relative">
                     <input

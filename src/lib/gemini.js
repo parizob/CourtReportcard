@@ -453,13 +453,14 @@ export function locateAnnotationInCleanContent(cleanContent, entry, ann, searchW
  * the anchor for a later flag on the same line.
  */
 export function buildContextAnchor(text, start, end, maxWords = 2) {
+  // start === end is valid (zero-width caret after a deletion accept).
   if (
     !text ||
     !Number.isFinite(start) ||
     !Number.isFinite(end) ||
     start < 0 ||
     end > text.length ||
-    start >= end
+    start > end
   ) {
     return null
   }
@@ -1010,7 +1011,11 @@ export function _reflowLines(text, colWidth) {
  *   cleanContent range (from locateAnnotationInCleanContent). No re-search.
  */
 export function applyCorrectionDetailed(text, original, suggestion, options = {}) {
-  if (!text || !original || !suggestion) return { text, start: -1, end: -1, matchedText: null }
+  // Empty-string suggestion means delete the matched original (extra word).
+  // null/undefined still mean "no suggestion" and must not apply.
+  if (!text || !original || typeof suggestion !== 'string') {
+    return { text, start: -1, end: -1, matchedText: null }
+  }
 
   const buildReplacement = (matchStart, matchEnd, skipLineNums) => {
     const matchedRegion = text.substring(matchStart, matchEnd)
@@ -1048,13 +1053,21 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
   }
 
   const apply = (matchStart, matchEnd) => {
-    const matchedText = text.substring(matchStart, matchEnd)
-    const replacement = buildReplacement(matchStart, matchEnd, true)
+    let from = matchStart
+    let to = matchEnd
+    const matchedText = text.substring(from, to)
+    const replacement = buildReplacement(from, to, true)
+    // Deleting a word: also eat one adjacent space so "a very nice" → "a nice"
+    // instead of "a  nice". Prefer the trailing space (keeps sentence start tidy).
+    if (replacement === '' && suggestion === '') {
+      if (to < text.length && /[ \t]/.test(text[to])) to += 1
+      else if (from > 0 && /[ \t]/.test(text[from - 1])) from -= 1
+    }
     return {
-      text: text.substring(0, matchStart) + replacement + text.substring(matchEnd),
-      start: matchStart,
-      end: matchStart + replacement.length,
-      matchedText,
+      text: text.substring(0, from) + replacement + text.substring(to),
+      start: from,
+      end: from + replacement.length,
+      matchedText: text.substring(from, to),
     }
   }
 
@@ -1104,7 +1117,7 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
 }
 
 export function applyCorrection(text, original, suggestion) {
-  if (!text || !original || !suggestion) return text
+  if (!text || !original || typeof suggestion !== 'string') return text
   return applyCorrectionDetailed(text, original, suggestion).text
 }
 
@@ -1353,7 +1366,7 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
   if (!originalText) return { text: originalText, failed: [] }
 
   const accepted = (annotations || [])
-    .filter((a) => a.status === 'accepted' && a.original && a.suggestion)
+    .filter((a) => a.status === 'accepted' && a.original && typeof a.suggestion === 'string')
     .slice()
     .sort((a, b) => {
       const ea = a.entry_id ?? 0
@@ -1401,32 +1414,45 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       typeof ann._anchorBefore === 'string' &&
       typeof ann._anchorAfter === 'string' &&
       !!(ann._anchorBefore || ann._anchorAfter)
-    let hasSuggestion = hasAnchor
-      ? locateAtAnchorStrict(cleanContent, ann, ann.suggestion)
-      : locateAnnotationInCleanContent(cleanContent, entry, ann, ann.suggestion)
-    let stillOriginal =
-      (hasAnchor ? locateAtAnchorStrict(cleanContent, ann, ann.original) : null) ||
-      locateAnnotationInCleanContent(
-        cleanContent,
-        locateEntry,
-        locateAnn,
-        ann.original
-      )
+    const isDeletion = ann.suggestion === ''
+    let hasSuggestion = isDeletion
+      ? null
+      : hasAnchor
+        ? locateAtAnchorStrict(cleanContent, ann, ann.suggestion)
+        : locateAnnotationInCleanContent(cleanContent, entry, ann, ann.suggestion)
+    // Deletions with anchors: only the anchored site counts. A leftover twin
+    // ("the store" after deleting the extra "the") must not be re-deleted.
+    let stillOriginal = hasAnchor
+      ? locateAtAnchorStrict(cleanContent, ann, ann.original)
+      : locateAnnotationInCleanContent(
+          cleanContent,
+          locateEntry,
+          locateAnn,
+          ann.original
+        )
 
     // After an earlier accept on the same line, entry offsets / locator
     // context can miss a still-present original. Fall back to flexFind for
     // the original only (usually unique). Never flexFind a short suggestion
-    // when anchors exist — that latches onto an earlier twin.
-    if (!stillOriginal) {
+    // when anchors exist — that latches onto an earlier twin. Never flexFind
+    // for deletions with anchors (same twin trap).
+    if (!stillOriginal && !(isDeletion && hasAnchor)) {
       const m = flexFind(cleanContent, ann.original)
       if (m) stillOriginal = { cleanStart: m.start, cleanEnd: m.end }
     }
-    if (!hasSuggestion && !hasAnchor) {
+    if (!isDeletion && !hasSuggestion && !hasAnchor) {
       const m = flexFind(cleanContent, ann.suggestion)
       if (m) hasSuggestion = { cleanStart: m.start, cleanEnd: m.end }
     }
 
+    // Deletion accepts: success = original gone from the flagged site.
+    // Empty suggestion cannot be "found" as a span.
+    if (isDeletion && !stillOriginal) {
+      continue
+    }
+
     if (
+      !isDeletion &&
       isSuggestionAlreadyApplied(
         cleanContent,
         hasSuggestion,
