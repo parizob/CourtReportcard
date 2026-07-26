@@ -10,6 +10,7 @@
 import {
   ensureAcceptedCorrectionsInOriginalText,
   applyCorrectionDetailed,
+  expandDeletionRange,
   flexFind,
   isSuggestionAlreadyApplied,
   locateAnnotationInCleanContent,
@@ -1707,6 +1708,36 @@ console.log('\n=== Export integrity ===\n')
   assert(!!caret, 'zero-width caret builds context anchors')
   assert(caret.before.includes('the'), 'before anchor present')
   assert(caret.after.includes('store'), 'after anchor present')
+}
+
+// --- 28. Delete must not glue neighbors when Found already has a space ---
+{
+  console.log('\n28. Delete with spaced Found does not glue neighbors (Melanie)')
+  const line = 'Q. He went to the store yesterday.'
+  // Found "the " / " the" already includes a space — eating the other side
+  // used to produce "tostore".
+  for (const original of ['the ', ' the']) {
+    const d = applyCorrectionDetailed(line, original, '')
+    assert(d.start !== -1, `applies for ${JSON.stringify(original)}`)
+    assert(
+      d.text.includes('to store'),
+      `keeps space between to/store for ${JSON.stringify(original)}`
+    )
+    assert(
+      !d.text.includes('tostore'),
+      `does not glue for ${JSON.stringify(original)}`
+    )
+  }
+  // Bare word still collapses one space (no double space left).
+  const bare = applyCorrectionDetailed(line, 'the', '')
+  assertEq(bare.text, 'Q. He went to store yesterday.', 'bare the still collapses one space')
+
+  const r = expandDeletionRange('to the store', 3, 6) // "the"
+  assertEq(r.from, 3, 'bare expand keeps from')
+  assertEq(r.to, 7, 'bare expand eats trailing space')
+  const r2 = expandDeletionRange('to the store', 3, 7) // "the "
+  assertEq(r2.from, 3, 'spaced match does not expand from')
+  assertEq(r2.to, 7, 'spaced match does not expand to')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

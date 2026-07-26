@@ -1001,6 +1001,30 @@ export function _reflowLines(text, colWidth) {
  * isn't found.
  */
 /**
+ * When deleting a word, expand [from, to) to also remove one adjacent space
+ * so "a very nice" → "a nice". If the match already includes a leading or
+ * trailing space (Found "the " / " the"), do NOT eat the other side — that
+ * glued neighbors ("tostore").
+ * Returns { from, to }.
+ */
+export function expandDeletionRange(text, from, to) {
+  if (!text || from == null || to == null || from < 0 || to < from) {
+    return { from, to }
+  }
+  const matched = text.substring(from, to)
+  if (/^\s/.test(matched) || /\s$/.test(matched)) {
+    return { from, to }
+  }
+  if (to < text.length && /[ \t]/.test(text[to])) {
+    return { from, to: to + 1 }
+  }
+  if (from > 0 && /[ \t]/.test(text[from - 1])) {
+    return { from: from - 1, to }
+  }
+  return { from, to }
+}
+
+/**
  * @param {object} [options]
  * @param {number} [options.searchFromClean] - When set, search only in
  *   cleanContent starting at this offset (entry-anchored). Does NOT fall
@@ -1055,13 +1079,11 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
   const apply = (matchStart, matchEnd) => {
     let from = matchStart
     let to = matchEnd
-    const matchedText = text.substring(from, to)
     const replacement = buildReplacement(from, to, true)
     // Deleting a word: also eat one adjacent space so "a very nice" → "a nice"
     // instead of "a  nice". Prefer the trailing space (keeps sentence start tidy).
     if (replacement === '' && suggestion === '') {
-      if (to < text.length && /[ \t]/.test(text[to])) to += 1
-      else if (from > 0 && /[ \t]/.test(text[from - 1])) from -= 1
+      ;({ from, to } = expandDeletionRange(text, from, to))
     }
     return {
       text: text.substring(0, from) + replacement + text.substring(to),

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -431,10 +431,10 @@ export default function DashboardEditor() {
       }
       let from = m.start
       let to = m.end
-      // Match applyCorrectionDetailed: deleting a word also eats one space.
+      // Match applyCorrectionDetailed: deleting a word also eats one space
+      // unless Found already included a space (avoids "tostore").
       if (finalSuggestion === '') {
-        if (to < e.text.length && /[ \t]/.test(e.text[to])) to += 1
-        else if (from > 0 && /[ \t]/.test(e.text[from - 1])) from -= 1
+        ;({ from, to } = expandDeletionRange(e.text, from, to))
       }
       appliedEntryId = e.id
       appliedAt = from
