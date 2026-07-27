@@ -237,7 +237,7 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  return JSON.parse(extractFirstJsonValue(cleaned))
+  return parseGeminiJsonText(cleaned)
 }
 
 // Even with responseMimeType: 'application/json', Gemini has been observed
@@ -249,7 +249,13 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
 // trailing it, so a well-formed response isn't thrown away over a model-side
 // formatting slip. Leaves genuinely malformed/truncated JSON to fail
 // JSON.parse normally — this only trims trailing garbage, never repairs the
-// value itself. Mirrored in src/lib/gemini.js.
+// value itself.
+//
+// Also: Gemini occasionally embeds raw U+0000–U+001F chars inside JSON string
+// literals (prod 2026-07-27 Roberts / HeatherRoberts2 chunk 4 →
+// "Bad control character in string literal"). Happy path still JSON.parse only;
+// repair runs only when that specific parse error is thrown. Mirrored from
+// src/lib/parseGeminiJson.js — keep in sync.
 function extractFirstJsonValue(text: string): string {
   const start = text.search(/[{[]/)
   if (start === -1) return text
@@ -274,6 +280,62 @@ function extractFirstJsonValue(text: string): string {
     }
   }
   return text.slice(start)
+}
+
+function escapeRawControlCharsInJsonStrings(text: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    const code = c.charCodeAt(0)
+    if (inString) {
+      if (escaped) {
+        out += c
+        escaped = false
+        continue
+      }
+      if (c === '\\') {
+        out += c
+        escaped = true
+        continue
+      }
+      if (c === '"') {
+        out += c
+        inString = false
+        continue
+      }
+      if (code < 0x20) {
+        if (c === '\n') out += '\\n'
+        else if (c === '\r') out += '\\r'
+        else if (c === '\t') out += '\\t'
+        else out += `\\u${code.toString(16).padStart(4, '0')}`
+        continue
+      }
+      out += c
+      continue
+    }
+    if (c === '"') inString = true
+    out += c
+  }
+  return out
+}
+
+function isControlCharParseError(err: unknown): boolean {
+  const msg = String((err as Error)?.message || err || '')
+  return /Bad control character|control character in string/i.test(msg)
+}
+
+/** Parse cleaned Gemini JSON text (fences already stripped by caller). */
+function parseGeminiJsonText(cleaned: string): any {
+  const extracted = extractFirstJsonValue(cleaned)
+  try {
+    return JSON.parse(extracted)
+  } catch (err) {
+    if (!isControlCharParseError(err)) throw err
+    console.warn('Gemini JSON: repairing raw control characters in string literals')
+    return JSON.parse(escapeRawControlCharsInJsonStrings(extracted))
+  }
 }
 
 // ── flexFind + position fixing (mirrored from src/lib/gemini.js) ──

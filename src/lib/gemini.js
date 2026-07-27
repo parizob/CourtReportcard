@@ -1,6 +1,8 @@
 // Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD —
 // extraction uses the lighter/cheaper model (structured parsing, not reasoning),
 // proofreading uses full-quality Pro. Keep these in sync with index.ts.
+import { parseGeminiJsonResponse } from './parseGeminiJson.js'
+
 const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
 const MODEL_PROOFREAD = 'gemini-2.5-pro'
 
@@ -56,44 +58,9 @@ async function callGemini(prompt, filePart, model, thinkingConfig, timeoutMs = 3
     console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, data.usageMetadata)
   }
 
-  const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  return JSON.parse(extractFirstJsonValue(cleaned))
-}
-
-// Even with JSON-only responses requested, Gemini has been observed
-// (production case: chunk-boundary content landing right at a closing
-// certificate/signature page) to emit a complete, valid JSON value and then
-// append extra non-whitespace content after it — which a bare JSON.parse
-// rejects outright ("Unexpected non-whitespace character after JSON").
-// Scans for the first balanced top-level object/array and discards anything
-// trailing it, so a well-formed response isn't thrown away over a model-side
-// formatting slip. Leaves genuinely malformed/truncated JSON to fail
-// JSON.parse normally — this only trims trailing garbage, never repairs the
-// value itself. Mirrored in supabase/functions/analyze-case/index.ts.
-function extractFirstJsonValue(text) {
-  const start = text.search(/[{[]/)
-  if (start === -1) return text
-  const openChar = text[start]
-  const closeChar = openChar === '{' ? '}' : ']'
-  let depth = 0
-  let inString = false
-  let escaped = false
-  for (let i = start; i < text.length; i++) {
-    const c = text[i]
-    if (inString) {
-      if (escaped) escaped = false
-      else if (c === '\\') escaped = true
-      else if (c === '"') inString = false
-      continue
-    }
-    if (c === '"') inString = true
-    else if (c === openChar) depth++
-    else if (c === closeChar) {
-      depth--
-      if (depth === 0) return text.slice(start, i + 1)
-    }
-  }
-  return text.slice(start)
+  // Trailing-junk trim + control-char repair — see parseGeminiJson.js
+  // (mirrored in supabase/functions/analyze-case/index.ts).
+  return parseGeminiJsonResponse(rawText)
 }
 
 function arrayBufferToBase64(buffer) {
