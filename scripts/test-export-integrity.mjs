@@ -35,6 +35,12 @@ import {
   sanitizePhraseAgainstEntry,
   sanitizeAnnotationsLeakedLineNumbers,
   fixAnnotationPositions,
+  detectRepeatedParagraphTypes,
+  mergeRepeatedParagraphAnnotations,
+  classifyTranscriptParagraphKind,
+  isReviewOnlyAnnotation,
+  REPEATED_PARAGRAPH_TYPE,
+  REPEATED_PARAGRAPH_SUGGESTION,
 } from '../src/lib/gemini.js'
 
 let passed = 0
@@ -1738,6 +1744,146 @@ console.log('\n=== Export integrity ===\n')
   const r2 = expandDeletionRange('to the store', 3, 7) // "the "
   assertEq(r2.from, 3, 'spaced match does not expand from')
   assertEq(r2.to, 7, 'spaced match does not expand to')
+}
+
+// --- 29. Repeated paragraph type (CAT) ---
+{
+  console.log('\n29. Repeated Q/A paragraph detection + review-only export')
+  assertEq(classifyTranscriptParagraphKind('A. Yes.'), 'A', 'classifies A.')
+  assertEq(classifyTranscriptParagraphKind('Q. Hello'), 'Q', 'classifies Q.')
+  assertEq(
+    classifyTranscriptParagraphKind('THE COURT REPORTER: Speak up.'),
+    'COLLOQUY',
+    'classifies colloquy'
+  )
+  assertEq(
+    classifyTranscriptParagraphKind('          continued on next line'),
+    'CONT',
+    'classifies continuation'
+  )
+
+  const originalText =
+    '     1                  Q.  First question?\r\n\r\n' +
+    '     2                  A.  First answer.\r\n\r\n' +
+    '     3                  A.  Second answer without colloquy.\r\n\r\n' +
+    '     4                  Q.  Next question?\r\n\r\n' +
+    '     5                  THE COURT REPORTER:  Please speak up.\r\n\r\n' +
+    '     6                  Q.  After colloquy Q is fine.\r\n\r\n' +
+    '     7                  A.  After colloquy A is fine.\r\n\r\n' +
+    '     8                  Q.  Another question?\r\n\r\n' +
+    '     9                  Q.  Repeated question.\r\n\r\n' +
+    '    10                  A.  Closing answer.\r\n'
+  const entries = [
+    { id: 1, speaker: 'MR. COUNSEL', text: 'Q. First question?' },
+    { id: 2, speaker: 'THE WITNESS', text: 'A. First answer.' },
+    { id: 3, speaker: 'THE WITNESS', text: 'A. Second answer without colloquy.' },
+    { id: 4, speaker: 'MR. COUNSEL', text: 'Q. Next question?' },
+    { id: 5, speaker: 'THE COURT REPORTER', text: 'THE COURT REPORTER: Please speak up.' },
+    { id: 6, speaker: 'MR. COUNSEL', text: 'Q. After colloquy Q is fine.' },
+    { id: 7, speaker: 'THE WITNESS', text: 'A. After colloquy A is fine.' },
+    { id: 8, speaker: 'MR. COUNSEL', text: 'Q. Another question?' },
+    { id: 9, speaker: 'MR. COUNSEL', text: 'Q. Repeated question.' },
+    { id: 10, speaker: 'THE WITNESS', text: 'A. Closing answer.' },
+  ]
+
+  const flags = detectRepeatedParagraphTypes(originalText, entries)
+  assertEq(flags.length, 2, 'flags exactly two repeats (A then Q); colloquy resets both')
+  assert(
+    flags.every((f) => f.type === REPEATED_PARAGRAPH_TYPE && isReviewOnlyAnnotation(f)),
+    'all flags are review-only repeated_paragraph'
+  )
+  assert(
+    flags.every((f) => f.suggestion === REPEATED_PARAGRAPH_SUGGESTION),
+    'instructional suggestion copy'
+  )
+  assert(
+    flags.every((f) => (f.suggestion || '').includes('will not change Q/A markers')),
+    'suggestion tip includes will-not-change note'
+  )
+  assert(
+    flags.every((f) => !(f.explanation || '').includes('will not change')),
+    'explanation stays short (tip carries the note)'
+  )
+  assertEq(flags[0].original, 'A.', 'first flag is repeated A.')
+  assertEq(flags[1].original, 'Q.', 'second flag is repeated Q.')
+  assert(
+    !flags.some((f) => (f._anchorAfter || '').includes('After colloquy')),
+    'does not flag Q/Q or A/A across COURT REPORTER colloquy'
+  )
+  assert(
+    flags.every((f) => typeof f._anchorBefore === 'string' && typeof f._anchorAfter === 'string'),
+    'anchors present'
+  )
+
+  const merged = mergeRepeatedParagraphAnnotations(originalText, entries, flags)
+  assertEq(merged.length, 2, 'merge does not duplicate when already present')
+
+  const { cleanContent } = buildCleanContentMap(originalText)
+  for (const ann of flags) {
+    const entry = entries.find((e) => e.id === ann.entry_id)
+    const loc = locateAnnotationWithAnchor(cleanContent, entry, ann, ann.original)
+    assert(!!loc, `placeable in transcript: ${ann.original}`)
+  }
+
+  const accepted = flags.map((f, i) => ({
+    ...f,
+    id: i + 1,
+    status: 'accepted',
+  }))
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    accepted
+  )
+  assertEq(fails.length, 0, 'review-only accepts never fail export')
+  assertEq(text, originalText, 'export text unchanged after review-only accepts')
+  assert(
+    !text.includes('Court Reportcard will not change'),
+    'instructional suggestion never written into transcript'
+  )
+
+  const needles = jumpSearchNeedles(accepted[0])
+  assert(needles.includes('A.'), 'jump prefers original marker')
+  assert(
+    !needles.some((n) => n.includes('Court Reportcard')),
+    'jump does not search instructional suggestion'
+  )
+
+  const keptByFix = fixAnnotationPositions(entries, [
+    { ...flags[0], id: 99, original: 'A.', entry_id: 3 },
+  ])
+  assertEq(keptByFix.length, 1, 'fixAnnotationPositions keeps review-only without entry marker')
+
+  // Regression: ensureAnnotationAnchors used to rewrite cleanContent anchors
+  // from flat entry text, then load-time merge added duplicates (4 open / 2 real).
+  const seeded = mergeRepeatedParagraphAnnotations(originalText, entries, [])
+  const afterEnsure = ensureAnnotationAnchors(entries, seeded)
+  assertEq(
+    afterEnsure[0]._anchorBefore,
+    seeded[0]._anchorBefore,
+    'ensureAnnotationAnchors does not rewrite review-only anchors'
+  )
+  const afterReload = mergeRepeatedParagraphAnnotations(originalText, entries, afterEnsure)
+  assertEq(afterReload.length, 2, 'reload merge does not double repeated_paragraph flags')
+
+  // Also collapse already-duplicated saves (anchor strings differ, same site).
+  const duplicated = [
+    ...seeded,
+    {
+      ...seeded[0],
+      id: 99,
+      _anchorBefore: '',
+      _anchorAfter: ' We signed',
+    },
+    {
+      ...seeded[1],
+      id: 100,
+      _anchorBefore: '',
+      _anchorAfter: ' Or was',
+    },
+  ]
+  const collapsed = mergeRepeatedParagraphAnnotations(originalText, entries, duplicated)
+  assertEq(collapsed.length, 2, 'collapses duplicate repeated_paragraph at same site')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

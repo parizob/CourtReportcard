@@ -348,6 +348,11 @@ function fixAnnotationPositions(entries: any[], annotations: any[]): { annotatio
   let unresolvedCount = 0
   for (const a of annotations) {
     if (!a.original) { fixed.push(a); continue }
+    // Review-only structural flags: Found "A."/"Q." often missing from entry text.
+    if (a.type === 'repeated_paragraph') {
+      fixed.push(a)
+      continue
+    }
     const entry = entries.find((e) => e.id === a.entry_id)
     if (entry) {
       const m = flexFind(entry.text, a.original)
@@ -511,6 +516,153 @@ function filterPhantomFixes(entries: any[], annotations: any[]): { annotations: 
     console.warn(`filterPhantomFixes: dropped ${droppedCount}/${annotations.length} phantom annotation(s)`)
   }
   return { annotations: filtered, droppedCount }
+}
+
+// Mirrors src/lib/gemini.js detectRepeatedParagraphTypes / mergeRepeatedParagraphAnnotations.
+const REPEATED_PARAGRAPH_TYPE = 'repeated_paragraph'
+const REPEATED_PARAGRAPH_SUGGESTION =
+  'Fix this in your CAT software. Court Reportcard will not change Q/A markers.'
+const REPEATED_PARAGRAPH_EXPLANATION_A =
+  'Repeated Answer with no other speaker between.'
+const REPEATED_PARAGRAPH_EXPLANATION_Q =
+  'Repeated Question with no other speaker between.'
+
+function matchTranscriptLineGutterPrefix(line: string): string {
+  if (!line) return ''
+  const patterns = [
+    /^(\s*\d{1,4}\s{2,})/,
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s+\d{1,4}\s{2,})/,
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s{2,})/,
+    /^(\s*\d{1,2}:\d{2}(?::\d{2})?\s+)/,
+  ]
+  for (const re of patterns) {
+    const m = line.match(re)
+    if (m) return m[1]
+  }
+  return ''
+}
+
+function classifyTranscriptParagraphKind(lineContent: string): 'Q' | 'A' | 'COLLOQUY' | 'CONT' | null {
+  if (/^\s{10,}\d{1,4}\s*$/.test(lineContent || '')) return null
+  const t = (lineContent || '').replace(/\r/g, '').trim()
+  if (!t) return null
+  if (/^Q\.(?:\s|$)/.test(t)) return 'Q'
+  if (/^A\.(?:\s|$)/.test(t)) return 'A'
+  if (/^(?:THE\s+)?(?:COURT(?:\s+REPORTER)?|JUDGE|WITNESS|CLERK|BAILIFF)\s*:/i.test(t)) return 'COLLOQUY'
+  if (/^(?:MR|MS|MRS|DR)\.?\s+\S[^:]{0,60}:/i.test(t)) return 'COLLOQUY'
+  if (/^BY\s+(?:MR|MS|MRS|DR)\.?\s+/i.test(t)) return 'COLLOQUY'
+  if (/^[A-Z][A-Z0-9 .,'\-]{0,50}:/.test(t) && !/^(?:Q|A)\./.test(t)) return 'COLLOQUY'
+  return 'CONT'
+}
+
+function buildContextAnchorSimple(text: string, start: number, end: number, maxWords = 2): { before: string; after: string } {
+  if (!text || start < 0 || end > text.length || start > end) return { before: '', after: '' }
+  const beforeRaw = text.substring(0, start)
+  const afterRaw = text.substring(end)
+  const wordRe = /\S+/g
+  const beforeWords: { start: number; end: number }[] = []
+  let m: RegExpExecArray | null
+  while ((m = wordRe.exec(beforeRaw))) beforeWords.push({ start: m.index, end: m.index + m[0].length })
+  const afterWords: { start: number; end: number }[] = []
+  wordRe.lastIndex = 0
+  while ((m = wordRe.exec(afterRaw))) afterWords.push({ start: m.index, end: m.index + m[0].length })
+  const takeBefore = beforeWords.slice(-Math.max(1, maxWords))
+  const takeAfter = afterWords.slice(0, Math.max(1, maxWords))
+  return {
+    before: takeBefore.length ? beforeRaw.substring(takeBefore[0].start) : '',
+    after: takeAfter.length ? afterRaw.substring(0, takeAfter[takeAfter.length - 1].end) : '',
+  }
+}
+
+function detectRepeatedParagraphTypes(originalText: string | undefined, entries: any[]): any[] {
+  if (!originalText || !Array.isArray(entries) || entries.length === 0) return []
+  const rawLines = originalText.split('\n')
+  let cleanContent = ''
+  const parsedLines: { content: string; cleanStart: number; cleanEnd: number }[] = []
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    const prefix = matchTranscriptLineGutterPrefix(line)
+    const content = line.substring(prefix.length)
+    if (i > 0) cleanContent += '\n'
+    const cleanStart = cleanContent.length
+    cleanContent += content
+    parsedLines.push({ content, cleanStart, cleanEnd: cleanContent.length })
+  }
+
+  let lastQa: 'Q' | 'A' | null = null
+  const flags: any[] = []
+  for (const pl of parsedLines) {
+    const kind = classifyTranscriptParagraphKind(pl.content)
+    if (kind == null) continue
+    if (kind === 'COLLOQUY') { lastQa = null; continue }
+    if (kind === 'CONT') continue
+    if (kind !== 'Q' && kind !== 'A') continue
+    if (lastQa === kind) {
+      const lineSlice = cleanContent.slice(pl.cleanStart, pl.cleanEnd)
+      const mm = /^(\s*)(Q\.|A\.)/.exec(lineSlice)
+      if (mm) {
+        const marker = mm[2]
+        const markerStart = pl.cleanStart + mm[1].length
+        const markerEnd = markerStart + marker.length
+        const body = lineSlice.slice(mm[0].length).replace(/\s+/g, ' ').trim()
+        const needle = body.slice(0, 48)
+        let entry = entries[0]
+        if (needle.length >= 3) {
+          const hits = entries.filter((e) => e?.text && flexFind(e.text, needle))
+          if (hits.length) entry = hits[0]
+        }
+        const anchors = buildContextAnchorSimple(cleanContent, markerStart, markerEnd, 2)
+        let start = 0
+        let end = 0
+        if (entry?.text) {
+          const inEntry = flexFind(entry.text, marker)
+          if (inEntry) { start = inEntry.start; end = inEntry.end }
+        }
+        flags.push({
+          type: REPEATED_PARAGRAPH_TYPE,
+          severity: 'warning',
+          original: marker,
+          suggestion: REPEATED_PARAGRAPH_SUGGESTION,
+          explanation: kind === 'A'
+            ? REPEATED_PARAGRAPH_EXPLANATION_A
+            : REPEATED_PARAGRAPH_EXPLANATION_Q,
+          confidence: 1,
+          entry_id: entry?.id ?? entries[0].id,
+          start,
+          end,
+          status: 'open',
+          _anchorBefore: anchors.before,
+          _anchorAfter: anchors.after,
+          _source: 'structural',
+        })
+      }
+    }
+    lastQa = kind
+  }
+  return flags
+}
+
+function mergeRepeatedParagraphAnnotations(originalText: string | undefined, entries: any[], annotations: any[]): any[] {
+  const base = Array.isArray(annotations) ? annotations : []
+  const detected = detectRepeatedParagraphTypes(originalText, entries)
+  if (!detected.length) return base
+  const existingKeys = new Set(
+    base.filter((a) => a?.type === REPEATED_PARAGRAPH_TYPE)
+      .map((a) => `${a._anchorBefore || ''}|${a.original}|${a._anchorAfter || ''}`),
+  )
+  let maxId = 0
+  for (const a of base) {
+    const n = Number(a?.id)
+    if (Number.isFinite(n) && n > maxId) maxId = n
+  }
+  const added: any[] = []
+  for (const d of detected) {
+    const key = `${d._anchorBefore || ''}|${d.original}|${d._anchorAfter || ''}`
+    if (existingKeys.has(key)) continue
+    existingKeys.add(key)
+    added.push({ ...d, id: ++maxId })
+  }
+  return added.length ? [...base, ...added] : base
 }
 
 function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entries: any[]; annotations: any[] } {
@@ -1506,6 +1658,8 @@ Deno.serve(async (req: Request) => {
           return true
         })
         allAnnotations.forEach((a, i) => { a.id = i + 1 })
+        // Deterministic CAT repeated Q./A. (not prompt-only — extraction can merge turns).
+        allAnnotations = mergeRepeatedParagraphAnnotations(originalText, entries, allAnnotations)
 
         const finalJson: any = {
           title: title || '',

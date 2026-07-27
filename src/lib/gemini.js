@@ -692,6 +692,11 @@ export function ensureAnnotationAnchors(entries, annotations) {
   if (!Array.isArray(annotations)) return annotations
   let changed = false
   const next = annotations.map((ann) => {
+    // Structural Q/A markers are anchored in originalText/cleanContent.
+    // Rebuilding from flat entry text drops surrounding context and then
+    // mergeRepeatedParagraphAnnotations treats them as new (4 cards / 2 real).
+    if (isReviewOnlyAnnotation(ann)) return ann
+
     const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
     if (!entry?.text) return ann
     const needle =
@@ -824,7 +829,11 @@ export function jumpSearchNeedles(ann) {
     if (typeof s !== 'string') return ''
     return s.replace(/\s*\[sic\]\s*$/i, '').trim()
   }
-  if (ann.status === 'accepted') {
+  // Review-only: suggestion is instructional copy, not in the transcript.
+  if (isReviewOnlyAnnotation(ann)) {
+    push(ann.original)
+    push(ann._appliedMatchedText)
+  } else if (ann.status === 'accepted') {
     push(ann.suggestion)
     push(stripSic(ann.suggestion))
     push(ann.original)
@@ -1401,6 +1410,11 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
   const failed = []
 
   for (const ann of accepted) {
+    // Review-only accepts never rewrite the transcript (CAT paragraph type).
+    if (isReviewOnlyAnnotation(ann)) {
+      continue
+    }
+
     // Cross-line accepts: refuse to export if the apply site was flattened
     // (suggestion words may still exist in clean text).
     if (!isCrossLineApplySiteIntact(text, ann)) {
@@ -1547,6 +1561,14 @@ export function fixAnnotationPositions(entries, annotations) {
       continue
     }
     if (a.status === 'ignored') {
+      fixed.push(a)
+      continue
+    }
+
+    // Review-only structural flags (Q./A. repeats): Found lives in originalText
+    // with context anchors. Entry text often omits the "A."/"Q." marker, so
+    // flexFind would wrongly drop them.
+    if (isReviewOnlyAnnotation(a)) {
       fixed.push(a)
       continue
     }
@@ -1803,6 +1825,207 @@ export function filterPhantomFixes(entries, annotations) {
     console.warn(`filterPhantomFixes: dropped ${droppedCount}/${annotations.length} phantom annotation(s)`)
   }
   return filtered
+}
+
+/** CAT "Repeated Paragraph Type" — review-only; Accept must not rewrite transcript text. */
+export const REPEATED_PARAGRAPH_TYPE = 'repeated_paragraph'
+export const REPEATED_PARAGRAPH_SUGGESTION =
+  'Fix this in your CAT software. Court Reportcard will not change Q/A markers.'
+
+const REPEATED_PARAGRAPH_EXPLANATION_A =
+  'Repeated Answer with no other speaker between.'
+const REPEATED_PARAGRAPH_EXPLANATION_Q =
+  'Repeated Question with no other speaker between.'
+
+export function isReviewOnlyAnnotation(ann) {
+  return ann?.type === REPEATED_PARAGRAPH_TYPE
+}
+
+/**
+ * Classify a gutter-stripped transcript line for Q/A repeat detection.
+ * Returns 'Q' | 'A' | 'COLLOQUY' | 'CONT' | null (blank / page-number-only).
+ */
+export function classifyTranscriptParagraphKind(lineContent) {
+  if (isPageNumberOnlyLine(lineContent)) return null
+  const t = (lineContent || '').replace(/\r/g, '').trim()
+  if (!t) return null
+  if (/^Q\.(?:\s|$)/.test(t)) return 'Q'
+  if (/^A\.(?:\s|$)/.test(t)) return 'A'
+  // Any non-Q/A speaker label resets the repeat streak (colloquy).
+  if (/^(?:THE\s+)?(?:COURT(?:\s+REPORTER)?|JUDGE|WITNESS|CLERK|BAILIFF)\s*:/i.test(t)) {
+    return 'COLLOQUY'
+  }
+  if (/^(?:MR|MS|MRS|DR)\.?\s+\S[^:]{0,60}:/i.test(t)) return 'COLLOQUY'
+  if (/^BY\s+(?:MR|MS|MRS|DR)\.?\s+/i.test(t)) return 'COLLOQUY'
+  if (/^[A-Z][A-Z0-9 .,'\-]{0,50}:/.test(t) && !/^(?:Q|A)\./.test(t)) return 'COLLOQUY'
+  return 'CONT'
+}
+
+function findEntryForQaLine(entries, kind, body) {
+  const list = entries || []
+  const needle = (body || '').replace(/\s+/g, ' ').trim().slice(0, 48)
+  if (needle.length >= 3) {
+    const hits = list.filter((e) => e?.text && flexFind(e.text, needle))
+    if (hits.length === 1) return hits[0]
+    if (hits.length > 1) {
+      const prefer = hits.filter((e) => {
+        const text = (e.text || '').trimStart()
+        return kind === 'Q' ? /^Q\./i.test(text) : /^A\./i.test(text)
+      })
+      return prefer[0] || hits[0]
+    }
+  }
+  const prefix = kind === 'Q' ? /^Q\./i : /^A\./i
+  const prefixed = list.filter((e) => prefix.test((e.text || '').trimStart()))
+  return prefixed[0] || list[0] || null
+}
+
+/**
+ * Deterministic scan of originalText for consecutive Q./Q. or A./A. with no
+ * colloquy speaker between. Flags the *second* marker. Extraction can merge
+ * same-speaker turns, so this must not rely on entries alone.
+ */
+export function detectRepeatedParagraphTypes(originalText, entries) {
+  if (!originalText || !Array.isArray(entries) || entries.length === 0) return []
+
+  const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+  let lastQa = null
+  const flags = []
+
+  for (const pl of parsedLines) {
+    const kind = classifyTranscriptParagraphKind(pl.content)
+    if (kind == null) continue
+    if (kind === 'COLLOQUY') {
+      lastQa = null
+      continue
+    }
+    if (kind === 'CONT') continue
+    if (kind !== 'Q' && kind !== 'A') continue
+
+    if (lastQa === kind) {
+      const lineSlice = cleanContent.slice(pl.cleanStart, pl.cleanEnd)
+      const mm = /^(\s*)(Q\.|A\.)/.exec(lineSlice)
+      if (!mm) {
+        lastQa = kind
+        continue
+      }
+      const marker = mm[2]
+      const markerStart = pl.cleanStart + mm[1].length
+      const markerEnd = markerStart + marker.length
+      const body = lineSlice.slice(mm[0].length).replace(/\s+/g, ' ').trim()
+      const entry = findEntryForQaLine(entries, kind, body)
+      const anchors = buildContextAnchor(cleanContent, markerStart, markerEnd, 2) || {
+        before: '',
+        after: '',
+      }
+
+      let start = 0
+      let end = 0
+      if (entry?.text) {
+        const inEntry = flexFind(entry.text, marker)
+        if (inEntry) {
+          start = inEntry.start
+          end = inEntry.end
+        } else if (body) {
+          const bodyHit = flexFind(entry.text, body.slice(0, Math.min(40, body.length)))
+          if (bodyHit) {
+            start = bodyHit.start
+            end = bodyHit.start
+          }
+        }
+      }
+
+      flags.push({
+        type: REPEATED_PARAGRAPH_TYPE,
+        severity: 'warning',
+        original: marker,
+        suggestion: REPEATED_PARAGRAPH_SUGGESTION,
+        explanation:
+          kind === 'A' ? REPEATED_PARAGRAPH_EXPLANATION_A : REPEATED_PARAGRAPH_EXPLANATION_Q,
+        confidence: 1,
+        entry_id: entry?.id ?? entries[0].id,
+        start,
+        end,
+        status: 'open',
+        _anchorBefore: anchors.before,
+        _anchorAfter: anchors.after,
+        _source: 'structural',
+      })
+    }
+    lastQa = kind
+  }
+
+  return flags
+}
+
+/**
+ * Append structural repeated-paragraph flags (deduped by transcript location).
+ * Safe on editor load and after analyze merge. Collapses duplicates when
+ * older saves rewrote anchors via ensureAnnotationAnchors.
+ */
+export function mergeRepeatedParagraphAnnotations(originalText, entries, annotations) {
+  const base = Array.isArray(annotations) ? annotations : []
+  const detected = detectRepeatedParagraphTypes(originalText, entries)
+  if (!originalText) {
+    return detected.length === 0
+      ? base
+      : (() => {
+          let maxId = 0
+          for (const a of base) {
+            const n = Number(a?.id)
+            if (Number.isFinite(n) && n > maxId) maxId = n
+          }
+          const existingKeys = new Set(
+            base
+              .filter((a) => a?.type === REPEATED_PARAGRAPH_TYPE)
+              .map((a) => `${a._anchorBefore || ''}|${a.original}|${a._anchorAfter || ''}`)
+          )
+          const added = []
+          for (const d of detected) {
+            const key = `${d._anchorBefore || ''}|${d.original}|${d._anchorAfter || ''}`
+            if (existingKeys.has(key)) continue
+            existingKeys.add(key)
+            added.push({ ...d, id: ++maxId })
+          }
+          return added.length ? [...base, ...added] : base
+        })()
+  }
+
+  const { cleanContent } = buildCleanContentMap(originalText)
+  const locationKey = (ann) => {
+    if (!ann || ann.type !== REPEATED_PARAGRAPH_TYPE) return null
+    const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    const loc =
+      locateAtAnchorStrict(cleanContent, ann, ann.original) ||
+      locateAnnotationWithAnchor(cleanContent, entry, ann, ann.original)
+    if (!loc) return `unplaced:${ann._anchorBefore || ''}|${ann.original}|${ann._anchorAfter || ''}`
+    return `${loc.cleanStart}:${ann.original}`
+  }
+
+  const kept = []
+  const seenLoc = new Set()
+  let maxId = 0
+  for (const a of base) {
+    const n = Number(a?.id)
+    if (Number.isFinite(n) && n > maxId) maxId = n
+    if (a?.type !== REPEATED_PARAGRAPH_TYPE) {
+      kept.push(a)
+      continue
+    }
+    const key = locationKey(a)
+    if (key && seenLoc.has(key)) continue
+    if (key) seenLoc.add(key)
+    kept.push(a)
+  }
+
+  const added = []
+  for (const d of detected) {
+    const key = locationKey(d)
+    if (key && seenLoc.has(key)) continue
+    if (key) seenLoc.add(key)
+    added.push({ ...d, id: ++maxId })
+  }
+  return added.length ? [...kept, ...added] : kept
 }
 
 /**

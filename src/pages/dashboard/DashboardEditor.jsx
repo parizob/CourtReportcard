@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeRepeatedParagraphAnnotations, isReviewOnlyAnnotation } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -196,7 +196,7 @@ export default function DashboardEditor() {
         )
         // Drop open flags whose Found text still cannot be placed in the
         // formatted transcript (paraphrase / not in file). Count is logged.
-        const { annotations: fixedAnnotations, droppedCount: transcriptDropCount } =
+        const { annotations: placeableAnnotations, droppedCount: transcriptDropCount } =
           dropTranscriptUnplaceableAnnotations(
             parsed.originalText || null,
             dedupedEntries,
@@ -207,6 +207,12 @@ export default function DashboardEditor() {
             `Editor load: hid ${transcriptDropCount} suggestion(s) that could not be located in the transcript file`
           )
         }
+        // Deterministic CAT "Repeated Paragraph Type" (consecutive Q./Q. or A./A.).
+        const fixedAnnotations = mergeRepeatedParagraphAnnotations(
+          parsed.originalText || null,
+          dedupedEntries,
+          placeableAnnotations
+        )
         if (gen !== loadGenRef.current) return
 
         setTitle(parsed.title || '')
@@ -388,6 +394,94 @@ export default function DashboardEditor() {
     let appliedAt = null
     let appliedEnd = null
     let appliedMatchedText = null
+
+    // Review-only (repeated Q/A paragraph type): mark reviewed, never rewrite text.
+    if (isReviewOnlyAnnotation(ann)) {
+      let _cleanStart = null
+      let _cleanEnd = null
+      let _appliedOriginalStart = null
+      let _appliedOriginalEnd = null
+      let _appliedOriginalMatchedText = null
+      let _appliedOriginalReplacement = null
+      if (curOriginalText) {
+        const { cleanContent: cc, cleanToOrig } = buildCleanContentMap(curOriginalText)
+        const annotationEntry = curEntries.find((e) => e.id === ann.entry_id)
+        const located =
+          locateAtAnchorStrict(cc, ann, ann.original) ||
+          locateAnnotationWithAnchor(cc, annotationEntry, ann, ann.original)
+        if (!located) {
+          console.warn(
+            `Accept blocked: review-only flag not locatable — id=${ann.id} original=${JSON.stringify(ann.original)}`
+          )
+          showJumpNotice('Could not locate this marker in the transcript. The suggestion was left open.')
+          return
+        }
+        _cleanStart = located.cleanStart
+        _cleanEnd = located.cleanEnd
+        _appliedOriginalStart = cleanToOrig[located.cleanStart]
+        _appliedOriginalEnd =
+          cleanToOrig[Math.min(located.cleanEnd - 1, cleanToOrig.length - 1)] + 1
+        _appliedOriginalMatchedText = curOriginalText.substring(
+          _appliedOriginalStart,
+          _appliedOriginalEnd
+        )
+        _appliedOriginalReplacement = _appliedOriginalMatchedText
+        appliedEntryId = ann.entry_id
+        if (
+          Number.isFinite(ann.start) &&
+          Number.isFinite(ann.end) &&
+          ann.end > ann.start
+        ) {
+          appliedAt = ann.start
+          appliedEnd = ann.end
+        } else {
+          appliedAt = 0
+          appliedEnd = 0
+        }
+        appliedMatchedText = ann.original
+      } else {
+        appliedEntryId = ann.entry_id
+        appliedAt = ann.start ?? 0
+        appliedEnd = ann.end ?? 0
+        appliedMatchedText = ann.original
+      }
+
+      const newAnnotations = curAnnotations.map((a) =>
+        a.id === ann.id
+          ? {
+              ...ann,
+              status: 'accepted',
+              suggestion: finalSuggestion,
+              _originalSuggestion: ann._originalSuggestion ?? ann.suggestion,
+              _appliedEntryId: appliedEntryId,
+              _appliedAt: appliedAt,
+              _appliedEnd: appliedEnd,
+              _appliedMatchedText: appliedMatchedText,
+              _cleanStart,
+              _cleanEnd,
+              _appliedOriginalStart,
+              _appliedOriginalEnd,
+              _appliedOriginalMatchedText,
+              _appliedOriginalReplacement,
+            }
+          : a
+      )
+      annotationsRef.current = newAnnotations
+      setAnnotations(newAnnotations)
+      setInlinePopover(null)
+      setSaved(false)
+      setError('')
+      showJumpNotice('Marked as reviewed. Transcript text was not changed.')
+      void persistNow().then((result) => {
+        if (result === 'skipped') {
+          setError('Could not save that accept yet. Click Save Changes.')
+        }
+      }).catch((err) => {
+        console.error('Persist after accept failed:', err)
+        setError(err.message || 'Could not save that accept. Click Save Changes and try again.')
+      })
+      return
+    }
 
     const newEntries = curEntries.map((e) => {
       if (e.id !== ann.entry_id) return e
@@ -792,6 +886,42 @@ export default function DashboardEditor() {
     const curAnnotations = annotationsRef.current
     const ann = curAnnotations.find((a) => a.id === annotationId)
     if (!ann || ann.status === 'open') return
+
+    // Review-only accepts never changed transcript text — just reopen the card.
+    if (ann.status === 'accepted' && isReviewOnlyAnnotation(ann)) {
+      const updated = curAnnotations.map((a) =>
+        a.id === annotationId
+          ? {
+              ...a,
+              status: 'open',
+              suggestion: a._originalSuggestion ?? a.suggestion,
+              _appliedEntryId: undefined,
+              _appliedAt: undefined,
+              _appliedEnd: undefined,
+              _appliedMatchedText: undefined,
+              _cleanStart: undefined,
+              _cleanEnd: undefined,
+              _appliedOriginalStart: undefined,
+              _appliedOriginalEnd: undefined,
+              _appliedOriginalMatchedText: undefined,
+              _appliedOriginalReplacement: undefined,
+            }
+          : a
+      )
+      annotationsRef.current = updated
+      setAnnotations(updated)
+      setSaved(false)
+      setError('')
+      void persistNow().then((result) => {
+        if (result === 'skipped') {
+          setError('Could not save that reopen yet. Click Save Changes.')
+        }
+      }).catch((err) => {
+        console.error('Persist after reopen failed:', err)
+        setError(err.message || 'Could not save that reopen. Click Save Changes and try again.')
+      })
+      return
+    }
 
     let curEntries = entriesRef.current
     let curOriginalText = originalTextRef.current
@@ -1239,11 +1369,12 @@ export default function DashboardEditor() {
     suggestion: 'text-primary',
   }[s] || 'text-on-surface-variant')
 
+  // Same off-white fill for every severity — color signal is the left bar + title only.
   const severityCardBorder = (s) => ({
-    critical: 'border-l-4 border-error bg-error-container/30',
-    warning: 'border-l-4 border-amber-500 bg-amber-50',
-    suggestion: 'border-l-4 border-primary/30 bg-primary/5',
-  }[s] || 'border-l-4 border-outline-variant bg-surface-container')
+    critical: 'border-l-4 border-error bg-surface-container-lowest',
+    warning: 'border-l-4 border-amber-500 bg-surface-container-lowest',
+    suggestion: 'border-l-4 border-primary/30 bg-surface-container-lowest',
+  }[s] || 'border-l-4 border-outline-variant bg-surface-container-lowest')
 
   const typeLabel = (t) => ({
     spelling: 'Spelling',
@@ -1254,6 +1385,7 @@ export default function DashboardEditor() {
     capitalization: 'Capitalization',
     missing_word: 'Missing Word',
     extra_word: 'Extra Word',
+    repeated_paragraph: 'Repeated Paragraph',
   }[t] || t)
 
   const transcriptFile = caseData?.case_files?.find((f) => f.file_type === 'transcript')
@@ -1398,46 +1530,63 @@ export default function DashboardEditor() {
               Found <strong>&quot;{ann.original}&quot;</strong>
             </p>
             <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
+            {isReviewOnlyAnnotation(ann) && ann.suggestion && (
+              <p className="flex items-start gap-2 text-xs italic text-on-surface mb-3 rounded-md bg-primary-fixed/40 border border-primary-fixed-dim/25 px-2.5 py-2 leading-relaxed">
+                <span className="material-symbols-outlined text-sm text-primary shrink-0 not-italic mt-px" aria-hidden="true">lightbulb</span>
+                <span>{ann.suggestion}</span>
+              </p>
+            )}
             {ann.confidence && (
               <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
             )}
             <button
               onClick={() => acceptAnnotation(ann.id)}
-              className={`w-full text-xs font-bold py-2 rounded transition-colors ${
-                ann.severity === 'critical'
-                  ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
-                  : 'bg-surface-container-lowest text-on-surface hover:shadow-sm'
-              }`}
+              className="w-full text-xs font-bold py-2 rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
             >
-              Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
+              {isReviewOnlyAnnotation(ann)
+                ? 'Mark as reviewed'
+                : (
+                  <>
+                    Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
+                  </>
+                )}
             </button>
-            <div className="mt-2 relative">
-              <input
-                type="text"
-                value={customTexts[ann.id] || ''}
-                onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
-                    acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                    setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                  }
-                }}
-                placeholder="Or enter your own correction…"
-                className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
-              />
-              {customTexts[ann.id]?.trim() && (
-                <button
-                  onClick={() => {
-                    acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                    setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+            {!isReviewOnlyAnnotation(ann) && (
+              <div className="mt-2 relative">
+                <input
+                  type="text"
+                  value={customTexts[ann.id] || ''}
+                  onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                    }
                   }}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
-                  title="Apply custom correction"
-                >
-                  <span className="material-symbols-outlined text-[11px]">check</span>
-                </button>
-              )}
-            </div>
+                  placeholder="Or enter your own correction…"
+                  className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
+                />
+                {customTexts[ann.id]?.trim() && (
+                  <button
+                    onClick={() => {
+                      acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                      setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                    title="Apply custom correction"
+                  >
+                    <span className="material-symbols-outlined text-[11px]">check</span>
+                  </button>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => ignoreAnnotation(ann.id)}
+              className="w-full mt-2 text-[10px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors py-1"
+            >
+              Ignore this suggestion
+            </button>
           </div>
         ))}
       </div>
@@ -1461,7 +1610,9 @@ export default function DashboardEditor() {
                   className="flex-1 min-w-0"
                   text={
                     ann.status === 'accepted'
-                      ? `"${ann.original}" → ${ann.suggestion === '' ? '(remove)' : `"${ann.suggestion}"`}`
+                      ? (isReviewOnlyAnnotation(ann)
+                        ? `Reviewed: "${ann.original}" (text unchanged)`
+                        : `"${ann.original}" → ${ann.suggestion === '' ? '(remove)' : `"${ann.suggestion}"`}`)
                       : `"${ann.original}" — kept as-is`
                   }
                   placement="left"
@@ -1476,11 +1627,19 @@ export default function DashboardEditor() {
                     </span>
                     <div className="flex-1 min-w-0">
                       {ann.status === 'accepted' ? (
-                        <p className="text-xs truncate">
-                          <span className="text-on-surface-variant line-through">{ann.original}</span>
-                          <span className="text-on-surface-variant mx-1">→</span>
-                          <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
-                        </p>
+                        isReviewOnlyAnnotation(ann) ? (
+                          <p className="text-xs truncate">
+                            <span className="text-green-700 font-semibold">Reviewed</span>
+                            <span className="text-on-surface-variant mx-1">&middot;</span>
+                            <span className="text-on-surface">{ann.original}</span>
+                          </p>
+                        ) : (
+                          <p className="text-xs truncate">
+                            <span className="text-on-surface-variant line-through">{ann.original}</span>
+                            <span className="text-on-surface-variant mx-1">→</span>
+                            <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
+                          </p>
+                        )
                       ) : (
                         <p className="text-xs text-on-surface-variant/60 truncate">&ldquo;{ann.original}&rdquo; — kept as-is</p>
                       )}
@@ -2181,11 +2340,17 @@ export default function DashboardEditor() {
                   </div>
                   <div className={`rounded-lg p-3 mb-3 ${ann.status === 'accepted' ? 'bg-green-50 border border-green-100' : 'bg-surface-container border border-outline-variant/15'}`}>
                     {ann.status === 'accepted' ? (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-on-surface-variant line-through">{ann.original}</span>
-                        <span className="material-symbols-outlined text-sm text-green-600">arrow_forward</span>
-                        <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
-                      </div>
+                      isReviewOnlyAnnotation(ann) ? (
+                        <p className="text-xs text-green-700 font-semibold">
+                          Reviewed &middot; &quot;{ann.original}&quot; (text unchanged)
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-on-surface-variant line-through">{ann.original}</span>
+                          <span className="material-symbols-outlined text-sm text-green-600">arrow_forward</span>
+                          <span className="text-green-700 font-semibold">{suggestionLabel(ann.suggestion)}</span>
+                        </div>
+                      )
                     ) : (
                       <p className="text-xs text-on-surface-variant/70">
                         <span className="font-semibold text-on-surface">&quot;{ann.original}&quot;</span> — left as-is
@@ -2212,47 +2377,57 @@ export default function DashboardEditor() {
                     Found <strong>&quot;{ann.original}&quot;</strong>
                   </p>
                   <p className="text-xs text-on-surface-variant mb-3">{ann.explanation}</p>
+                  {isReviewOnlyAnnotation(ann) && ann.suggestion && (
+                    <p className="flex items-start gap-2 text-xs italic text-on-surface mb-3 rounded-md bg-primary-fixed/40 border border-primary-fixed-dim/25 px-2.5 py-2 leading-relaxed">
+                      <span className="material-symbols-outlined text-sm text-primary shrink-0 not-italic mt-px" aria-hidden="true">lightbulb</span>
+                      <span>{ann.suggestion}</span>
+                    </p>
+                  )}
                   {ann.confidence && (
                     <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: {Math.round(ann.confidence * 100)}%</p>
                   )}
                   <button
                     onClick={() => acceptAnnotation(ann.id)}
-                    className={`w-full text-xs font-bold py-2 rounded transition-colors ${
-                      ann.severity === 'critical'
-                        ? 'bg-on-error text-error border border-error/20 hover:bg-error-container'
-                        : 'bg-surface-container text-on-surface hover:shadow-sm'
-                    }`}
+                    className="w-full text-xs font-bold py-2 rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
                   >
-                    Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
+                    {isReviewOnlyAnnotation(ann)
+                      ? 'Mark as reviewed'
+                      : (
+                        <>
+                          Accept: {ann.suggestion === '' ? suggestionLabel(ann.suggestion) : <>&quot;{ann.suggestion}&quot;</>}
+                        </>
+                      )}
                   </button>
-                  <div className="mt-2 relative">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={customTexts[ann.id] || ''}
-                      onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
-                          acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                          setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
-                        }
-                      }}
-                      placeholder="Or enter your own correction…"
-                      className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
-                    />
-                    {customTexts[ann.id]?.trim() && (
-                      <button
-                        onClick={() => {
-                          acceptAnnotation(ann.id, customTexts[ann.id].trim())
-                          setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                  {!isReviewOnlyAnnotation(ann) && (
+                    <div className="mt-2 relative">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={customTexts[ann.id] || ''}
+                        onChange={(e) => setCustomTexts((prev) => ({ ...prev, [ann.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && customTexts[ann.id]?.trim()) {
+                            acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                            setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                          }
                         }}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
-                        title="Apply custom correction"
-                      >
-                        <span className="material-symbols-outlined text-[11px]">check</span>
-                      </button>
-                    )}
-                  </div>
+                        placeholder="Or enter your own correction…"
+                        className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
+                      />
+                      {customTexts[ann.id]?.trim() && (
+                        <button
+                          onClick={() => {
+                            acceptAnnotation(ann.id, customTexts[ann.id].trim())
+                            setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
+                          }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded bg-primary text-on-primary hover:bg-primary/80 transition-colors"
+                          title="Apply custom correction"
+                        >
+                          <span className="material-symbols-outlined text-[11px]">check</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <button
                     onClick={() => ignoreAnnotation(ann.id)}
                     className="w-full mt-2 text-[10px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors py-1"

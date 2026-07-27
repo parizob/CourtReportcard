@@ -14,7 +14,8 @@
     "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs",
     "seed:jump-highlight": "node scripts/seed-jump-highlight-case.mjs",
     "seed:extra-word-delete": "node scripts/seed-extra-word-delete-case.mjs",
-    "seed:extra-word-glue": "node scripts/seed-extra-word-glue-case.mjs"
+    "seed:extra-word-glue": "node scripts/seed-extra-word-glue-case.mjs",
+    "seed:repeated-paragraph": "node scripts/seed-repeated-paragraph-case.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",

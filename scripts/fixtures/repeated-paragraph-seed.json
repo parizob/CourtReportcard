@@ -1,0 +1,59 @@
+{
+  "title": "Repeated Paragraph Type Seed",
+  "extracted_at": "2026-07-26T23:45:00.000Z",
+  "source_note": "Manual seed: A./A. and Q./Q. with no colloquy must flag; Q./colloquy/Q. and A./colloquy/A. must not. Accept is review-only (no text rewrite). Gutters aligned.",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Do you remember the date of the meeting?"
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. Yes. It was in March."
+    },
+    {
+      "id": 3,
+      "speaker": "THE WITNESS",
+      "text": "A. We signed the lease that afternoon."
+    },
+    {
+      "id": 4,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. And who else was present?"
+    },
+    {
+      "id": 5,
+      "speaker": "THE COURT REPORTER",
+      "text": "THE COURT REPORTER: Could you speak up, please?"
+    },
+    {
+      "id": 6,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Thank you. Who else was in the room?"
+    },
+    {
+      "id": 7,
+      "speaker": "THE WITNESS",
+      "text": "A. My landlord and the broker."
+    },
+    {
+      "id": 8,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Did you keep a copy of that lease?"
+    },
+    {
+      "id": 9,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. Or was it only on your phone?"
+    },
+    {
+      "id": 10,
+      "speaker": "THE WITNESS",
+      "text": "A. I kept a paper copy at home."
+    }
+  ],
+  "annotations": [],
+  "originalText": "     1                  Q.  Do you remember the date of the meeting?\r\n\r\n     2                  A.  Yes.  It was in March.\r\n\r\n     3                  A.  We signed the lease that afternoon.\r\n\r\n     4                  Q.  And who else was present?\r\n\r\n     5                  THE COURT REPORTER:  Could you speak up,\r\n\r\n     6           please?\r\n\r\n     7                  Q.  Thank you.  Who else was in the room?\r\n\r\n     8                  A.  My landlord and the broker.\r\n\r\n     9                  Q.  Did you keep a copy of that lease?\r\n\r\n    10                  Q.  Or was it only on your phone?\r\n\r\n    11                  A.  I kept a paper copy at home.\r\n"
+}
