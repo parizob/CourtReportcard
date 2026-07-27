@@ -358,7 +358,7 @@ export default function SignInModal({ onClose, initialTab = 'signin' }) {
                   >
                     Terms of Service
                   </Link>
-                  , including the strict prohibition on uploading Protected Health Information (PHI).
+                  , including the strict prohibition on uploading Protected Health Information (PHI) and materials subject to a sealing or protective order.
                 </span>
               </label>
             )}

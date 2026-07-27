@@ -619,7 +619,7 @@ export default function DashboardUpload() {
                     className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
                   />
                   <span className="text-xs text-on-surface leading-relaxed">
-                    I certify that this transcript contains <span className="font-bold">no Protected Health Information (PHI)</span> and does not include any data regulated under HIPAA.
+                    I certify that this transcript contains <span className="font-bold">no Protected Health Information (PHI)</span>, does not include any data regulated under HIPAA, and is not subject to a sealing or protective order.
                   </span>
                 </label>
                 <div className="flex justify-end gap-3">

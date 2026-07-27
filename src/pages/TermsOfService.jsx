@@ -37,16 +37,16 @@ const sections = [
       'Your violation of these Terms.',
       'Your violation of any applicable law, rule, or regulation.',
       'Any content or data you upload, transmit, or process through the Service, including any claim that such content infringes or violates any third-party right.',
-      'Any upload of Protected Health Information or other regulated data in violation of these Terms.',
+      'Any upload of Protected Health Information, sealed materials, protective-order materials, or other regulated data in violation of these Terms.',
     ],
   },
   {
     num: '6.',
-    title: 'Strict Prohibition of Protected Health Information (PHI)',
-    body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA).`,
+    title: 'Prohibited Materials (PHI, Sealed, and Protective Orders)',
+    body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA). You are also strictly prohibited from uploading, processing, or transmitting any transcript or document that is sealed, subject to a sealing order, or subject to a protective order.`,
     bullets: [
-      'By uploading a file to the Service, you affirmatively represent and warrant that the document contains no PHI or other regulated health data.',
-      'You agree to fully indemnify and hold harmless Court Reportcard against any legal action, regulatory fines, or damages resulting from your upload of HIPAA-regulated or otherwise prohibited data.',
+      'By uploading a file to the Service, you affirmatively represent and warrant that the document contains no PHI or other regulated health data, and that it is not sealed or subject to a sealing or protective order.',
+      'You agree to fully indemnify and hold harmless Court Reportcard against any legal action, regulatory fines, or damages resulting from your upload of HIPAA-regulated, sealed, protective-order, or otherwise prohibited data.',
     ],
   },
   {
@@ -97,7 +97,7 @@ export default function TermsOfService() {
     <div className="bg-background text-on-background min-h-screen flex flex-col">
       <Helmet>
         <title>Terms of Service | Court Reportcard</title>
-        <meta name="description" content="Review Court Reportcard's terms of service, including usage rights, data handling, and the PHI certification agreement required before uploading legal transcripts." />
+        <meta name="description" content="Review Court Reportcard's terms of service, including usage rights, data handling, and the certification required before uploading legal transcripts." />
         <link rel="canonical" href="https://www.courtreportcard.com/terms" />
         <meta name="robots" content="noindex, follow" />
       </Helmet>

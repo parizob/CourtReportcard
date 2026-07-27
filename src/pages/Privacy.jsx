@@ -47,7 +47,7 @@ const sections = [
   {
     num: '7.',
     title: 'Compliance Posture',
-    body: `Court Reportcard is not currently HIPAA-compliant. The upload of Protected Health Information (PHI) or any data regulated by HIPAA is strictly prohibited under our Terms of Service. By uploading a file, you affirmatively warrant that the document contains no PHI.`,
+    body: `Court Reportcard is not currently HIPAA-compliant. The upload of Protected Health Information (PHI) or any data regulated by HIPAA is strictly prohibited under our Terms of Service. You are also prohibited from uploading transcripts that are sealed or subject to a sealing or protective order. By uploading a file, you affirmatively warrant that the document contains no PHI and is not subject to a sealing or protective order.`,
   },
   {
     num: '8.',
