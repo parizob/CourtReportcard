@@ -1886,5 +1886,54 @@ console.log('\n=== Export integrity ===\n')
   assertEq(collapsed.length, 2, 'collapses duplicate repeated_paragraph at same site')
 }
 
+
+// --- 30. Cross-line accept already in originalText must not false-fail export ---
+{
+  console.log('\n30. Cross-line applied offsets verify even when anchors miss')
+  // Mimics LADSKFJ id=30: suggestion already at recorded originalText offsets,
+  // but entry anchors no longer locate the suggestion in cleanContent.
+  const replacement = 'reported to the IRS  \r\n\r\n13       '
+  const originalText =
+    '12                wages or salary reported to the IRS  \r\n\r\n' +
+    '13       .\r\n'
+  const appliedOriginalStart = originalText.indexOf(replacement)
+  const appliedOriginalEnd = appliedOriginalStart + replacement.length
+  const entries = [{ id: 1, text: 'wages or salary reported to the IRS.' }]
+  const annotations = [
+    {
+      id: 30,
+      entry_id: 1,
+      status: 'accepted',
+      type: 'missing_word',
+      original: 'reported the IRS',
+      suggestion: 'reported to the IRS',
+      start: 16,
+      end: 35,
+      _anchorBefore: 'or salary ',
+      _anchorAfter: '.',
+      _appliedAt: 16,
+      _appliedEnd: 35,
+      _appliedMatchedText: 'reported the IRS',
+      _appliedOriginalStart: appliedOriginalStart,
+      _appliedOriginalEnd: appliedOriginalEnd,
+      _appliedOriginalMatchedText: 'reported the \r\n\r\n13       IRS',
+      _appliedOriginalReplacement: replacement,
+    },
+  ]
+  assert(appliedOriginalStart >= 0, 'fixture contains replacement bytes')
+  assertEq(
+    originalText.substring(appliedOriginalStart, appliedOriginalEnd),
+    replacement,
+    'fixture offsets match replacement'
+  )
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    annotations
+  )
+  assertEq(fails.length, 0, 'does not false-fail already-applied cross-line accept')
+  assertEq(text, originalText, 'leaves already-correct originalText unchanged')
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
 process.exit(failed > 0 ? 1 : 0)

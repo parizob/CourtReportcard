@@ -1407,6 +1407,10 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
     })
 
   let text = originalText
+  // Offsets recorded at accept time are relative to this snapshot. Later
+  // accepts in this loop can shift `text`, so already-applied checks that use
+  // `_appliedOriginal*` must consult the snapshot, not the mutated buffer.
+  const originalSnapshot = originalText
   const failed = []
 
   for (const ann of accepted) {
@@ -1510,6 +1514,21 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
         continue
       }
       text = detail.text
+      continue
+    }
+
+    // Cross-line accepts: entry anchors often fail to re-locate the suggestion
+    // in cleanContent after a structured replace, even though originalText already
+    // has the fix at the recorded apply offsets (LADSKFJ / 236-flag export block).
+    // Compare against the pre-loop snapshot — `text` may have shifted by then.
+    if (
+      !isDeletion &&
+      ann._appliedOriginalStart != null &&
+      ann._appliedOriginalEnd != null &&
+      typeof ann._appliedOriginalReplacement === 'string' &&
+      originalSnapshot.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd) ===
+        ann._appliedOriginalReplacement
+    ) {
       continue
     }
 
