@@ -71,6 +71,20 @@ prompt and update it to match. Prompt drift between the two will cause
 inconsistent results depending on how the transcript was uploaded. Always
 confirm both are in sync before marking a prompt change as complete.
 
+## When public pages, blog posts, or crawl-facing copy change:
+
+`public/sitemap.xml`, `public/robots.txt`, and `public/llms.txt` are
+**generated** — do not hand-edit them. Sources of truth:
+
+- `scripts/seo/site.mjs` — public page list + private disallow paths
+- `scripts/seo/llms-preamble.md` — brand / product narrative for agents
+- `src/data/blogPosts.js` — blog posts (auto-included in sitemap + llms)
+
+After updating any of those (or adding a public route in `src/App.jsx`), run
+`npm run sync:seo` and include the regenerated `public/` files in the change.
+Full detail: `references/seo-discoverability.md`. Brand wording in the llms
+preamble must follow CMO rules (never "AI-powered", never imply replacement).
+
 ## When in doubt:
 
 This is a beta product for a small, trust-sensitive professional audience.

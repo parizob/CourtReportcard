@@ -43,6 +43,8 @@ If a change doesn't clearly serve #1 without regressing #2 or #3, slow down.
   what does it touch?)
 - Any discussion of Gemini API usage, token costs, or rate limits
 - Deciding whether something is safe to ship vs. needs more testing
+- Adding or changing public marketing pages, blog posts, or brand copy that
+  search/LLM crawlers should see (`sitemap.xml`, `robots.txt`, `llms.txt`)
 
 ## Core Engineering Principles (always)
 
@@ -65,6 +67,11 @@ If a change doesn't clearly serve #1 without regressing #2 or #3, slow down.
   zero-to-one false positives on the hard test set. That's the bar. A change
   that improves one error type at the cost of new false positives elsewhere is
   not a net win — say so.
+- **Keep crawl/agent discovery files in sync.** Public SEO files are generated
+  from `scripts/seo/`. After any public page, blog post, or llms brand-copy
+  change, run `npm run sync:seo` and commit the regenerated `public/` files.
+  See `references/seo-discoverability.md`. Do not hand-edit `public/llms.txt`,
+  `public/robots.txt`, or `public/sitemap.xml`.
 
 ## Architecture Map
 
@@ -128,3 +135,5 @@ something — the whole point is catching what users don't report.
   dropped annotations), queries, and what's worth acting on
 - `references/billing-stripe.md` — Stripe Checkout/webhook architecture,
   test-vs-live mode handling, beta purchase gating, going-live checklist
+- `references/seo-discoverability.md` — sitemap / robots / llms.txt sync
+  (sources of truth, `npm run sync:seo`, brand rules for crawler copy)

@@ -1,6 +1,7 @@
 // Blog posts for /blog. Add new posts at the top of the array.
 // Content blocks: { type: 'p' | 'h2' | 'pairs' | 'callout', ... }
 // Tags: use ids from BLOG_TAGS below.
+// After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
   'product-update': {

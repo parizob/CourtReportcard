@@ -5,5 +5,8 @@ Allow: /
 Disallow: /dashboard
 Disallow: /reset-password
 
+# LLM / agent site map (public product context only)
+# https://www.courtreportcard.com/llms.txt
+
 # Sitemap
 Sitemap: https://www.courtreportcard.com/sitemap.xml

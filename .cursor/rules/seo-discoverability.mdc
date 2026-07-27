@@ -1,0 +1,37 @@
+---
+description: Keep sitemap, robots.txt, and llms.txt in sync when public pages change
+globs: src/App.jsx,src/pages/**/*.{jsx,tsx},src/data/blogPosts.js,scripts/seo/**/*,public/llms.txt,public/robots.txt,public/sitemap.xml
+alwaysApply: false
+---
+
+# SEO / discoverability sync
+
+Public crawl and agent discovery files are generated. Do not hand-edit `public/sitemap.xml`, `public/robots.txt`, or `public/llms.txt`.
+
+## Sources of truth
+
+| Edit this | When |
+|-----------|------|
+| `scripts/seo/site.mjs` | Add, remove, or rename a public marketing page (path, priority, llms section/note) |
+| `scripts/seo/llms-preamble.md` | Change brand story, positioning, privacy summary, or "how to describe us" |
+| `src/data/blogPosts.js` | Add or update blog posts (sitemap + llms Optional links pick these up) |
+| `src/App.jsx` | Must still register the route for any new public page |
+
+Private routes stay in `DISALLOW_PATHS` in `site.mjs` (currently `/dashboard`, `/reset-password`). Never list them in the sitemap or llms link lists.
+
+## After changing any of the above
+
+```bash
+npm run sync:seo
+```
+
+That regenerates `public/sitemap.xml`, `public/robots.txt`, and `public/llms.txt`. `npm run build` also runs sync first.
+
+Drift check: `npm run check:seo`.
+
+## Brand rules for llms content
+
+- Never use "AI-powered" or lead with machine-learning branding in `llms-preamble.md`
+- Do not imply the product replaces court reporters or transcribes from audio
+- No accuracy guarantees you cannot verify
+- Prefer: second set of eyes, proofreading, catches errors, before it leaves your desk

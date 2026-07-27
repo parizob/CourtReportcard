@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "sync:seo": "node scripts/sync-seo.mjs",
+    "check:seo": "node scripts/sync-seo.mjs --check",
+    "build": "node scripts/sync-seo.mjs && vite build",
     "preview": "vite preview",
     "test:export": "node scripts/test-export-integrity.mjs",
     "test:highlight-jump": "node scripts/test-highlight-jump-coverage.mjs",
