@@ -19,6 +19,8 @@ export default function DashboardExport() {
   const [error, setError] = useState('')
   const [exportBlocked, setExportBlocked] = useState(false)
   const [exporting, setExporting] = useState(null)
+  /** Accepted fixes that failed export verify — shown as an explicit list, not buried in prose. */
+  const [verifyFailed, setVerifyFailed] = useState([])
 
   useEffect(() => {
     if (!caseId) return
@@ -29,6 +31,7 @@ export default function DashboardExport() {
     setLoading(true)
     setError('')
     setExportBlocked(false)
+    setVerifyFailed([])
     try {
       // Wait for in-flight editor saves; fail closed if the last one errored
       // so we never download a pre-accept storage snapshot.
@@ -169,13 +172,29 @@ export default function DashboardExport() {
       annotations
     )
     if (failed.length > 0) {
+      const items = failed.map((a) => ({
+        id: a.id,
+        entry_id: a.entry_id,
+        original: a.original,
+        suggestion: a.suggestion,
+      }))
       console.warn(
         `Export: ${failed.length} accepted fix(es) could not be confirmed in originalText`,
-        failed.map((a) => ({ id: a.id, entry_id: a.entry_id, original: a.original, suggestion: a.suggestion }))
+        items
       )
-      throw new Error(
-        `Export blocked: ${failed.length} accepted change${failed.length === 1 ? '' : 's'} could not be verified in the transcript file. Go back to the editor, reopen and re-accept those suggestions, then try again.`
+      try {
+        sessionStorage.setItem(
+          `exportVerifyFailed:${caseId}`,
+          JSON.stringify({ caseId, items, at: Date.now() })
+        )
+      } catch {
+        /* private mode / quota — list still shows on this page via thrown path */
+      }
+      const err = new Error(
+        `Export paused to protect your transcript. Only ${failed.length} already-accepted change${failed.length === 1 ? '' : 's'} need attention (not all of your accepted work). See the list below, then open the editor to Reopen and Accept each one again.`
       )
+      err.verifyFailed = items
+      throw err
     }
     return text
   }
@@ -236,6 +255,7 @@ export default function DashboardExport() {
     }
     setExporting(format)
     setError('')
+    setVerifyFailed([])
     try {
       const baseName = (caseData?.name || 'transcript').replace(/[^a-zA-Z0-9_-]/g, '_')
       switch (format) {
@@ -264,9 +284,15 @@ export default function DashboardExport() {
         default:
           break
       }
+      try {
+        sessionStorage.removeItem(`exportVerifyFailed:${caseId}`)
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       console.error('Export failed:', err)
-      setError('Export failed: ' + err.message)
+      if (Array.isArray(err.verifyFailed)) setVerifyFailed(err.verifyFailed)
+      setError(err.message || 'Export failed.')
     } finally {
       setTimeout(() => setExporting(null), 600)
     }
@@ -373,9 +399,44 @@ export default function DashboardExport() {
 
         {/* Error */}
         {error && (
-          <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-center gap-2">
-            <span className="material-symbols-outlined text-base shrink-0">error</span>
-            {error}
+          <div className="shrink-0 p-3 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
+            <span className="material-symbols-outlined text-base shrink-0 mt-0.5">error</span>
+            <span className="leading-relaxed">{error}</span>
+          </div>
+        )}
+
+        {verifyFailed.length > 0 && (
+          <div className="shrink-0 bg-surface-container-lowest border border-error/20 rounded-xl editorial-shadow p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-error mb-1">
+              Needs re-accept ({verifyFailed.length})
+            </p>
+            <p className="text-xs text-on-surface-variant mb-3 leading-relaxed">
+              You do not need to redo every accepted suggestion. Only these could not be confirmed in the file.
+            </p>
+            <ul className="space-y-2 mb-4">
+              {verifyFailed.map((item) => (
+                <li
+                  key={item.id}
+                  className="text-sm text-on-surface rounded-lg bg-surface-container px-3 py-2 leading-relaxed"
+                >
+                  <span className="text-on-surface-variant">Found</span>{' '}
+                  <span className="font-semibold">
+                    {item.original === '' ? '(remove)' : `"${item.original}"`}
+                  </span>
+                  <span className="text-on-surface-variant mx-1.5">→</span>
+                  <span className="font-semibold text-green-800">
+                    {item.suggestion === '' ? '(remove)' : `"${item.suggestion}"`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              to={`/dashboard/editor?case=${caseId}&fixExport=1`}
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-4 py-2.5 rounded-lg font-bold text-xs hover:brightness-110 transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">edit_note</span>
+              Open editor to fix these
+            </Link>
           </div>
         )}
 

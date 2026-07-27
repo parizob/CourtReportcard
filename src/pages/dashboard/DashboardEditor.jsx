@@ -28,6 +28,8 @@ export default function DashboardEditor() {
   const [exportPreparing, setExportPreparing] = useState(false)
   const [error, setError] = useState('')
   const [jumpNotice, setJumpNotice] = useState('')
+  /** From export verify failure — only these Resolved items need re-accept. */
+  const [exportVerifyFailed, setExportVerifyFailed] = useState([])
   const [title, setTitle] = useState('')
   const jumpNoticeTimerRef = useRef(null)
   // ann.id → transcript-line index for jump even when underline paint is skipped
@@ -106,9 +108,30 @@ export default function DashboardEditor() {
     [annotations, sortedAnnotations]
   )
 
+  const reacceptIds = useMemo(
+    () => new Set(exportVerifyFailed.map((item) => item.id)),
+    [exportVerifyFailed]
+  )
+
+  // Accepted items that export could not verify — own section until Reopen/Accept.
+  const reacceptAnnotations = useMemo(
+    () =>
+      sortedAnnotations(
+        annotations.filter((a) => a.status === 'accepted' && reacceptIds.has(a.id))
+      ),
+    [annotations, sortedAnnotations, reacceptIds]
+  )
+
   const resolvedAnnotations = useMemo(
-    () => sortedAnnotations(annotations.filter((a) => a.status === 'accepted' || a.status === 'ignored')),
-    [annotations, sortedAnnotations]
+    () =>
+      sortedAnnotations(
+        annotations.filter(
+          (a) =>
+            (a.status === 'accepted' || a.status === 'ignored') &&
+            !reacceptIds.has(a.id)
+        )
+      ),
+    [annotations, sortedAnnotations, reacceptIds]
   )
 
   // Mirrors Dashboard.jsx's getDisplayStatus() so the case status shown here
@@ -130,6 +153,57 @@ export default function DashboardEditor() {
     if (!caseId) return
     loadCase()
   }, [caseId])
+
+  // Export page stores the exact accepted items that failed verify so the
+  // reporter is not hunting through dozens of Resolved cards.
+  useEffect(() => {
+    if (!caseId) {
+      setExportVerifyFailed([])
+      return
+    }
+    try {
+      const raw = sessionStorage.getItem(`exportVerifyFailed:${caseId}`)
+      if (!raw) {
+        setExportVerifyFailed([])
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (parsed?.caseId !== caseId || !Array.isArray(parsed.items)) {
+        setExportVerifyFailed([])
+        return
+      }
+      setExportVerifyFailed(parsed.items)
+    } catch {
+      setExportVerifyFailed([])
+    }
+  }, [caseId])
+
+  // Drop items from Needs re-accept once they are no longer accepted (reopened).
+  // Skip while loading / annotations empty — otherwise a race clears the list
+  // before the case finishes loading and the section never appears.
+  useEffect(() => {
+    if (exportVerifyFailed.length === 0) return
+    if (loading) return
+    if (!annotations.length) return
+    const acceptedIds = new Set(
+      annotations.filter((a) => a.status === 'accepted').map((a) => a.id)
+    )
+    const still = exportVerifyFailed.filter((item) => acceptedIds.has(item.id))
+    if (still.length === exportVerifyFailed.length) return
+    setExportVerifyFailed(still)
+    try {
+      if (still.length === 0) {
+        sessionStorage.removeItem(`exportVerifyFailed:${caseId}`)
+      } else {
+        sessionStorage.setItem(
+          `exportVerifyFailed:${caseId}`,
+          JSON.stringify({ caseId, items: still, at: Date.now() })
+        )
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [annotations, exportVerifyFailed, caseId, loading])
 
   const loadCase = async () => {
     const gen = ++loadGenRef.current
@@ -1483,7 +1557,7 @@ export default function DashboardEditor() {
 
       {/* Annotation cards */}
       <div className="p-4 space-y-4">
-        {openAnnotations.length === 0 && annotations.length > 0 && (
+        {openAnnotations.length === 0 && reacceptAnnotations.length === 0 && annotations.length > 0 && (
           <div className="text-center py-6">
             <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
             <p className="font-bold text-on-surface mb-1">All Issues Resolved</p>
@@ -1499,6 +1573,58 @@ export default function DashboardEditor() {
             <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">verified</span>
             <p className="font-bold text-on-surface mb-1">No Issues Found</p>
             <p className="text-xs text-on-surface-variant">No errors found in this transcript.</p>
+          </div>
+        )}
+
+        {reacceptAnnotations.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-error/20">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-error mb-2">
+              Needs re-accept ({reacceptAnnotations.length})
+            </p>
+            <p className="text-[11px] text-on-surface-variant mb-3 leading-relaxed">
+              Only these blocked export. Reopen, Accept again, then Save.
+            </p>
+            <div className="space-y-3">
+              {reacceptAnnotations.map((ann) => (
+                <div
+                  key={ann.id}
+                  id={`ann-card-${ann.id}`}
+                  className="relative p-4 rounded-lg border-l-4 border-error bg-error-container/30"
+                >
+                  <div className="absolute top-2 right-2">
+                    <Tooltip text="Jump to in transcript" placement="left">
+                      <button
+                        type="button"
+                        onClick={() => jumpToAnnotation(ann)}
+                        className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-xs">my_location</span>
+                      </button>
+                    </Tooltip>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase flex items-center gap-1 mb-2 text-error">
+                    <span className="material-symbols-outlined text-xs">error</span>
+                    {typeLabel(ann.type)} &middot; re-accept
+                  </span>
+                  <p className="text-sm font-medium mb-1">
+                    Found <strong>&quot;{ann.original}&quot;</strong>
+                  </p>
+                  <p className="text-xs text-on-surface-variant mb-3 leading-relaxed">
+                    Suggest{' '}
+                    <strong>
+                      {ann.suggestion === '' ? '(remove)' : `"${ann.suggestion}"`}
+                    </strong>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => reopenAnnotation(ann.id)}
+                    className="w-full text-xs font-bold px-3 py-2.5 min-h-[2.5rem] leading-snug rounded border border-transparent bg-surface-container text-on-surface hover:bg-primary/5 hover:text-primary hover:border-primary/15 transition-colors"
+                  >
+                    Reopen to re-accept
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1541,7 +1667,7 @@ export default function DashboardEditor() {
             )}
             <button
               onClick={() => acceptAnnotation(ann.id)}
-              className="w-full text-xs font-bold py-2 rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
+              className="w-full text-xs font-bold px-3 py-2.5 min-h-[2.5rem] leading-snug break-words rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
             >
               {isReviewOnlyAnnotation(ann)
                 ? 'Mark as reviewed'
@@ -1647,12 +1773,16 @@ export default function DashboardEditor() {
                     <span className="material-symbols-outlined text-xs text-on-surface-variant/30 group-hover:text-primary shrink-0 transition-colors">my_location</span>
                   </button>
                 </Tooltip>
-                {ann.status === 'accepted' && (
+                {(ann.status === 'accepted' || ann.status === 'ignored') && (
                   <button
                     type="button"
                     onClick={() => reopenAnnotation(ann.id)}
                     className="shrink-0 text-[10px] font-bold text-primary hover:underline px-1.5 py-1 rounded hover:bg-primary/5 transition-colors"
-                    title="Undo this accept and put the suggestion back in the open list"
+                    title={
+                      ann.status === 'ignored'
+                        ? 'Put this suggestion back in the open list'
+                        : 'Undo this accept and put the suggestion back in the open list'
+                    }
                   >
                     Reopen
                   </button>
@@ -1884,6 +2014,17 @@ export default function DashboardEditor() {
         <div className="mx-8 lg:mx-12 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 font-medium flex items-start gap-2 max-w-6xl" role="status">
           <span className="material-symbols-outlined text-base mt-0.5 shrink-0">info</span>
           {jumpNotice}
+        </div>
+      )}
+
+      {reacceptAnnotations.length > 0 && (
+        <div className="mx-8 lg:mx-12 mb-4 p-4 bg-error-container/25 border border-error/20 rounded-xl max-w-6xl" role="status">
+          <p className="text-sm font-bold text-error mb-1">
+            Needs re-accept ({reacceptAnnotations.length})
+          </p>
+          <p className="text-xs text-on-surface-variant leading-relaxed">
+            Export could not confirm these in the file. They are listed in the sidebar under Needs re-accept. Reopen each, Accept again, then Save before exporting.
+          </p>
         </div>
       )}
 
@@ -2388,7 +2529,7 @@ export default function DashboardEditor() {
                   )}
                   <button
                     onClick={() => acceptAnnotation(ann.id)}
-                    className="w-full text-xs font-bold py-2 rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
+                    className="w-full text-xs font-bold px-3 py-2.5 min-h-[2.5rem] leading-snug break-words rounded border border-transparent bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 hover:border-green-200 transition-colors"
                   >
                     {isReviewOnlyAnnotation(ann)
                       ? 'Mark as reviewed'

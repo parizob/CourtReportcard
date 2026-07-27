@@ -1,0 +1,65 @@
+{
+  "title": "Export Verify Fail Seed",
+  "extracted_at": "2026-07-27T00:40:00.000Z",
+  "source_note": "Two accepted annotations that cannot be verified on export, so the Needs re-accept UI appears. Safe to Mark reviewed / ignore after testing.",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. COUNSEL",
+      "text": "Q. He went to the store with the receipt."
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. That was my book, not yours."
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "entry_id": 1,
+      "status": "accepted",
+      "type": "spelling",
+      "severity": "critical",
+      "original": "xyzzy_not_in_transcript",
+      "suggestion": "plugh_also_missing",
+      "explanation": "Seeded false accept for export-verify UI testing.",
+      "confidence": 0.99,
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "He went ",
+      "_anchorAfter": " to the"
+    },
+    {
+      "id": 2,
+      "entry_id": 2,
+      "status": "accepted",
+      "type": "grammar",
+      "severity": "warning",
+      "original": "qqqq_missing_phrase",
+      "suggestion": "rrrr_missing_phrase",
+      "explanation": "Second seeded false accept for export-verify UI testing.",
+      "confidence": 0.9,
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "was my ",
+      "_anchorAfter": " book"
+    },
+    {
+      "id": 3,
+      "entry_id": 1,
+      "status": "ignored",
+      "type": "context",
+      "severity": "suggestion",
+      "original": "store",
+      "suggestion": "shop",
+      "explanation": "Ignored filler so Resolved is not empty of other items.",
+      "confidence": 0.5,
+      "start": 14,
+      "end": 19,
+      "_anchorBefore": "the ",
+      "_anchorAfter": " with"
+    }
+  ],
+  "originalText": "     1                  Q.  He went to the store with the receipt.\r\n\r\n     2                  A.  That was my book, not yours.\r\n"
+}
