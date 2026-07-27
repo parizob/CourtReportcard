@@ -383,7 +383,7 @@ export default function DashboardExport() {
         <div className="shrink-0 flex flex-col-reverse sm:flex-row items-start sm:justify-between gap-3 sm:gap-4">
           <div className="min-w-0 w-full sm:w-auto">
             <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight truncate">{caseData.name}</h1>
-            <p className="text-xs text-on-surface-variant mt-0.5">Download your reviewed transcript</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">Download your reviewed transcript. We recommend one last look before you file it.</p>
           </div>
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 shrink-0">
             <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-1.5 border border-outline-variant/40 text-on-surface px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container transition-colors sm:mr-1">
