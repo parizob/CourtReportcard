@@ -383,7 +383,6 @@ export default function DashboardExport() {
         <div className="shrink-0 flex flex-col-reverse sm:flex-row items-start sm:justify-between gap-3 sm:gap-4">
           <div className="min-w-0 w-full sm:w-auto">
             <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight truncate">{caseData.name}</h1>
-            <p className="text-xs text-on-surface-variant mt-0.5">Download your reviewed transcript. We recommend one last look before you file it.</p>
           </div>
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 shrink-0">
             <Link to={`/dashboard/editor?case=${caseId}`} className="flex items-center gap-1.5 border border-outline-variant/40 text-on-surface px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container transition-colors sm:mr-1">
@@ -472,95 +471,98 @@ export default function DashboardExport() {
           )}
         </div>
 
-        {/* Export formats — two columns */}
-        <div className="shrink-0 grid grid-cols-2 gap-4">
-
-          {/* With line numbers */}
-          <div className="flex flex-col gap-2">
-            <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">With Line<br className="sm:hidden" /> Numbers</p>
-            </div>
-            {[
-              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
-              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
-            ].map(({ format, icon, color, ext, desc }) => (
+        {/* Download guidance + export formats */}
+        <div className="shrink-0 flex flex-col gap-2">
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="text-xs text-on-surface-variant leading-relaxed text-center">
+              Download your reviewed transcript by selecting an option below. We recommend taking one last look before filing.
+            </p>
+            <div className="relative group/tip w-fit">
               <button
-                key={format}
-                onClick={() => handleExport(format)}
-                disabled={!!exporting || exportBlocked}
-                data-track-id={`export_${format}`}
-                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+                type="button"
+                className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors"
               >
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
-                  <span className="material-symbols-outlined text-lg">{icon}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                  <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
-                </div>
-                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {exporting === format ? 'check_circle' : 'download'}
-                </span>
+                <span className="material-symbols-outlined text-sm">help_outline</span>
+                Not sure which version to use?
               </button>
-            ))}
-          </div>
-
-          {/* Without line numbers */}
-          <div className="flex flex-col gap-2">
-            <div className="h-9 flex flex-col justify-end px-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Without Line<br className="sm:hidden" /> Numbers</p>
-            </div>
-            {[
-              { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
-              { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
-            ].map(({ format, icon, color, ext, desc }) => (
-              <button
-                key={format}
-                onClick={() => handleExport(format)}
-                disabled={!!exporting || exportBlocked}
-                data-track-id={`export_${format}`}
-                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-              >
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
-                  <span className="material-symbols-outlined text-lg">{icon}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                  <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
-                </div>
-                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {exporting === format ? 'check_circle' : 'download'}
-                </span>
-              </button>
-            ))}
-          </div>
-
-        </div>
-
-        {/* Which version tip */}
-        <div className="shrink-0 relative group/tip w-fit">
-          <button className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors">
-            <span className="material-symbols-outlined text-sm">help_outline</span>
-            Not sure which version to use?
-          </button>
-          <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-0 w-80 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
-            <div className="bg-[#1a1a2e] text-white rounded-xl px-5 py-4 text-[11px] leading-relaxed shadow-xl">
-              <p className="text-white font-bold text-sm text-center mb-3 tracking-tight">Which version should I use?</p>
-              <div className="grid grid-cols-2 divide-x divide-white/15">
-                <div className="pr-4 flex flex-col items-center text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">With Line Numbers</p>
-                  <p className="text-white/75 leading-relaxed">Use if your software imports the file as-is.</p>
-                  <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Case CATalyst</span></p>
-                </div>
-                <div className="pl-4 flex flex-col items-center text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">Without Line Numbers</p>
-                  <p className="text-white/75 leading-relaxed">Use if your software adds its own numbers on import.</p>
-                  <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Eclipse</span></p>
+              <div className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 w-80 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
+                <div className="w-2 h-2 bg-[#1a1a2e] rotate-45 mx-auto mb-[-5px]" />
+                <div className="bg-[#1a1a2e] text-white rounded-xl px-5 py-4 text-[11px] leading-relaxed shadow-xl">
+                  <p className="text-white font-bold text-sm text-center mb-3 tracking-tight">Which version should I use?</p>
+                  <div className="grid grid-cols-2 divide-x divide-white/15">
+                    <div className="pr-4 flex flex-col items-center text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">With Line Numbers</p>
+                      <p className="text-white/75 leading-relaxed">Use if your software imports the file as-is.</p>
+                      <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Case CATalyst</span></p>
+                    </div>
+                    <div className="pl-4 flex flex-col items-center text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">Without Line Numbers</p>
+                      <p className="text-white/75 leading-relaxed">Use if your software adds its own numbers on import.</p>
+                      <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Eclipse</span></p>
+                    </div>
+                  </div>
+                  <p className="text-white/30 mt-3 text-[10px] text-center">When in doubt, check your software's import settings.</p>
                 </div>
               </div>
-              <p className="text-white/30 mt-3 text-[10px] text-center">When in doubt, check your software's import settings.</p>
             </div>
-            <div className="w-2 h-2 bg-[#1a1a2e] rotate-45 ml-4 -mt-[5px]" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* With line numbers */}
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">With Line<br className="sm:hidden" /> Numbers</p>
+              {[
+                { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
+                { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
+              ].map(({ format, icon, color, ext, desc }) => (
+                <button
+                  key={format}
+                  onClick={() => handleExport(format)}
+                  disabled={!!exporting || exportBlocked}
+                  data-track-id={`export_${format}`}
+                  className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                    <span className="material-symbols-outlined text-lg">{icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                    <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {exporting === format ? 'check_circle' : 'download'}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Without line numbers */}
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Without Line<br className="sm:hidden" /> Numbers</p>
+              {[
+                { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
+                { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
+              ].map(({ format, icon, color, ext, desc }) => (
+                <button
+                  key={format}
+                  onClick={() => handleExport(format)}
+                  disabled={!!exporting || exportBlocked}
+                  data-track-id={`export_${format}`}
+                  className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                    <span className="material-symbols-outlined text-lg">{icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
+                    <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {exporting === format ? 'check_circle' : 'download'}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
