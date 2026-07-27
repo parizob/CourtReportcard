@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
 const stats = [
-  { value: '90%', label: 'Avg. accuracy on first pass' },
-  { value: '100×', label: 'Faster than manual review' },
-  { value: '98%', label: 'Reduction in correction costs' },
   { value: '< 5 min', label: 'Average time to first results' },
+  { value: '~98%', label: 'Reduction in correction costs' },
+  { value: '0', label: 'Changes without your approval' },
+  { value: '100×', label: 'Faster than manual review' },
 ]
 
 const pillars = [

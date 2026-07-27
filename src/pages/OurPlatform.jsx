@@ -34,17 +34,17 @@ const stats = [
   {
     metric: '< 5 min',
     label: 'to analyze a 100-page deposition',
-    sub: 'A careful human review averages 6–8 hours for the same file.',
-  },
-  {
-    metric: '100%',
-    label: 'of words evaluated for errors',
-    sub: 'No line skipped. No page rushed. You stay in control.',
+    sub: ['A careful human review averages 6–8 hours for the same file.'],
   },
   {
     metric: '~98%',
     label: 'cost reduction vs. manual review',
-    sub: 'Cents per page. Same careful review, without the wait.',
+    sub: ['Cents per page.', 'Available in minutes, not hours.'],
+  },
+  {
+    metric: '0',
+    label: 'changes without your approval',
+    sub: ['Accept, edit, or ignore.', 'You stay in control.'],
   },
 ]
 
@@ -68,7 +68,7 @@ export default function OurPlatform() {
               The fastest way to proofread<br className="hidden sm:block"/>a court transcript. By far.
             </h1>
             <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              A 100-page deposition that takes an experienced scopist six hours takes Court Reportcard just minutes — at a fraction of the cost, with nothing missed.
+              A 100-page deposition that takes a human hours takes Court Reportcard just minutes, at a fraction of the cost.
             </p>
           </div>
         </section>
@@ -80,7 +80,11 @@ export default function OurPlatform() {
               <div key={s.metric} className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-6 sm:p-7 text-center">
                 <p className="font-headline text-3xl sm:text-4xl font-extrabold text-primary mb-1">{s.metric}</p>
                 <p className="text-sm font-semibold text-on-surface mb-2">{s.label}</p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">{s.sub}</p>
+                <div className="text-xs text-on-surface-variant leading-relaxed">
+                  {s.sub.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
