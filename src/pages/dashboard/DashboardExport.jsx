@@ -475,7 +475,7 @@ export default function DashboardExport() {
         <div className="shrink-0 flex flex-col gap-2">
           <div className="flex flex-col items-center gap-1.5">
             <p className="text-xs text-on-surface-variant leading-relaxed text-center">
-              Download your reviewed transcript by selecting an option below. We recommend taking one last look before filing.
+              Download your reviewed transcript by selecting an option below. It is encouraged to review the file before submission.
             </p>
             <div className="relative group/tip w-fit">
               <button

@@ -230,7 +230,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-on-secondary-container group-hover:text-on-secondary">download_done</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">Export Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">You stay in control of every change. Accept what looks right, ignore the rest, then download a clean transcript when you're done reviewing.</p>
+                <p className="text-on-surface-variant leading-relaxed">You stay in control of every change. Accept what looks right, ignore the rest, then download your transcript when you're done reviewing.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">03</div>
               </div>
             </div>
@@ -269,7 +269,7 @@ export default function LandingPage() {
                   <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
                   <div>
                     <h4 className="text-on-primary font-bold">Same-Day Ready</h4>
-                    <p className="text-on-primary-container text-sm">Fast enough to check a same-day rough draft before it ships, something a scopist rarely has time for.</p>
+                    <p className="text-on-primary-container text-sm">Fast enough to check a same-day rough draft before it ships, something a human usually has to rush for.</p>
                   </div>
                 </div>
               </div>
@@ -295,7 +295,7 @@ export default function LandingPage() {
           <div ref={setRevealRef(8)} className="landing-reveal max-w-3xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 inline-block">Built for legal professionals</span>
             <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface mb-5 tracking-tight">
-              Designed for stenographers, scopists, and voice writers.
+              Designed for stenographers, digital reporters, and voice writers.
             </h2>
             <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
               Tuned to the errors that actually show up in legal transcripts: steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes. Trusted by court reporters reviewing depositions, hearings, and trials.
