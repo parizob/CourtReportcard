@@ -6,3 +6,9 @@ verify_jwt = false
 
 [functions.analyze-case]
 verify_jwt = false
+
+[functions.stripe-webhook]
+# Stripe has no Supabase JWT — signature header is the only auth.
+# A deploy without this (or without --no-verify-jwt) returns 401 and
+# silently drops paid checkout fulfillment.
+verify_jwt = false
