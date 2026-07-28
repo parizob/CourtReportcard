@@ -36,11 +36,11 @@ the list" — the model still skips them in long clean filler. Proposed fix is a
 short disambiguation note with worked examples (same pattern as `sit / set`
 and `compliant / complaint`), not adding the pairs again.
 
-**Status:** `applied` **DEV / harness only** (2026-07-27) — added the two
-disambiguation bullets to `PROOFREAD_ONLY_PROMPT` in `src/lib/gemini.js`
-only. **`supabase/functions/analyze-case/prompts.ts` unchanged; Edge Function
-not deployed.** Promote to prompts.ts + deploy only after harness green and
-explicit go-ahead.
+**Status:** `applied` to harness + **Edge Function deployed** (2026-07-27/28):
+- `src/lib/gemini.js` (harness)
+- `supabase/functions/analyze-case/prompts.ts` (synced)
+- Deployed `analyze-case` to **Dev** (`jotklhjskmewzfsgzkvp`) and **Prod**
+  (`wyexjojoezttbzhcpkco`).
 
 **Harness expanded** in the same change: `transcript_06_medium` now has 20
 seeded errors (added inverse principal/principle, inverse discrete/discreet,
