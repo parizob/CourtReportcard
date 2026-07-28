@@ -10,7 +10,29 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 The whole premise of Court Reportcard is: a reporter reviews flagged errors, accepts the real ones, and gets back a transcript with those corrections actually applied. If the internal working data (`entries`, used for editing and export) and the visual transcript pane (`originalText`/`cleanContent`) can ever diverge, an annotation could show as "accepted" in the UI while the correction is silently missing from the file the user actually downloads and files with the court. That is worse than any UI bug, it produces a document the user believes is corrected when it isn't, defeating the reason the product exists.
 
-`acceptAnnotation`, `applyCorrectionDetailed`, `fixAnnotationPositions`, and the export path (`src/lib/gemini.js`, `src/pages/dashboard/DashboardEditor.jsx`) all touch this. Any change to these must preserve the invariant. If a text-matching search used to apply a correction can fail (e.g., `flexFind` not finding the flagged text in `cleanContent`), that failure must be surfaced loudly, logged at minimum, and ideally blocking or flagging the export, never left to silently drop the correction from one representation while the UI still reports it as accepted.
+`acceptAnnotation`, `applyCorrectionDetailed`, `fixAnnotationPositions`,
+`ensureAcceptedCorrectionsInOriginalText`, and the export path
+(`src/lib/gemini.js`, `src/pages/dashboard/DashboardEditor.jsx`,
+`src/pages/dashboard/DashboardExport.jsx`) all touch this. Any change to these
+must preserve the invariant. If a text-matching search used to apply a
+correction can fail (e.g., `flexFind` not finding the flagged text in
+`cleanContent`), that failure must be surfaced loudly, logged at minimum, and
+ideally blocking or flagging the export, never left to silently drop the
+correction from one representation while the UI still reports it as accepted.
+
+**Required gate before claiming an accept/export change is safe** (paying
+customers — corrupt downloads are P0):
+
+```bash
+npm run test:export
+npm run test:export-stress
+```
+
+Both must be green. Do not ship accept/export/anchor/`ensureAccepted*` changes
+on “looks fine” alone. `test:export-stress` includes the Natalie Molina
+short-word twin regression (`the`→`it` must not rewrite certificate
+`of the State`). Optional soak: accept → Export → verify download blob when
+the change is high-risk.
 
 ## 1. Think Before Coding
 

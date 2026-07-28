@@ -46,10 +46,14 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10 page-rise">
               <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
-                Precision Proofreading for <span className="text-primary italic">Court Reporters</span>
+                Your Second Set
+                <br />
+                of Eyes on
+                <br />
+                <span className="text-primary italic">Every Transcript</span>
               </h1>
               <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Your second set of eyes on every transcript. Catch steno errors, homophone substitutions, missing words, and punctuation mistakes before a single page leaves your desk.
+                Precision proofreading for court reporters. Catch steno errors, homophone substitutions, missing words, and punctuation mistakes before a single page leaves your desk.
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button

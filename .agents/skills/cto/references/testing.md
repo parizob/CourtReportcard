@@ -3,7 +3,29 @@
 Full reference: `scripts/test-transcripts/README.md`. This is the CTO-level
 summary plus operational gotchas.
 
-## What it tests
+## Export integrity suites (separate from Gemini recall)
+
+These are **not** optional when touching accept/export. They do not call
+Gemini; they replay apply/ensure/export logic on fixtures (including the
+Natalie Molina short-word twin case).
+
+```bash
+npm run test:export          # scripts/test-export-integrity.mjs
+npm run test:export-stress   # scripts/test-export-accept-stress.mjs
+npm run test:fidelity        # upload/originalText round-trip stress (related)
+```
+
+**When required:** any change to `ensureAcceptedCorrectionsInOriginalText`,
+anchors, `acceptAnnotation` / `applyCorrectionDetailed`, flexFind used on the
+export path, or `DashboardExport.jsx` download builders.
+
+**Bar:** both `test:export` and `test:export-stress` green before claiming
+safe. Fail-closed (Needs re-accept) beats guessing the wrong `the`/`it`.
+
+**Product context:** Court Reportcard has paying customers. A corrupt export
+is P0. Do not treat this gate as “nice for later.”
+
+## What the proofread harness tests
 
 The harness calls `extractTranscriptWithGemini` from `src/lib/gemini.js`
 (via `api/gemini.js`) against seeded transcripts with known, hand-placed

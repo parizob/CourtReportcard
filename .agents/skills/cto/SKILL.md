@@ -48,6 +48,12 @@ If a change doesn't clearly serve #1 without regressing #2 or #3, slow down.
 
 ## Core Engineering Principles (always)
 
+- **Export integrity is P0 (paid product).** An accepted correction missing
+  from or wrong in the download is worse than a UI bug. Before shipping any
+  change to accept/apply/anchors/`ensureAcceptedCorrectionsInOriginalText`/
+  DashboardExport: `npm run test:export` and `npm run test:export-stress`
+  must both pass. See root `CLAUDE.md` invariant and
+  `references/testing.md` → Export integrity suites.
 - **Surgical changes.** Touch only what the task requires. See root `CLAUDE.md`
   — this applies doubly to the prompts, which are tuned and verbose for a reason.
 - **Never silently edit the production prompts.** Proposed prompt changes go in
