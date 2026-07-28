@@ -659,8 +659,7 @@ CREATE POLICY "Users can delete their own case metrics" ON public.case_metrics F
 
 DROP POLICY IF EXISTS "Users can view own ledger" ON public.token_ledger;
 CREATE POLICY "Users can view own ledger" ON public.token_ledger FOR SELECT TO public USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS "Users can insert own ledger entries" ON public.token_ledger;
-CREATE POLICY "Users can insert own ledger entries" ON public.token_ledger FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+-- No authenticated INSERT policy: ledger rows are written only by SECURITY DEFINER RPCs / service_role.
 
 DROP POLICY IF EXISTS telemetry_events_insert ON public.telemetry_events;
 CREATE POLICY telemetry_events_insert ON public.telemetry_events FOR INSERT TO anon, authenticated
@@ -705,3 +704,38 @@ CREATE POLICY storage_case_files_delete ON storage.objects FOR DELETE TO authent
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Re-lock sensitive SECURITY DEFINER RPCs after the blanket EXECUTE grant above.
+-- Keep in sync with supabase/migrations/20260728120000_harden_security_definer_grants.sql
+
+REVOKE ALL ON FUNCTION public.admin_record_upload_failure(uuid, text, text) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_record_upload_failure(uuid, text, text) TO service_role;
+
+REVOKE ALL ON FUNCTION public.credit_tokens(uuid, integer, text, text, integer) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.credit_tokens(uuid, integer, text, text, integer) TO service_role;
+
+REVOKE ALL ON FUNCTION public.purge_expired_cases() FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_expired_cases() TO service_role;
+
+REVOKE ALL ON FUNCTION public.refund_tokens(integer, text) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.refund_tokens(integer, text) TO service_role;
+
+REVOKE ALL ON FUNCTION public.handle_new_user_tokens() FROM public, anon, authenticated;
+
+REVOKE ALL ON FUNCTION public.get_upload_failure_count(text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.get_upload_failure_count(text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.record_upload_failure(text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.record_upload_failure(text, text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.refund_case_tokens(uuid, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.refund_case_tokens(uuid, text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.spend_tokens(integer) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.spend_tokens(integer) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.redeem_promo(text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.redeem_promo(text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.is_telemetry_admin() FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.is_telemetry_admin() TO authenticated, service_role;

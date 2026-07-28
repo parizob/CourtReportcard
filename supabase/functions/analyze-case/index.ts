@@ -1001,16 +1001,26 @@ async function mergeExtractionChunks(
 }
 
 // ── Email (Resend) ──
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   if (!apiKey) {
     console.error('RESEND_API_KEY not configured — skipping email.')
     return
   }
+  const safeSubject = String(subject ?? '').replace(/[\r\n]+/g, ' ').slice(0, 200)
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html }),
+    body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject: safeSubject, html }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -1019,7 +1029,8 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
 }
 
 function successEmailHtml(caseName: string, issueCount: number, caseId: string): string {
-  const editorUrl = `${SITE_URL}/dashboard/editor?case=${caseId}`
+  const safeName = escapeHtml(caseName)
+  const editorUrl = `${SITE_URL}/dashboard/editor?case=${encodeURIComponent(caseId)}`
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
       <div style="background: #001939; padding: 24px 32px; border-radius: 8px 8px 0 0;">
@@ -1027,11 +1038,11 @@ function successEmailHtml(caseName: string, issueCount: number, caseId: string):
       </div>
       <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          Good news — we've finished analyzing <strong>${caseName}</strong> and found
-          <strong>${issueCount} suggestion${issueCount === 1 ? '' : 's'}</strong> to review.
+          Good news — we've finished analyzing <strong>${safeName}</strong> and found
+          <strong>${Number(issueCount) || 0} suggestion${issueCount === 1 ? '' : 's'}</strong> to review.
         </p>
         <a href="${editorUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px; margin: 8px 0 16px;">Open in Editor</a>
-        <p style="font-size: 12px; color: #6b7280; margin: 0;">If the button doesn't work, paste this link into your browser:<br />${editorUrl}</p>
+        <p style="font-size: 12px; color: #6b7280; margin: 0;">If the button doesn't work, paste this link into your browser:<br />${escapeHtml(editorUrl)}</p>
       </div>
     </div>
   `
@@ -1044,7 +1055,10 @@ function zeroIssueAlertHtml(opts: {
   tokensCharged: number
   totalEntries: number
 }): string {
-  const editorUrl = `${SITE_URL}/dashboard/editor?case=${opts.caseId}`
+  const safeName = escapeHtml(opts.caseName)
+  const safeEmail = escapeHtml(opts.userEmail)
+  const safeCaseId = escapeHtml(opts.caseId)
+  const editorUrl = `${SITE_URL}/dashboard/editor?case=${encodeURIComponent(opts.caseId)}`
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
       <div style="background: #001939; padding: 24px 32px; border-radius: 8px 8px 0 0;">
@@ -1052,9 +1066,9 @@ function zeroIssueAlertHtml(opts: {
       </div>
       <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          <strong>${opts.caseName}</strong> finished with 0 suggestions
-          (${opts.tokensCharged} tokens / ${opts.totalEntries} entries).
-          User: ${opts.userEmail}. Case: ${opts.caseId}.
+          <strong>${safeName}</strong> finished with 0 suggestions
+          (${Number(opts.tokensCharged) || 0} tokens / ${Number(opts.totalEntries) || 0} entries).
+          User: ${safeEmail}. Case: ${safeCaseId}.
         </p>
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
           Skim for material misses. If it looks clean, do nothing. If you find real errors, email the user personally.
@@ -1067,6 +1081,7 @@ function zeroIssueAlertHtml(opts: {
 
 function failureEmailHtml(caseName: string, refunded: number, repeatFailure = false): string {
   const supportUrl = `${SITE_URL}/support`
+  const safeName = escapeHtml(caseName)
   const nextStep = repeatFailure
     ? `This is the second time this specific file has run into a problem. Sometimes that's something about the file, sometimes it's on our end, we're not sure yet without a closer look. Instead of trying again, email us at <a href="mailto:courtreportcard@gmail.com" style="color: #001939; font-weight: 700; text-decoration: underline;">courtreportcard@gmail.com</a> or use <a href="${supportUrl}" style="color: #001939; font-weight: 700; text-decoration: underline;">Contact Support</a> so we can check what's actually going on.`
     : `This is usually a temporary issue. Please try uploading again. If it happens a second time, reach out and we'll take a look. Don't keep retrying the same file over and over.`
@@ -1077,8 +1092,8 @@ function failureEmailHtml(caseName: string, refunded: number, repeatFailure = fa
       </div>
       <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          We hit a problem analyzing <strong>${caseName}</strong>, so it wasn't completed.
-          We've <strong>refunded ${refunded} token${refunded === 1 ? '' : 's'}</strong>. You weren't charged.
+          We hit a problem analyzing <strong>${safeName}</strong>, so it wasn't completed.
+          We've <strong>refunded ${Number(refunded) || 0} token${refunded === 1 ? '' : 's'}</strong>. You weren't charged.
         </p>
         <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
           ${nextStep}

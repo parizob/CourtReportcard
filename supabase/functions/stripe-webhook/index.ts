@@ -23,6 +23,15 @@ const corsHeaders = {
 const ALERT_FROM = 'Court Reportcard Alerts <noreply@courtreportcard.com>'
 const ALERT_TO = 'courtreportcard@gmail.com'
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -102,7 +111,7 @@ Deno.serve(async (req: Request) => {
     const rowsHtml = Object.entries(rows)
       .map(
         ([k, v]) =>
-          `<tr><td style="padding:6px 12px;color:#6b7280;white-space:nowrap;">${k}</td><td style="padding:6px 12px;font-weight:600;">${v}</td></tr>`,
+          `<tr><td style="padding:6px 12px;color:#6b7280;white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:6px 12px;font-weight:600;">${escapeHtml(v)}</td></tr>`,
       )
       .join('')
     const html = `
@@ -115,7 +124,7 @@ Deno.serve(async (req: Request) => {
         <div style="background: #f8f9fa; padding: 24px 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
           <p style="font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
             A Stripe checkout session did not result in tokens being credited. Use the
-            details below to look up the session in the Stripe Dashboard (${mode} mode)
+            details below to look up the session in the Stripe Dashboard (${escapeHtml(mode)} mode)
             and the <code>token_ledger</code> table.
           </p>
           <table style="width:100%; border-collapse:collapse; font-size: 13px;">${rowsHtml}</table>
@@ -129,7 +138,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           from: ALERT_FROM,
           to: [ALERT_TO],
-          subject: `[${mode}] Token fulfillment failed — ${reason}`,
+          subject: `[${mode}] Token fulfillment failed — ${String(reason).replace(/[\r\n]+/g, ' ')}`,
           html,
         }),
       })
