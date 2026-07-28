@@ -114,7 +114,18 @@ export default function LandingPage() {
                     </div>
                     <div>
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
-                      <p>And did you see the vehicle? We have a <span className="border-b-2 border-dotted border-primary italic">conflicting report</span> about the color.</p>
+                      <p>And did you see the vehicle? We have a conflicting report about the <span className="relative inline-block group cursor-pointer">
+                        <span className="border-b-2 border-dotted border-on-surface-variant/50 italic">color</span>
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
+                          <span className="block text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-wider mb-1">Ignored</span>
+                          <span className="block text-[11px] text-on-surface">
+                            <span className="text-on-surface-variant">&ldquo;color&rdquo;</span>
+                            {' → '}
+                            <span className="font-semibold text-on-surface-variant">left as-is</span>
+                          </span>
+                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 72%</span>
+                        </span>
+                      </span>.</p>
                     </div>
                   </div>
                   {/* Status Bar */}
