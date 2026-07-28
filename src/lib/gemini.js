@@ -1438,20 +1438,24 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
           ann.original
         )
 
-    // After an earlier accept on the same line, entry offsets / locator
-    // context can miss a still-present original. Fall back to flexFind for
-    // the original only when we have NO anchors (usually unique enough).
-    // Never flexFind original/suggestion when anchors exist — short words
-    // like "the" latch onto an earlier twin (Natalie Molina: export re-applied
-    // the→it onto "of the State of California" after "call it Consuelo" was
-    // already correct). Never flexFind for deletions with anchors either.
-    if (!stillOriginal && !hasAnchor) {
-      const m = flexFind(cleanContent, ann.original)
-      if (m) stillOriginal = { cleanStart: m.start, cleanEnd: m.end }
+    // Unanchored originals must be unique in cleanContent. locateAnnotation…
+    // can fall back to whole-doc first match; flexFind used to do the same.
+    // Multiple twins (e.g. "the") → clear the hit and fail closed below.
+    // Never flexFind when anchors exist (Natalie Molina: the→it already at
+    // "call it Consuelo" must not rewrite certificate "of the State").
+    if (!hasAnchor) {
+      const hits = findAllFlexMatches(cleanContent, ann.original)
+      if (hits.length === 1) {
+        stillOriginal = { cleanStart: hits[0].start, cleanEnd: hits[0].end }
+      } else {
+        stillOriginal = null
+      }
     }
     if (!isDeletion && !hasSuggestion && !hasAnchor) {
-      const m = flexFind(cleanContent, ann.suggestion)
-      if (m) hasSuggestion = { cleanStart: m.start, cleanEnd: m.end }
+      const hits = findAllFlexMatches(cleanContent, ann.suggestion)
+      if (hits.length === 1) {
+        hasSuggestion = { cleanStart: hits[0].start, cleanEnd: hits[0].end }
+      }
     }
 
     // Deletion accepts: success = original gone from the flagged site.
