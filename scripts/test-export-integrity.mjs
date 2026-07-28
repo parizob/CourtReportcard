@@ -1935,5 +1935,56 @@ console.log('\n=== Export integrity ===\n')
   assertEq(text, originalText, 'leaves already-correct originalText unchanged')
 }
 
+// --- 31. Anchored short-word accept must not re-apply on an earlier twin ---
+{
+  console.log('\n31. Anchored the→it already applied must not corrupt earlier "the"')
+  // Natalie Molina / MOLINA TIMESTAMPED: editor applied "you call the" →
+  // "you call it" correctly; export ensure flexFind-fallback then rewrote
+  // certificate "of the State" → "of it State".
+  const originalText =
+    '          10  Certified Shorthand Reporter of the State of California.\r\n' +
+    'Q.  Okay. Did you call it Consuelo\'s Kitchen when you had your business?\r\n'
+  const entries = [
+    {
+      id: 1266,
+      text: "Okay. Did you call it Consuelo's Kitchen when you had your business?",
+    },
+  ]
+  const annotations = [
+    {
+      id: 84,
+      entry_id: 1266,
+      status: 'accepted',
+      type: 'context',
+      original: 'the',
+      suggestion: 'it',
+      start: 19,
+      end: 21,
+      _anchorBefore: 'you call ',
+      _anchorAfter: " Consuelo's Kitchen",
+    },
+  ]
+
+  assert(
+    originalText.includes('of the State of California'),
+    'fixture starts with correct certificate line',
+  )
+  assert(originalText.includes("call it Consuelo"), 'fixture already has accept applied')
+
+  const { text, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    annotations,
+  )
+  assertEq(fails.length, 0, 'already-applied anchored accept verifies')
+  assertEq(text, originalText, 'export ensure is a no-op when accept already applied')
+  assert(
+    text.includes('of the State of California'),
+    'certificate "the" must not become "it"',
+  )
+  assert(!text.includes('of it State of California'), 'must not corrupt certificate line')
+  assert(text.includes("call it Consuelo"), 'intended accept remains')
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
 process.exit(failed > 0 ? 1 : 0)

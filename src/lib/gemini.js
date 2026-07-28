@@ -1440,10 +1440,12 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
 
     // After an earlier accept on the same line, entry offsets / locator
     // context can miss a still-present original. Fall back to flexFind for
-    // the original only (usually unique). Never flexFind a short suggestion
-    // when anchors exist — that latches onto an earlier twin. Never flexFind
-    // for deletions with anchors (same twin trap).
-    if (!stillOriginal && !(isDeletion && hasAnchor)) {
+    // the original only when we have NO anchors (usually unique enough).
+    // Never flexFind original/suggestion when anchors exist — short words
+    // like "the" latch onto an earlier twin (Natalie Molina: export re-applied
+    // the→it onto "of the State of California" after "call it Consuelo" was
+    // already correct). Never flexFind for deletions with anchors either.
+    if (!stillOriginal && !hasAnchor) {
       const m = flexFind(cleanContent, ann.original)
       if (m) stillOriginal = { cleanStart: m.start, cleanEnd: m.end }
     }
