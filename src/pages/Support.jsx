@@ -22,11 +22,11 @@ const faqs = [
   },
   {
     q: 'What does Court Reportcard check?',
-    a: 'Court Reportcard reviews every line of testimony for steno errors, homophone substitutions (e.g., "counsel" vs. "council"), missing words, incorrect legal terminology, punctuation issues, and capitalization errors. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
+    a: 'Court Reportcard reviews every line of testimony for spelling issues, homophone substitutions (e.g., "counsel" vs. "council"), punctuation mistakes, incorrect legal terminology, capitalization errors, and other context-sensitive mistakes. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
   },
   {
     q: 'How long does a review take?',
-    a: 'Most transcripts are fully reviewed within 2–5 minutes depending on length. We run entirely in the cloud — no software installation required.',
+    a: 'Review time depends on transcript length. For instance, transcripts under 40 pages usually take between 2 and 5 minutes.',
   },
   {
     q: 'Can I export to court-specific formats?',
@@ -34,11 +34,11 @@ const faqs = [
   },
   {
     q: 'Is this the right tool for classified, sealed, or HIPAA-protected transcripts?',
-    a: 'Not yet. Court Reportcard is currently in beta and is not HIPAA compliant at this stage. Please do not upload transcripts containing protected health information, classified material, sealed material, content subject to a protective order, or any content subject to strict regulatory requirements. We take this seriously and will communicate clearly when compliance certification is in place.',
+    a: 'Not yet. Court Reportcard is not HIPAA compliant. Please do not upload transcripts containing protected health information, classified material, sealed material, content subject to a protective order, or any content subject to strict regulatory requirements. We take this seriously and will communicate clearly when compliance certification is in place.',
   },
   {
     q: 'How do I know my transcript won\'t be shared or used to train a model?',
-    a: 'Your transcript data is yours. We use an enterprise-grade AI API that is contractually prohibited from using your input to train any models — what you send in is never used to improve or build anything on their end. Your files are stored on certified cloud infrastructure that meets SOC 2 and SOX compliance standards — the same tier trusted by thousands of businesses handling sensitive data. We also enforce user-level data isolation, meaning your cases are technically inaccessible to any other user on the platform. No one sees your work but you.',
+    a: 'Your transcript data is yours. We process text through an enterprise-grade API that is contractually prohibited from using your input to train any models. What you send in is never used to improve or build anything on their end. Your files are stored on certified cloud infrastructure that meets SOC 2 and SOX compliance standards, the same tier trusted by thousands of businesses handling sensitive data. We also enforce user-level data isolation, meaning your cases are technically inaccessible to any other user on the platform. No one sees your work but you.',
   },
   {
     q: 'I\'ve run out of tokens. How do I get more?',

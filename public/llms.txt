@@ -1,6 +1,6 @@
 # Court Reportcard
 
-> Precision transcript proofreading for court reporters and scopists. A second set of eyes for steno errors, homophone substitutions, missing words, and punctuation before a job leaves your desk.
+> Precision transcript proofreading for court reporters and scopists. A second set of eyes for spelling, punctuation, homophones, and other context-sensitive mistakes before a job leaves your desk.
 
 Court Reportcard is a professional proofreading tool for finished court transcripts (.txt / .rtf). Upload a transcript, review flagged issues inline, accept or ignore each suggestion (or type your own fix), then export a corrected file. The reporter stays in control of every change. Nothing is rewritten in the official record without human review.
 

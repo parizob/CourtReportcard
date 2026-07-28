@@ -36,7 +36,7 @@ export default function LandingPage() {
     <div className="bg-background text-on-surface font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
       <Helmet>
         <title>Court Reportcard | Precision Proofreading for Court Reporters</title>
-        <meta name="description" content="Precision transcript proofreading for court reporters and scopists. Catches steno errors, homophone substitutions, and punctuation mistakes before filing. Upload .txt or .rtf — results in minutes." />
+        <meta name="description" content="Precision transcript proofreading for court reporters and scopists. Catches spelling, punctuation, homophones, and other context-sensitive mistakes before filing. Upload .txt or .rtf — results in minutes." />
         <link rel="canonical" href="https://www.courtreportcard.com/" />
       </Helmet>
 
@@ -53,7 +53,7 @@ export default function LandingPage() {
                 <span className="text-primary italic">Every Transcript</span>
               </h1>
               <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Precision proofreading for court reporters. Catch steno errors, homophone substitutions, missing words, and punctuation mistakes before a single page leaves your desk.
+                Precision proofreading for court reporters. Catch spelling, punctuation, homophones, and other context-sensitive mistakes before a single page leaves your desk.
               </p>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <button
@@ -236,7 +236,7 @@ export default function LandingPage() {
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
                 <h3 className="font-headline font-bold text-xl mb-3">Review Suggestions</h3>
-                <p className="text-on-surface-variant leading-relaxed">We flag likely steno errors, homophones, missing words, and punctuation issues. You review each one and decide what to keep.</p>
+                <p className="text-on-surface-variant leading-relaxed">We flag likely spelling issues, homophones, punctuation mistakes, and other context-sensitive errors. You review each one and decide what to keep.</p>
                 <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
               </div>
               {/* Step 3 */}
@@ -313,7 +313,7 @@ export default function LandingPage() {
               Designed for stenographers, digital reporters, and voice writers.
             </h2>
             <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
-              Tuned to the errors that actually show up in legal transcripts: steno errors, homophone substitutions, missing words, incorrect legal terminology, and punctuation mistakes. Trusted by court reporters reviewing depositions, hearings, and trials.
+              Tuned to the errors that actually show up in legal transcripts: spelling, punctuation, homophone substitutions, legal-term mix-ups, and other context-sensitive mistakes. Trusted by court reporters reviewing depositions, hearings, and trials.
             </p>
           </div>
         </section>
