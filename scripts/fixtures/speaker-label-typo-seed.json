@@ -1,0 +1,15 @@
+{
+  "title": "Speaker Label Typo Seed",
+  "extracted_at": "2026-07-28T00:00:00.000Z",
+  "originalText": "     1                  Q.  Did you hear the ruling?\r\n\r\n     2                  A.  Yes.\r\n\r\n     3                  THE CUORT:  Sustained.\r\n\r\n     4                  Q.  What happened next?\r\n\r\n     5                  THE WITNES:  I left the room.\r\n\r\n     6                  THE COURT:  You may step down.\r\n\r\n     7                  MR. SMTH:  No further questions.\r\n\r\n",
+  "entries": [
+    { "id": 1, "speaker": "Q", "text": "Did you hear the ruling?" },
+    { "id": 2, "speaker": "A", "text": "Yes." },
+    { "id": 3, "speaker": "THE CUORT", "text": "Sustained." },
+    { "id": 4, "speaker": "Q", "text": "What happened next?" },
+    { "id": 5, "speaker": "THE WITNES", "text": "I left the room." },
+    { "id": 6, "speaker": "THE COURT", "text": "You may step down." },
+    { "id": 7, "speaker": "MR. SMTH", "text": "No further questions." }
+  ],
+  "annotations": []
+}

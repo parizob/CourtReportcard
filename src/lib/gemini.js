@@ -1838,8 +1838,262 @@ const REPEATED_PARAGRAPH_EXPLANATION_A =
 const REPEATED_PARAGRAPH_EXPLANATION_Q =
   'Repeated Question with no other speaker between.'
 
+/** Role-label typos (THE CUORT, etc.) — review-only; Accept must not rewrite labels. */
+export const SPEAKER_LABEL_TYPO_TYPE = 'speaker_label_typo'
+
 export function isReviewOnlyAnnotation(ann) {
-  return ann?.type === REPEATED_PARAGRAPH_TYPE
+  return ann?.type === REPEATED_PARAGRAPH_TYPE || ann?.type === SPEAKER_LABEL_TYPO_TYPE
+}
+
+const CANONICAL_SPEAKER_ROLES = [
+  'THE COURT',
+  'THE WITNESS',
+  'THE CLERK',
+  'THE BAILIFF',
+  'THE REPORTER',
+  'THE COURT REPORTER',
+  'JUDGE',
+]
+
+/** Explicit high-confidence steno/OCR typos → canonical role label. */
+const SPEAKER_LABEL_TYPO_MAP = {
+  'THE CUORT': 'THE COURT',
+  'THE COURRT': 'THE COURT',
+  'THE COUTR': 'THE COURT',
+  'THE CORUT': 'THE COURT',
+  'THE WITNES': 'THE WITNESS',
+  'THE WITNSES': 'THE WITNESS',
+  'THE WITNESSS': 'THE WITNESS',
+  'THE CLEARK': 'THE CLERK',
+  'THE CLARCK': 'THE CLERK',
+  'THE BAILIF': 'THE BAILIFF',
+  'THE BAILIIF': 'THE BAILIFF',
+  'THE REPORTR': 'THE REPORTER',
+  'THE REPOTER': 'THE REPORTER',
+  'THE COURT REPORTR': 'THE COURT REPORTER',
+  'THE COURT REPOTER': 'THE COURT REPORTER',
+}
+
+/** Real words one edit from a role — do not flag via fuzzy match. */
+const SPEAKER_ROLE_FALSE_FRIENDS = new Set(['COUNT', 'COAST', 'CROWN', 'CROFT'])
+
+function levenshtein(a, b) {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const row = new Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) row[j] = j
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i - 1
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j]
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost)
+      prev = cur
+    }
+  }
+  return row[b.length]
+}
+
+/**
+ * If `label` is a known misspelling of a courtroom role label, return the
+ * canonical form. Attorney names (MR./MS./…) are never considered — last
+ * names are too hard to confirm without inventing corrections.
+ */
+export function resolveSpeakerRoleTypo(label) {
+  if (!label || typeof label !== 'string') return null
+  const upper = label.replace(/\s+/g, ' ').trim().toUpperCase().replace(/\.$/, '')
+  if (!upper) return null
+  if (/^(?:MR|MS|MRS|DR)\.?\s+/.test(upper)) return null
+  if (CANONICAL_SPEAKER_ROLES.includes(upper)) return null
+  if (SPEAKER_LABEL_TYPO_MAP[upper]) return SPEAKER_LABEL_TYPO_MAP[upper]
+
+  const single = /^THE\s+([A-Z]+)$/.exec(upper)
+  if (single) {
+    const word = single[1]
+    if (SPEAKER_ROLE_FALSE_FRIENDS.has(word)) return null
+    let best = null
+    let bestD = Infinity
+    for (const role of ['COURT', 'WITNESS', 'CLERK', 'BAILIFF', 'REPORTER']) {
+      const d = levenshtein(word, role)
+      if (d === 1 && d < bestD) {
+        bestD = d
+        best = `THE ${role}`
+      }
+    }
+    return best
+  }
+
+  const two = /^THE\s+([A-Z]+)\s+([A-Z]+)$/.exec(upper)
+  if (two) {
+    const phrase = `THE ${two[1]} ${two[2]}`
+    if (phrase === 'THE COURT REPORTER') return null
+    if (levenshtein(phrase.replace(/\s+/g, ''), 'THECOURTREPORTER') <= 2) {
+      return 'THE COURT REPORTER'
+    }
+  }
+
+  if (upper === 'JUDGE' || upper.startsWith('JUDGE ')) return null
+  if (levenshtein(upper, 'JUDGE') === 1 && upper.length >= 4) return 'JUDGE'
+
+  return null
+}
+
+function speakerLabelTypoSuggestion(canonical) {
+  return `Looks like ${canonical}. Fix this in your CAT software. Court Reportcard will not change speaker labels.`
+}
+
+function findEntryForSpeakerLabel(entries, label) {
+  const list = entries || []
+  const needle = label.replace(/\s+/g, ' ').trim().toUpperCase()
+  const bySpeaker = list.find(
+    (e) => (e?.speaker || '').replace(/\s+/g, ' ').trim().toUpperCase() === needle,
+  )
+  if (bySpeaker) return bySpeaker
+  for (const e of list) {
+    if (e?.text && flexFind(e.text, label)) return e
+  }
+  return list[0] || null
+}
+
+/**
+ * Deterministic scan for misspelled courtroom role labels in originalText
+ * (THE CUORT:, THE WITNES:, …). Review-only — never rewrites the transcript.
+ * Does not attempt attorney last-name corrections.
+ */
+export function detectSpeakerLabelTypos(originalText, entries) {
+  if (!originalText || !Array.isArray(entries) || entries.length === 0) return []
+
+  const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+  const flags = []
+
+  for (const pl of parsedLines) {
+    const line = (pl.content || '').replace(/\r/g, '')
+    const mm = /^(\s*)((?:THE\s+[A-Za-z][A-Za-z\s.'-]{0,40}?|JUDGE[A-Za-z]*)\s*):/.exec(line)
+    if (!mm) continue
+    // Skip attorney / BY headers entirely (last names are out of scope).
+    if (/^(?:MR|MS|MRS|DR)\.?\s+/i.test(line.trim())) continue
+    if (/^BY\s+/i.test(line.trim())) continue
+
+    const rawLabel = mm[2].replace(/\s+/g, ' ').trim()
+    // Preserve source casing in Found; resolve against uppercase form.
+    const canonical = resolveSpeakerRoleTypo(rawLabel)
+    if (!canonical) continue
+
+    const labelStart = pl.cleanStart + mm[1].length
+    const labelEnd = labelStart + mm[2].length
+    // Found string as it appears in cleanContent (may include internal spacing).
+    const original = cleanContent.slice(labelStart, labelEnd)
+    const anchors = buildContextAnchor(cleanContent, labelStart, labelEnd, 2) || {
+      before: '',
+      after: '',
+    }
+    const entry = findEntryForSpeakerLabel(entries, rawLabel)
+    let start = 0
+    let end = 0
+    if (entry?.text) {
+      const inEntry = flexFind(entry.text, original) || flexFind(entry.text, rawLabel)
+      if (inEntry) {
+        start = inEntry.start
+        end = inEntry.end
+      }
+    }
+
+    flags.push({
+        type: SPEAKER_LABEL_TYPO_TYPE,
+      severity: 'critical',
+      original,
+      suggestion: speakerLabelTypoSuggestion(canonical),
+      explanation: `Possible misspelling of speaker label "${canonical}".`,
+      confidence: 1,
+      entry_id: entry?.id ?? entries[0].id,
+      start,
+      end,
+      status: 'open',
+      _anchorBefore: anchors.before,
+      _anchorAfter: anchors.after,
+      _source: 'structural',
+      _canonicalSpeakerLabel: canonical,
+    })
+  }
+
+  return flags
+}
+
+/**
+ * Append structural speaker-label typo flags (deduped by transcript location).
+ */
+export function mergeSpeakerLabelTypoAnnotations(originalText, entries, annotations) {
+  const base = Array.isArray(annotations) ? annotations : []
+  const detected = detectSpeakerLabelTypos(originalText, entries)
+  if (!detected.length) return base
+
+  if (!originalText) {
+    let maxId = 0
+    for (const a of base) {
+      const n = Number(a?.id)
+      if (Number.isFinite(n) && n > maxId) maxId = n
+    }
+    const existingKeys = new Set(
+      base
+        .filter((a) => a?.type === SPEAKER_LABEL_TYPO_TYPE)
+        .map((a) => `${a._anchorBefore || ''}|${a.original}|${a._anchorAfter || ''}`),
+    )
+    const added = []
+    for (const d of detected) {
+      const key = `${d._anchorBefore || ''}|${d.original}|${d._anchorAfter || ''}`
+      if (existingKeys.has(key)) continue
+      existingKeys.add(key)
+      added.push({ ...d, id: ++maxId })
+    }
+    return added.length ? [...base, ...added] : base
+  }
+
+  const { cleanContent } = buildCleanContentMap(originalText)
+  const locationKey = (ann) => {
+    if (!ann || ann.type !== SPEAKER_LABEL_TYPO_TYPE) return null
+    const entry = (entries || []).find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    const loc =
+      locateAtAnchorStrict(cleanContent, ann, ann.original) ||
+      locateAnnotationWithAnchor(cleanContent, entry, ann, ann.original)
+    if (!loc) return `unplaced:${ann._anchorBefore || ''}|${ann.original}|${ann._anchorAfter || ''}`
+    return `${loc.cleanStart}:${ann.original}`
+  }
+
+  const kept = []
+  const seenLoc = new Set()
+  let maxId = 0
+  for (const a of base) {
+    const n = Number(a?.id)
+    if (Number.isFinite(n) && n > maxId) maxId = n
+    if (a?.type !== SPEAKER_LABEL_TYPO_TYPE) {
+      kept.push(a)
+      continue
+    }
+    const key = locationKey(a)
+    if (key && seenLoc.has(key)) continue
+    if (key) seenLoc.add(key)
+    kept.push(a)
+  }
+
+  const added = []
+  for (const d of detected) {
+    const key = locationKey(d)
+    if (key && seenLoc.has(key)) continue
+    if (key) seenLoc.add(key)
+    added.push({ ...d, id: ++maxId })
+  }
+  return added.length ? [...kept, ...added] : kept
+}
+
+/** Repeated Q/A + speaker-label typos (both review-only). */
+export function mergeStructuralReviewAnnotations(originalText, entries, annotations) {
+  return mergeSpeakerLabelTypoAnnotations(
+    originalText,
+    entries,
+    mergeRepeatedParagraphAnnotations(originalText, entries, annotations),
+  )
 }
 
 /**
@@ -1938,7 +2192,7 @@ export function detectRepeatedParagraphTypes(originalText, entries) {
 
       flags.push({
         type: REPEATED_PARAGRAPH_TYPE,
-        severity: 'warning',
+        severity: 'critical',
         original: marker,
         suggestion: REPEATED_PARAGRAPH_SUGGESTION,
         explanation:

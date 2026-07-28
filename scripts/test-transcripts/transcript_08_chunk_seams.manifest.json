@@ -1,0 +1,79 @@
+{
+  "transcript": "transcript_08_chunk_seams.txt",
+  "description": "Cross-chunk seam stress. Production split lands on error Q; prior-chunk trailing context (2 turns) holds the antecedent.",
+  "pages": 32,
+  "pages_per_chunk": 15,
+  "num_chunks": 3,
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "did their check",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "she",
+      "note": "seam 1: Vargas — their→she",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Who was the only nurse on the floor that night, for the record? / Mrs. Elena Vargas. She was the charge nurse."
+    },
+    {
+      "id": 2,
+      "match": "there checked twice",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "she",
+      "note": "seam 1: Vargas — there→she",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Who was the only nurse on the floor that night, for the record? / Mrs. Elena Vargas. She was the charge nurse."
+    },
+    {
+      "id": 3,
+      "match": "did their first check",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "she",
+      "note": "seam 1: Vargas — their→she",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Who was the only nurse on the floor that night, for the record? / Mrs. Elena Vargas. She was the charge nurse."
+    },
+    {
+      "id": 4,
+      "match": "still they're when",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "seam 2: \"over there\" — they're→there",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Where exactly did you leave the exhibit envelope? / Over there on counsel table, next to the water pitcher."
+    },
+    {
+      "id": 5,
+      "match": "they're on the table",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "seam 2: location antecedent",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Where exactly did you leave the exhibit envelope? / Over there on counsel table, next to the water pitcher."
+    },
+    {
+      "id": 6,
+      "match": "move they're envelope",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "their",
+      "note": "seam 2: possessive their",
+      "requires_previous_context": true,
+      "setup_in_previous_chunk": "Where exactly did you leave the exhibit envelope? / Over there on counsel table, next to the water pitcher."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "Mrs. Elena Vargas",
+      "note": "Correct setup name"
+    },
+    {
+      "text": "counsel table",
+      "note": "Correct setup phrase"
+    }
+  ]
+}

@@ -1,0 +1,1050 @@
+{
+  "transcript": "transcript_07_dense_50pages.txt",
+  "description": "DENSE 50-page stress fixture. Built from large_synthetic_50pages with ~100 controlled substitutions. Designed to exercise extract chunking (threshold 20 / 15-page chunks) and multiple proofread batches (250 entries).",
+  "pages": 50,
+  "target_seeded": 100,
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "Reyes was their too, 6 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 2,
+      "match": "Delgado was their too, 14 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 3,
+      "match": "Kowalski was their too, 22 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 4,
+      "match": "Farris was their too, 30 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 5,
+      "match": "Douglas was their too, 38 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 6,
+      "match": "Novak was their too, 46 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 7,
+      "match": "Petrov was their too, 54 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 8,
+      "match": "Whitfield was their too, 62 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 9,
+      "match": "Singh was their too, 70 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 10,
+      "match": "Alvarez was their too, 78 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 11,
+      "match": "Bianchi was their too, 86 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 12,
+      "match": "Nakamura was their too, 94 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 13,
+      "match": "Okafor was their too, 5 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 14,
+      "match": "O’Brien was their too, 13 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 15,
+      "match": "Lindqvist was their too, 21 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 16,
+      "match": "Reyes was their too, 29 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 17,
+      "match": "Delgado was their too, 37 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 18,
+      "match": "Kowalski was their too, 45 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 19,
+      "match": "Farris was their too, 53 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 20,
+      "match": "Douglas was their too, 61 minutes in.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "there",
+      "note": "their/there"
+    },
+    {
+      "id": 21,
+      "match": "About 8 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 22,
+      "match": "About 16 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 23,
+      "match": "About 24 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 24,
+      "match": "About 32 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 25,
+      "match": "About 40 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 26,
+      "match": "About 48 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 27,
+      "match": "About 56 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 28,
+      "match": "About 64 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 29,
+      "match": "About 72 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 30,
+      "match": "About 80 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 31,
+      "match": "About 88 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 32,
+      "match": "About 96 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 33,
+      "match": "About 7 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 34,
+      "match": "About 15 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 35,
+      "match": "About 23 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 36,
+      "match": "About 31 times, give or too.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "take",
+      "note": "too/take"
+    },
+    {
+      "id": 37,
+      "match": "About 4 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 38,
+      "match": "About 12 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 39,
+      "match": "About 20 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 40,
+      "match": "About 28 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 41,
+      "match": "About 36 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 42,
+      "match": "About 44 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 43,
+      "match": "About 52 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 44,
+      "match": "About 60 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 45,
+      "match": "About 68 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 46,
+      "match": "About 76 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 47,
+      "match": "About 84 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 48,
+      "match": "About 92 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 49,
+      "match": "About 3 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 50,
+      "match": "About 11 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 51,
+      "match": "About 19 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 52,
+      "match": "About 27 years know.",
+      "type": "homophone",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "now",
+      "note": "know/now"
+    },
+    {
+      "id": 53,
+      "match": "Yes, Petrov call 9 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 54,
+      "match": "Yes, Whitfield call 17 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 55,
+      "match": "Yes, Singh call 25 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 56,
+      "match": "Yes, Alvarez call 33 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 57,
+      "match": "Yes, Bianchi call 41 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 58,
+      "match": "Yes, Nakamura call 49 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 59,
+      "match": "Yes, Okafor call 57 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 60,
+      "match": "Yes, O’Brien call 65 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 61,
+      "match": "Yes, Lindqvist call 73 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 62,
+      "match": "Yes, Reyes call 81 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 63,
+      "match": "Yes, Delgado call 89 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 64,
+      "match": "Yes, Kowalski call 97 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 65,
+      "match": "Yes, Farris call 8 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 66,
+      "match": "Yes, Douglas call 16 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 67,
+      "match": "Yes, Novak call 24 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 68,
+      "match": "Yes, Petrov call 32 days later.",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "called",
+      "note": "call→called"
+    },
+    {
+      "id": 69,
+      "match": "the vehical damage, item 1004?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 70,
+      "match": "the vehical damage, item 1012?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 71,
+      "match": "the vehical damage, item 1020?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 72,
+      "match": "the vehical damage, item 1028?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 73,
+      "match": "the vehical damage, item 1036?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 74,
+      "match": "the vehical damage, item 1044?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 75,
+      "match": "the vehical damage, item 1052?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 76,
+      "match": "the vehical damage, item 1060?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 77,
+      "match": "the vehical damage, item 1068?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 78,
+      "match": "the vehical damage, item 1076?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 79,
+      "match": "the vehical damage, item 1084?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 80,
+      "match": "the vehical damage, item 1092?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 81,
+      "match": "the vehical damage, item 1100?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 82,
+      "match": "the vehical damage, item 1108?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 83,
+      "match": "the vehical damage, item 1116?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 84,
+      "match": "the vehical damage, item 1124?",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "vehicle",
+      "note": "vehical"
+    },
+    {
+      "id": 85,
+      "match": "Yes, 5 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 86,
+      "match": "Yes, 13 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 87,
+      "match": "Yes, 21 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 88,
+      "match": "Yes, 29 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 89,
+      "match": "Yes, 37 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 90,
+      "match": "Yes, 45 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 91,
+      "match": "Yes, 53 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 92,
+      "match": "Yes, 61 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 93,
+      "match": "Yes, 69 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 94,
+      "match": "Yes, 77 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 95,
+      "match": "Yes, 85 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 96,
+      "match": "Yes, 93 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 97,
+      "match": "Yes, 4 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 98,
+      "match": "Yes, 12 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 99,
+      "match": "Yes, 20 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 100,
+      "match": "Yes, 28 follows-ups at Lakeview Medical.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "follow-ups",
+      "note": "follows-ups"
+    },
+    {
+      "id": 101,
+      "match": "Yes, briefley with a Alvarez, ref 1002.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 102,
+      "match": "Yes, briefley with a Bianchi, ref 1010.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 103,
+      "match": "Yes, briefley with a Nakamura, ref 1018.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 104,
+      "match": "Yes, briefley with a Okafor, ref 1026.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 105,
+      "match": "Yes, briefley with a O’Brien, ref 1034.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 106,
+      "match": "Yes, briefley with a Lindqvist, ref 1042.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 107,
+      "match": "Yes, briefley with a Reyes, ref 1050.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 108,
+      "match": "Yes, briefley with a Delgado, ref 1058.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 109,
+      "match": "Yes, briefley with a Kowalski, ref 1066.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 110,
+      "match": "Yes, briefley with a Farris, ref 1074.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 111,
+      "match": "Yes, briefley with a Douglas, ref 1082.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 112,
+      "match": "Yes, briefley with a Novak, ref 1090.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 113,
+      "match": "Yes, briefley with a Petrov, ref 1098.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 114,
+      "match": "Yes, briefley with a Whitfield, ref 1106.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 115,
+      "match": "Yes, briefley with a Singh, ref 1114.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 116,
+      "match": "Yes, briefley with a Alvarez, ref 1122.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "briefly",
+      "note": "briefley"
+    },
+    {
+      "id": 117,
+      "match": "About 2 times, with Dr. Whitield.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Whitfi",
+      "note": "Dr. Whitfield→Whitield"
+    },
+    {
+      "id": 118,
+      "match": "About 10 times, with Dr. Sigh.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Singh",
+      "note": "Dr. Singh→Sigh"
+    },
+    {
+      "id": 119,
+      "match": "About 18 times, with Dr. Alvrez.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Alvare",
+      "note": "Dr. Alvarez→Alvrez"
+    },
+    {
+      "id": 120,
+      "match": "About 26 times, with Dr. Biachi.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Bianch",
+      "note": "Dr. Bianchi→Biachi"
+    },
+    {
+      "id": 121,
+      "match": "About 34 times, with Dr. Nakaura.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Nakamu",
+      "note": "Dr. Nakamura→Nakaura"
+    },
+    {
+      "id": 122,
+      "match": "About 42 times, with Dr. Okaor.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Okafor",
+      "note": "Dr. Okafor→Okaor"
+    },
+    {
+      "id": 123,
+      "match": "About 50 times, with Dr. O’Bien.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "O'Brie",
+      "note": "Dr. O’Brien→O’Bien"
+    },
+    {
+      "id": 124,
+      "match": "About 58 times, with Dr. Lindvist.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Lindqv",
+      "note": "Dr. Lindqvist→Lindvist"
+    },
+    {
+      "id": 125,
+      "match": "About 66 times, with Dr. Rees.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Reyes",
+      "note": "Dr. Reyes→Rees"
+    },
+    {
+      "id": 126,
+      "match": "About 74 times, with Dr. Delado.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Delgad",
+      "note": "Dr. Delgado→Delado"
+    },
+    {
+      "id": 127,
+      "match": "About 82 times, with Dr. Kowaski.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Kowals",
+      "note": "Dr. Kowalski→Kowaski"
+    },
+    {
+      "id": 128,
+      "match": "About 90 times, with Dr. Faris.",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Farris",
+      "note": "Dr. Farris→Faris"
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "Lakeview Medical",
+      "note": "Proper facility name"
+    },
+    {
+      "text": "give or take",
+      "note": "Correct idiom where not mutated"
+    },
+    {
+      "text": "follow-ups",
+      "note": "Correct hyphenation where not mutated"
+    },
+    {
+      "text": "was there too",
+      "note": "Correct there where not mutated"
+    }
+  ]
+}

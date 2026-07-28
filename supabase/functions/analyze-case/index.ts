@@ -752,7 +752,7 @@ function detectRepeatedParagraphTypes(originalText: string | undefined, entries:
         }
         flags.push({
           type: REPEATED_PARAGRAPH_TYPE,
-          severity: 'warning',
+          severity: 'critical',
           original: marker,
           suggestion: REPEATED_PARAGRAPH_SUGGESTION,
           explanation: kind === 'A'
@@ -795,6 +795,180 @@ function mergeRepeatedParagraphAnnotations(originalText: string | undefined, ent
     added.push({ ...d, id: ++maxId })
   }
   return added.length ? [...base, ...added] : base
+}
+
+const SPEAKER_LABEL_TYPO_TYPE = 'speaker_label_typo'
+const CANONICAL_SPEAKER_ROLES = [
+  'THE COURT',
+  'THE WITNESS',
+  'THE CLERK',
+  'THE BAILIFF',
+  'THE REPORTER',
+  'THE COURT REPORTER',
+  'JUDGE',
+]
+const SPEAKER_LABEL_TYPO_MAP: Record<string, string> = {
+  'THE CUORT': 'THE COURT',
+  'THE COURRT': 'THE COURT',
+  'THE COUTR': 'THE COURT',
+  'THE CORUT': 'THE COURT',
+  'THE WITNES': 'THE WITNESS',
+  'THE WITNSES': 'THE WITNESS',
+  'THE WITNESSS': 'THE WITNESS',
+  'THE CLEARK': 'THE CLERK',
+  'THE CLARCK': 'THE CLERK',
+  'THE BAILIF': 'THE BAILIFF',
+  'THE BAILIIF': 'THE BAILIFF',
+  'THE REPORTR': 'THE REPORTER',
+  'THE REPOTER': 'THE REPORTER',
+  'THE COURT REPORTR': 'THE COURT REPORTER',
+  'THE COURT REPOTER': 'THE COURT REPORTER',
+}
+const SPEAKER_ROLE_FALSE_FRIENDS = new Set(['COUNT', 'COAST', 'CROWN', 'CROFT'])
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const row = new Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) row[j] = j
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i - 1
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j]
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost)
+      prev = cur
+    }
+  }
+  return row[b.length]
+}
+
+function resolveSpeakerRoleTypo(label: string): string | null {
+  if (!label || typeof label !== 'string') return null
+  const upper = label.replace(/\s+/g, ' ').trim().toUpperCase().replace(/\.$/, '')
+  if (!upper) return null
+  if (/^(?:MR|MS|MRS|DR)\.?\s+/.test(upper)) return null
+  if (CANONICAL_SPEAKER_ROLES.includes(upper)) return null
+  if (SPEAKER_LABEL_TYPO_MAP[upper]) return SPEAKER_LABEL_TYPO_MAP[upper]
+  const single = /^THE\s+([A-Z]+)$/.exec(upper)
+  if (single) {
+    const word = single[1]
+    if (SPEAKER_ROLE_FALSE_FRIENDS.has(word)) return null
+    let best: string | null = null
+    let bestD = Infinity
+    for (const role of ['COURT', 'WITNESS', 'CLERK', 'BAILIFF', 'REPORTER']) {
+      const d = levenshtein(word, role)
+      if (d === 1 && d < bestD) {
+        bestD = d
+        best = `THE ${role}`
+      }
+    }
+    return best
+  }
+  const two = /^THE\s+([A-Z]+)\s+([A-Z]+)$/.exec(upper)
+  if (two) {
+    const phrase = `THE ${two[1]} ${two[2]}`
+    if (phrase === 'THE COURT REPORTER') return null
+    if (levenshtein(phrase.replace(/\s+/g, ''), 'THECOURTREPORTER') <= 2) return 'THE COURT REPORTER'
+  }
+  if (upper === 'JUDGE' || upper.startsWith('JUDGE ')) return null
+  if (levenshtein(upper, 'JUDGE') === 1 && upper.length >= 4) return 'JUDGE'
+  return null
+}
+
+function speakerLabelTypoSuggestion(canonical: string): string {
+  return `Looks like ${canonical}. Fix this in your CAT software. Court Reportcard will not change speaker labels.`
+}
+
+function detectSpeakerLabelTypos(originalText: string | undefined, entries: any[]): any[] {
+  if (!originalText || !Array.isArray(entries) || entries.length === 0) return []
+  const rawLines = originalText.split('\n')
+  let cleanContent = ''
+  const parsedLines: { content: string; cleanStart: number; cleanEnd: number }[] = []
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    const prefix = matchTranscriptLineGutterPrefix(line)
+    const content = line.substring(prefix.length)
+    if (i > 0) cleanContent += '\n'
+    const cleanStart = cleanContent.length
+    cleanContent += content
+    parsedLines.push({ content, cleanStart, cleanEnd: cleanContent.length })
+  }
+  const flags: any[] = []
+  for (const pl of parsedLines) {
+    const line = (pl.content || '').replace(/\r/g, '')
+    const mm = /^(\s*)((?:THE\s+[A-Za-z][A-Za-z\s.'-]{0,40}?|JUDGE[A-Za-z]*)\s*):/.exec(line)
+    if (!mm) continue
+    if (/^(?:MR|MS|MRS|DR)\.?\s+/i.test(line.trim())) continue
+    if (/^BY\s+/i.test(line.trim())) continue
+    const rawLabel = mm[2].replace(/\s+/g, ' ').trim()
+    const canonical = resolveSpeakerRoleTypo(rawLabel)
+    if (!canonical) continue
+    const labelStart = pl.cleanStart + mm[1].length
+    const labelEnd = labelStart + mm[2].length
+    const original = cleanContent.slice(labelStart, labelEnd)
+    const anchors = buildContextAnchorSimple(cleanContent, labelStart, labelEnd, 2)
+    const needle = rawLabel.toUpperCase()
+    let entry = entries.find(
+      (e) => (e?.speaker || '').replace(/\s+/g, ' ').trim().toUpperCase() === needle,
+    ) || entries.find((e) => e?.text && flexFind(e.text, rawLabel)) || entries[0]
+    let start = 0
+    let end = 0
+    if (entry?.text) {
+      const inEntry = flexFind(entry.text, original) || flexFind(entry.text, rawLabel)
+      if (inEntry) { start = inEntry.start; end = inEntry.end }
+    }
+    flags.push({
+      type: SPEAKER_LABEL_TYPO_TYPE,
+      severity: 'critical',
+      original,
+      suggestion: speakerLabelTypoSuggestion(canonical),
+      explanation: `Possible misspelling of speaker label "${canonical}".`,
+      confidence: 1,
+      entry_id: entry?.id ?? entries[0].id,
+      start,
+      end,
+      status: 'open',
+      _anchorBefore: anchors.before,
+      _anchorAfter: anchors.after,
+      _source: 'structural',
+      _canonicalSpeakerLabel: canonical,
+    })
+  }
+  return flags
+}
+
+function mergeSpeakerLabelTypoAnnotations(originalText: string | undefined, entries: any[], annotations: any[]): any[] {
+  const base = Array.isArray(annotations) ? annotations : []
+  const detected = detectSpeakerLabelTypos(originalText, entries)
+  if (!detected.length) return base
+  const existingKeys = new Set(
+    base.filter((a) => a?.type === SPEAKER_LABEL_TYPO_TYPE)
+      .map((a) => `${a._anchorBefore || ''}|${a.original}|${a._anchorAfter || ''}`),
+  )
+  let maxId = 0
+  for (const a of base) {
+    const n = Number(a?.id)
+    if (Number.isFinite(n) && n > maxId) maxId = n
+  }
+  const added: any[] = []
+  for (const d of detected) {
+    const key = `${d._anchorBefore || ''}|${d.original}|${d._anchorAfter || ''}`
+    if (existingKeys.has(key)) continue
+    existingKeys.add(key)
+    added.push({ ...d, id: ++maxId })
+  }
+  return added.length ? [...base, ...added] : base
+}
+
+function mergeStructuralReviewAnnotations(originalText: string | undefined, entries: any[], annotations: any[]): any[] {
+  return mergeSpeakerLabelTypoAnnotations(
+    originalText,
+    entries,
+    mergeRepeatedParagraphAnnotations(originalText, entries, annotations),
+  )
 }
 
 function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entries: any[]; annotations: any[] } {
@@ -1763,7 +1937,22 @@ Deno.serve(async (req: Request) => {
           last_reviewed_at: new Date().toISOString(),
         }, { onConflict: 'case_id' })
 
-        await admin.from('cases').update({ status: 'analyzed', analysis_stage: 'analyzed' }).eq('id', caseId)
+        const { error: analyzedErr } = await admin
+          .from('cases')
+          .update({ status: 'analyzed', analysis_stage: 'analyzed' })
+          .eq('id', caseId)
+        if (analyzedErr) {
+          // Don't leave the case stuck on "processing" (spinner) if analysis_stage
+          // isn't migrated yet on this project — status flip is what the UI needs.
+          console.error('Failed to mark case analyzed (with analysis_stage):', analyzedErr.message)
+          const { error: statusOnlyErr } = await admin
+            .from('cases')
+            .update({ status: 'analyzed' })
+            .eq('id', caseId)
+          if (statusOnlyErr) {
+            console.error('Failed to mark case analyzed (status only):', statusOnlyErr.message)
+          }
+        }
 
         const { data: u } = await admin.auth.admin.getUserById(caseRow.user_id)
         const userEmail = u?.user?.email
@@ -1867,7 +2056,7 @@ Deno.serve(async (req: Request) => {
         })
         allAnnotations.forEach((a, i) => { a.id = i + 1 })
         // Deterministic CAT repeated Q./A. (not prompt-only — extraction can merge turns).
-        allAnnotations = mergeRepeatedParagraphAnnotations(originalText, entries, allAnnotations)
+        allAnnotations = mergeStructuralReviewAnnotations(originalText, entries, allAnnotations)
 
         const finalJson: any = {
           title: title || '',

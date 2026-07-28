@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeRepeatedParagraphAnnotations, isReviewOnlyAnnotation } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -281,11 +281,16 @@ export default function DashboardEditor() {
             `Editor load: hid ${transcriptDropCount} suggestion(s) that could not be located in the transcript file`
           )
         }
-        // Deterministic CAT "Repeated Paragraph Type" (consecutive Q./Q. or A./A.).
-        const fixedAnnotations = mergeRepeatedParagraphAnnotations(
+        // Deterministic review-only flags: repeated Q/A + role-label typos (THE CUORT).
+        // Force critical severity so older saved warning flags paint correctly.
+        const fixedAnnotations = mergeStructuralReviewAnnotations(
           parsed.originalText || null,
           dedupedEntries,
           placeableAnnotations
+        ).map((a) =>
+          isReviewOnlyAnnotation(a) && a.status === 'open'
+            ? { ...a, severity: 'critical' }
+            : a
         )
         if (gen !== loadGenRef.current) return
 
@@ -1398,8 +1403,10 @@ export default function DashboardEditor() {
       // No font-semibold here: synthetic bold breaks monospace advance widths and
       // makes accepted spans look like shifted/extra letters in the transcript.
       if (ann.status === 'accepted') {
-        cls += 'text-green-600'
-      } else if (ann.severity === 'critical') {
+        // Review-only = noted, text unchanged — not a green "we changed it".
+        cls += isReviewOnlyAnnotation(ann) ? 'text-sky-700' : 'text-green-600'
+      } else if (isReviewOnlyAnnotation(ann) || ann.severity === 'critical') {
+        // Deterministic structural flags are certain → same paint as critical.
         cls += 'border-b-2 border-error text-error cursor-pointer'
       } else if (ann.severity === 'warning') {
         cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
@@ -1412,7 +1419,13 @@ export default function DashboardEditor() {
           key={`a-${ann.id}`}
           id={`ann-highlight-${ann.id}`}
           className={cls}
-          title={ann.status === 'accepted' ? `Accepted: "${ann.original}" → "${suggestionLabel(ann.suggestion)}"` : `${ann.type}: ${ann.explanation}`}
+          title={
+            ann.status === 'accepted'
+              ? (isReviewOnlyAnnotation(ann)
+                ? `Reviewed: "${ann.original}" (text unchanged)`
+                : `Accepted: "${ann.original}" → "${suggestionLabel(ann.suggestion)}"`)
+              : `${ann.type}: ${ann.explanation}`
+          }
           onClick={ann.status === 'open' ? () => {
             const el = document.getElementById(`ann-card-${ann.id}`)
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -1460,6 +1473,7 @@ export default function DashboardEditor() {
     missing_word: 'Missing Word',
     extra_word: 'Extra Word',
     repeated_paragraph: 'Repeated Paragraph',
+    speaker_label_typo: 'Speaker Label',
   }[t] || t)
 
   const transcriptFile = caseData?.case_files?.find((f) => f.file_type === 'transcript')
@@ -1729,7 +1743,11 @@ export default function DashboardEditor() {
                 key={ann.id}
                 id={`ann-card-${ann.id}`}
                 className={`w-full rounded-lg px-3 py-2.5 flex items-center gap-2 transition-colors ${
-                  ann.status === 'accepted' ? 'bg-green-50/60 border border-green-100' : 'bg-surface-container/40 border border-outline-variant/10'
+                  ann.status === 'accepted'
+                    ? (isReviewOnlyAnnotation(ann)
+                      ? 'bg-sky-50/70 border border-sky-100'
+                      : 'bg-green-50/60 border border-green-100')
+                    : 'bg-surface-container/40 border border-outline-variant/10'
                 }`}
               >
                 <Tooltip
@@ -1748,14 +1766,18 @@ export default function DashboardEditor() {
                     onClick={() => jumpToAnnotation(ann)}
                     className="w-full min-w-0 text-left flex items-center gap-3 hover:opacity-90 transition-opacity group"
                   >
-                    <span className={`material-symbols-outlined text-sm shrink-0 ${ann.status === 'accepted' ? 'text-green-500' : 'text-on-surface-variant/40'}`}>
+                    <span className={`material-symbols-outlined text-sm shrink-0 ${
+                      ann.status === 'accepted'
+                        ? (isReviewOnlyAnnotation(ann) ? 'text-sky-500' : 'text-green-500')
+                        : 'text-on-surface-variant/40'
+                    }`}>
                       {ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}
                     </span>
                     <div className="flex-1 min-w-0">
                       {ann.status === 'accepted' ? (
                         isReviewOnlyAnnotation(ann) ? (
                           <p className="text-xs truncate">
-                            <span className="text-green-700 font-semibold">Reviewed</span>
+                            <span className="text-sky-700 font-semibold">Reviewed</span>
                             <span className="text-on-surface-variant mx-1">&middot;</span>
                             <span className="text-on-surface">{ann.original}</span>
                           </p>
@@ -1957,6 +1979,12 @@ export default function DashboardEditor() {
                               <span className="inline-block text-green-600 font-semibold text-[11px] font-mono px-1">word</span>
                             </td>
                             <td className="py-2 text-on-surface-variant"><span className="font-semibold text-green-600">User changed</span> — your own correction applied.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 pr-3">
+                              <span className="inline-block text-sky-700 font-semibold text-[11px] font-mono px-1">word</span>
+                            </td>
+                            <td className="py-2 text-on-surface-variant"><span className="font-semibold text-sky-700">Reviewed</span> — noted; transcript text unchanged (fix in CAT if needed).</td>
                           </tr>
                           <tr>
                             <td className="py-2 pr-3">
@@ -2203,10 +2231,12 @@ export default function DashboardEditor() {
                 // fake "extra spaces") even when the underlying text is fine.
                 let cls = 'inline whitespace-pre '
                 if (h.status === 'accepted') {
-                  cls += 'text-green-600 cursor-pointer'
+                  cls += isReviewOnlyAnnotation(h)
+                    ? 'text-sky-700 cursor-pointer'
+                    : 'text-green-600 cursor-pointer'
                 } else if (h.status === 'ignored') {
                   cls += 'border-b border-dashed border-on-surface-variant/30 text-on-surface/60 cursor-pointer'
-                } else if (h.severity === 'critical') {
+                } else if (isReviewOnlyAnnotation(h) || h.severity === 'critical') {
                   cls += 'border-b-2 border-error text-error cursor-pointer'
                 } else if (h.severity === 'warning') {
                   cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
@@ -2233,7 +2263,15 @@ export default function DashboardEditor() {
                     key={`a-${h.id}-${h.localStart}`}
                     id={`ann-highlight-${h.id}`}
                     className={cls}
-                    title={h.status === 'accepted' ? `Accepted: "${h.original}" → "${h.suggestion}"` : h.status === 'ignored' ? `Ignored: "${h.original}"` : `${h.type}: ${h.explanation}`}
+                    title={
+                      h.status === 'accepted'
+                        ? (isReviewOnlyAnnotation(h)
+                          ? `Reviewed: "${h.original}" (text unchanged)`
+                          : `Accepted: "${h.original}" → "${h.suggestion}"`)
+                        : h.status === 'ignored'
+                          ? `Ignored: "${h.original}"`
+                          : `${h.type}: ${h.explanation}`
+                    }
                     onClick={openPopover}
                   >
                     {content.substring(h.localStart, h.localEnd)}
@@ -2473,16 +2511,28 @@ export default function DashboardEditor() {
               {isResolved ? (
                 // ── Read-only view for accepted / ignored ──
                 <>
-                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase mb-3 ${ann.status === 'accepted' ? 'text-green-600' : 'text-on-surface-variant/60'}`}>
+                  <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase mb-3 ${
+                    ann.status === 'accepted'
+                      ? (isReviewOnlyAnnotation(ann) ? 'text-sky-700' : 'text-green-600')
+                      : 'text-on-surface-variant/60'
+                  }`}>
                     <span className="material-symbols-outlined text-xs">{ann.status === 'accepted' ? 'check_circle' : 'do_not_disturb_on'}</span>
                     {ann.status === 'accepted'
-                      ? (ann._originalSuggestion !== undefined && ann.suggestion !== ann._originalSuggestion ? 'User Changed' : 'Accepted')
+                      ? (isReviewOnlyAnnotation(ann)
+                        ? 'Reviewed'
+                        : (ann._originalSuggestion !== undefined && ann.suggestion !== ann._originalSuggestion ? 'User Changed' : 'Accepted'))
                       : 'Ignored'} &middot; {typeLabel(ann.type)}
                   </div>
-                  <div className={`rounded-lg p-3 mb-3 ${ann.status === 'accepted' ? 'bg-green-50 border border-green-100' : 'bg-surface-container border border-outline-variant/15'}`}>
+                  <div className={`rounded-lg p-3 mb-3 ${
+                    ann.status === 'accepted'
+                      ? (isReviewOnlyAnnotation(ann)
+                        ? 'bg-sky-50 border border-sky-100'
+                        : 'bg-green-50 border border-green-100')
+                      : 'bg-surface-container border border-outline-variant/15'
+                  }`}>
                     {ann.status === 'accepted' ? (
                       isReviewOnlyAnnotation(ann) ? (
-                        <p className="text-xs text-green-700 font-semibold">
+                        <p className="text-xs text-sky-800 font-semibold">
                           Reviewed &middot; &quot;{ann.original}&quot; (text unchanged)
                         </p>
                       ) : (

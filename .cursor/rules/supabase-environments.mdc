@@ -25,6 +25,8 @@ Court Reportcard has two Supabase projects. Treat them as hard boundaries.
 - Never put `service_role` in any `VITE_` env var or frontend code.
 - Schema bootstrap for an empty Dev DB lives in `supabase/dev/bootstrap_schema.sql` (Dev only — do not apply to Prod).
 - Incremental migrations in `supabase/migrations/` are for ongoing changes; after applying to Dev, apply to Prod only when the user asks to ship to Prod.
+- **MCP `apply_migration` hits whichever project the Supabase MCP is linked to** (often Prod). That bypasses “Dev first.” Before using it: say the target out loud, and prefer applying the same SQL to Dev first (CLI `db push` / Dashboard SQL on Dev). Never assume MCP = Dev.
+- After any schema change (or before claiming “Dev matches Prod”), run `npm run check:schema-parity`. It probes curated columns/tables on both refs. Add new columns/tables to `scripts/check-schema-parity.mjs` when a migration introduces them. A green check is a tripwire, not a substitute for Dev-first discipline.
 
 ## Git push vs Edge Functions (two different pipes)
 
