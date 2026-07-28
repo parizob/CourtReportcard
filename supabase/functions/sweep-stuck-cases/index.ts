@@ -13,6 +13,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 
 const STUCK_AFTER_MS = 15 * 60 * 1000
+const RAW_FAIL_TTL_MS = 48 * 60 * 60 * 1000
+const RAW_FAIL_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -37,8 +39,45 @@ async function clearExtracting(admin: any, userId: string, caseId: string): Prom
   const prefix = `${userId}/${caseId}/extracting`
   const { data: files } = await admin.storage.from('case-files').list(prefix)
   if (!files?.length) return
-  const paths = files.map((f: { name: string }) => `${prefix}/${f.name}`)
-  await admin.storage.from('case-files').remove(paths)
+  // Keep *_raw_fail.txt (48h support debug); wipe other intermediate extract files.
+  const paths = files
+    .filter((f: { name: string }) => !String(f.name || '').endsWith('_raw_fail.txt'))
+    .map((f: { name: string }) => `${prefix}/${f.name}`)
+  if (paths.length) await admin.storage.from('case-files').remove(paths)
+}
+
+/** Drop extract JSON fail blobs older than 48h under recently-deleted cases. */
+async function purgeExpiredRawFailBlobs(admin: any): Promise<number> {
+  const cutoffMs = Date.now() - RAW_FAIL_TTL_MS
+  const scanAfter = new Date(Date.now() - RAW_FAIL_SCAN_WINDOW_MS).toISOString()
+  const { data: cases, error } = await admin
+    .from('cases')
+    .select('id, user_id')
+    .not('deleted_at', 'is', null)
+    .gte('deleted_at', scanAfter)
+    .limit(200)
+  if (error) {
+    console.warn('purgeExpiredRawFailBlobs case query failed', error.message)
+    return 0
+  }
+
+  let removed = 0
+  for (const c of cases || []) {
+    const prefix = `${c.user_id}/${c.id}/extracting`
+    const { data: files } = await admin.storage.from('case-files').list(prefix)
+    const doomed = (files || [])
+      .filter((f: { name?: string; created_at?: string }) => {
+        if (!String(f.name || '').endsWith('_raw_fail.txt')) return false
+        const created = f.created_at ? Date.parse(f.created_at) : NaN
+        return Number.isFinite(created) && created < cutoffMs
+      })
+      .map((f: { name: string }) => `${prefix}/${f.name}`)
+    if (!doomed.length) continue
+    const { error: rmErr } = await admin.storage.from('case-files').remove(doomed)
+    if (rmErr) console.warn('purgeExpiredRawFailBlobs remove failed', rmErr.message)
+    else removed += doomed.length
+  }
+  return removed
 }
 
 async function invokeAnalyze(
@@ -95,6 +134,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+  // Service-role cron/opportunistic runs: drop extract JSON fail blobs older than 48h.
+  if (isServiceRole) {
+    try {
+      const purged = await purgeExpiredRawFailBlobs(admin)
+      if (purged) console.log(`Purged ${purged} expired extract raw_fail blob(s)`)
+    } catch (e) {
+      console.warn('purgeExpiredRawFailBlobs error', e)
+    }
+  }
+
   const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS).toISOString()
 
   let q = admin

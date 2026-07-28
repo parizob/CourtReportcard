@@ -1,7 +1,7 @@
 // Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD —
 // extraction uses the lighter/cheaper model (structured parsing, not reasoning),
 // proofreading uses full-quality Pro. Keep these in sync with index.ts.
-import { parseGeminiJsonResponse } from './parseGeminiJson.js'
+import { parseGeminiJsonResponse, isGeminiJsonParseError } from './parseGeminiJson.js'
 
 const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
 const MODEL_PROOFREAD = 'gemini-2.5-pro'
@@ -60,7 +60,16 @@ async function callGemini(prompt, filePart, model, thinkingConfig, timeoutMs = 3
 
   // Trailing-junk trim + control-char repair — see parseGeminiJson.js
   // (mirrored in supabase/functions/analyze-case/index.ts).
-  return parseGeminiJsonResponse(rawText)
+  try {
+    return parseGeminiJsonResponse(rawText)
+  } catch (err) {
+    const wrapped = err instanceof Error ? err : new Error(String(err))
+    wrapped.rawText = String(rawText || '')
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    throw wrapped
+  }
 }
 
 function arrayBufferToBase64(buffer) {
@@ -2470,7 +2479,20 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
 
   // ── PASS 1: Extract entries ──
   console.log('Gemini Pass 1: Extracting transcript entries...')
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
+  const prompt = `${EXTRACTION_ONLY_PROMPT}${promptSuffix}`
+  let extractionResult
+  try {
+    extractionResult = await callGemini(prompt, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
+  } catch (err) {
+    if (!isGeminiJsonParseError(err)) throw err
+    console.warn(`Extract JSON parse failed (${err?.message || err}); one recovery re-call…`)
+    const recoverySuffix =
+      '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
+      'Respond with ONLY a single valid JSON object matching the required schema. ' +
+      'No markdown fences, no commentary, no trailing text. ' +
+      'Escape all quotes and control characters inside string values.'
+    extractionResult = await callGemini(`${prompt}${recoverySuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
+  }
 
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')

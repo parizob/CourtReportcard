@@ -476,22 +476,46 @@ BEGIN
   WHERE created_at < now() - interval '90 days'
     AND purged_at IS NULL;
 
-  IF expired_case_ids IS NULL THEN RETURN; END IF;
+  IF expired_case_ids IS NOT NULL THEN
+    SELECT array_agg(storage_path) INTO expired_paths
+    FROM public.case_files
+    WHERE case_id = ANY(expired_case_ids);
 
-  SELECT array_agg(storage_path) INTO expired_paths
-  FROM public.case_files
-  WHERE case_id = ANY(expired_case_ids);
+    IF expired_paths IS NOT NULL THEN
+      DELETE FROM storage.objects
+      WHERE bucket_id = 'case-files' AND name = ANY(expired_paths);
+    END IF;
 
-  IF expired_paths IS NOT NULL THEN
-    DELETE FROM storage.objects
-    WHERE bucket_id = 'case-files' AND name = ANY(expired_paths);
+    DELETE FROM public.case_files WHERE case_id = ANY(expired_case_ids);
+
+    UPDATE public.cases
+    SET purged_at = now(), status = 'purged'
+    WHERE id = ANY(expired_case_ids);
   END IF;
 
-  DELETE FROM public.case_files WHERE case_id = ANY(expired_case_ids);
+  -- Also drop short-lived extract JSON fail blobs (48h TTL).
+  PERFORM public.purge_extract_raw_fail_blobs();
+END;
+$function$;
 
-  UPDATE public.cases
-  SET purged_at = now(), status = 'purged'
-  WHERE id = ANY(expired_case_ids);
+CREATE OR REPLACE FUNCTION public.purge_extract_raw_fail_blobs()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'storage'
+AS $function$
+DECLARE
+  n integer;
+BEGIN
+  WITH doomed AS (
+    DELETE FROM storage.objects
+    WHERE bucket_id = 'case-files'
+      AND name LIKE '%_raw_fail.txt'
+      AND created_at < now() - interval '48 hours'
+    RETURNING 1
+  )
+  SELECT count(*)::integer INTO n FROM doomed;
+  RETURN coalesce(n, 0);
 END;
 $function$;
 
@@ -716,6 +740,9 @@ GRANT EXECUTE ON FUNCTION public.credit_tokens(uuid, integer, text, text, intege
 
 REVOKE ALL ON FUNCTION public.purge_expired_cases() FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.purge_expired_cases() TO service_role;
+
+REVOKE ALL ON FUNCTION public.purge_extract_raw_fail_blobs() FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_extract_raw_fail_blobs() TO service_role;
 
 REVOKE ALL ON FUNCTION public.refund_tokens(integer, text) FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.refund_tokens(integer, text) TO service_role;

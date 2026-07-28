@@ -356,5 +356,445 @@ console.log('\nG. Twin detection helper')
   assertEq(findAllFlexMatches('only one the here', 'the').length, 1, 'unique the')
 }
 
+// ---------------------------------------------------------------------------
+// H. Mixed accept / ignore / open — only accepts mutate; twins stay safe
+// ---------------------------------------------------------------------------
+console.log('\nH. Mixed accept/ignore/open under short-word twins')
+{
+  const protectedLine = 'Certified Shorthand Reporter of the State of California.'
+  const dirty =
+    `${protectedLine}\r\n` +
+    "Q.  Did you call the Consuelo kitchen?\r\n" +
+    'A.  That was too much pressure.\r\n' +
+    'Q.  Please state thier full name.\r\n'
+  const annotations = [
+    {
+      id: 'accept-the',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'the',
+      suggestion: 'it',
+      _anchorBefore: 'you call ',
+      _anchorAfter: ' Consuelo',
+    },
+    {
+      id: 'ignore-too',
+      entry_id: 1,
+      status: 'ignored',
+      original: 'too',
+      suggestion: 'to',
+      _anchorBefore: 'was ',
+      _anchorAfter: ' much',
+    },
+    {
+      id: 'open-thier',
+      entry_id: 1,
+      status: 'open',
+      original: 'thier',
+      suggestion: 'their',
+      _anchorBefore: 'state ',
+      _anchorAfter: ' full',
+    },
+  ]
+  const { text: out, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    dirty,
+    [{ id: 1, text: dirty }],
+    annotations,
+  )
+  assertEq(fails.length, 0, 'mixed: 0 failures')
+  assert(out.includes('call it Consuelo'), 'mixed: accepted the→it applied')
+  assert(!flexFind(out, 'call the Consuelo'), 'mixed: accepted original gone at site')
+  assert(out.includes('was too much'), 'mixed: ignored too left alone')
+  assert(out.includes('state thier full'), 'mixed: open thier left alone')
+  assert(out.includes(protectedLine), 'mixed: certificate twin intact')
+  assert(!out.includes('of it State'), 'mixed: no certificate corruption')
+}
+
+// ---------------------------------------------------------------------------
+// I. Ignore-all: export text byte-identical
+// ---------------------------------------------------------------------------
+console.log('\nI. Ignore-all leaves export byte-identical')
+{
+  const text =
+    'Q.  He said teh wrong word and thier name.\r\n' +
+    'A.  That was too long.\r\n'
+  const annotations = [
+    { id: 1, entry_id: 1, status: 'ignored', original: 'teh', suggestion: 'the' },
+    { id: 2, entry_id: 1, status: 'ignored', original: 'thier', suggestion: 'their' },
+    { id: 3, entry_id: 1, status: 'ignored', original: 'too', suggestion: 'to' },
+  ]
+  const { text: out, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    text,
+    [{ id: 1, text }],
+    annotations,
+  )
+  assertEq(fails.length, 0, 'ignore-all: 0 failures')
+  assertEq(out, text, 'ignore-all: byte-identical')
+}
+
+// ---------------------------------------------------------------------------
+// J. Half accept / half ignore on 30 unique sites — accepts land, ignores stay
+// ---------------------------------------------------------------------------
+console.log('\nJ. 30 sites: even accept, odd ignore')
+{
+  const lines = []
+  const annotations = []
+  for (let i = 1; i <= 30; i++) {
+    const bad = `typo${i}`
+    const good = `fixed${i}`
+    lines.push(
+      `${String(i).padStart(6)}          Q.  Marker ${bad} end.`,
+    )
+    annotations.push({
+      id: `mix${i}`,
+      entry_id: 1,
+      status: i % 2 === 0 ? 'accepted' : 'ignored',
+      original: bad,
+      suggestion: good,
+    })
+  }
+  // Build anchors from baseline so accepts locate uniquely
+  const baseline = `${lines.join('\r\n')}\r\n`
+  for (const ann of annotations) {
+    const m = flexFind(baseline, ann.original)
+    const anchor = buildContextAnchor(baseline, m.start, m.end, 2)
+    ann._anchorBefore = anchor.before
+    ann._anchorAfter = anchor.after
+  }
+
+  const { text: out, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    baseline,
+    [{ id: 1, text: baseline }],
+    annotations,
+  )
+  assertEq(fails.length, 0, '30-mix: 0 failures')
+  for (let i = 1; i <= 30; i++) {
+    const bad = `typo${i}`
+    const good = `fixed${i}`
+    if (i % 2 === 0) {
+      assert(!!flexFind(out, good), `30-mix: accept ${good} present`)
+      assert(!flexFind(out, bad), `30-mix: accept ${bad} gone`)
+    } else {
+      assert(!!flexFind(out, bad), `30-mix: ignore ${bad} remains`)
+      assert(!flexFind(out, good), `30-mix: ignore ${good} not introduced`)
+    }
+  }
+  const again = ensureAcceptedCorrectionsInOriginalText(out, [{ id: 1, text: out }], annotations)
+  assertEq(again.text, out, '30-mix: second ensure idempotent')
+  assertEq(again.failed.length, 0, '30-mix: second ensure clean')
+}
+
+// ---------------------------------------------------------------------------
+// K. Accept-then-ignore pattern with certificate twin still present
+// ---------------------------------------------------------------------------
+console.log('\nK. Many accepts + many ignores; certificate twin never flips')
+{
+  const protectedLine = 'of the State of California'
+  const parts = [protectedLine]
+  const annotations = []
+  for (let i = 1; i <= 20; i++) {
+    parts.push(`Line ${i} has errr${i} and also keep${i} alone.`)
+    annotations.push({
+      id: `acc${i}`,
+      entry_id: 1,
+      status: 'accepted',
+      original: `errr${i}`,
+      suggestion: `word${i}`,
+    })
+    annotations.push({
+      id: `ign${i}`,
+      entry_id: 1,
+      status: 'ignored',
+      original: `keep${i}`,
+      suggestion: `drop${i}`,
+    })
+  }
+  const baseline = `${parts.join('\r\n')}\r\n`
+  for (const ann of annotations) {
+    const m = flexFind(baseline, ann.original)
+    const anchor = buildContextAnchor(baseline, m.start, m.end, 2)
+    ann._anchorBefore = anchor.before
+    ann._anchorAfter = anchor.after
+  }
+
+  const { text: out, failed: fails } = ensureAcceptedCorrectionsInOriginalText(
+    baseline,
+    [{ id: 1, text: baseline }],
+    annotations,
+  )
+  assertEq(fails.length, 0, 'K: 0 failures')
+  assert(out.includes(protectedLine), 'K: protected phrase intact')
+  assert(!out.includes('of it State'), 'K: no the→it twin corruption')
+  for (let i = 1; i <= 20; i++) {
+    assert(!!flexFind(out, `word${i}`), `K: accept word${i} present`)
+    assert(!flexFind(out, `errr${i}`), `K: accept errr${i} gone`)
+    assert(!!flexFind(out, `keep${i}`), `K: ignore keep${i} remains`)
+    assert(!flexFind(out, `drop${i}`), `K: ignore drop${i} not introduced`)
+  }
+}
+
+/**
+ * Mirrors DashboardExport.resolveExportOriginalText:
+ * unmatched accepts ⇒ export blocked (no successful download text).
+ * Success ⇒ every non-review accepted suggestion is confirmable in the text.
+ */
+function resolveExportOrBlock(originalText, entries, annotations) {
+  const { text, failed } = ensureAcceptedCorrectionsInOriginalText(
+    originalText,
+    entries,
+    annotations,
+  )
+  if (failed.length > 0) {
+    return { shipped: false, text: null, failed, workingText: text }
+  }
+
+  const accepted = (annotations || []).filter(
+    (a) => a.status === 'accepted' && a.original && typeof a.suggestion === 'string',
+  )
+  const unmatched = []
+  for (const ann of accepted) {
+    if (ann.type === 'repeated_paragraph') continue
+    const hasAnchor =
+      typeof ann._anchorBefore === 'string' &&
+      typeof ann._anchorAfter === 'string' &&
+      !!(ann._anchorBefore || ann._anchorAfter)
+    const { cleanContent } = buildCleanContentMap(text)
+    if (ann.suggestion === '') {
+      const still = hasAnchor
+        ? locateAtAnchorStrict(cleanContent, ann, ann.original)
+        : flexFind(cleanContent, ann.original)
+      if (still) unmatched.push(ann)
+      continue
+    }
+    const atSuggestion = hasAnchor
+      ? locateAtAnchorStrict(cleanContent, ann, ann.suggestion)
+      : flexFind(text, ann.suggestion)
+    if (!atSuggestion) unmatched.push(ann)
+  }
+  if (unmatched.length > 0) {
+    return { shipped: false, text: null, failed: unmatched, workingText: text }
+  }
+  return { shipped: true, text, failed: [], workingText: text }
+}
+
+// ---------------------------------------------------------------------------
+// L. Export contract: success ⇒ every accept verified; else do not ship
+// ---------------------------------------------------------------------------
+console.log('\nL. Export contract — no unmatched accepts may ship')
+{
+  // L1. Clean success path
+  const cleanBase =
+    'Q.  Marker errr1 end.\r\n' +
+    'Q.  Marker errr2 end.\r\n' +
+    'Q.  Marker errr3 end.\r\n'
+  const cleanAnns = [1, 2, 3].map((i) => {
+    const original = `errr${i}`
+    const suggestion = `word${i}`
+    const m = flexFind(cleanBase, original)
+    const anchor = buildContextAnchor(cleanBase, m.start, m.end, 2)
+    return {
+      id: `L1-${i}`,
+      entry_id: 1,
+      status: 'accepted',
+      original,
+      suggestion,
+      _anchorBefore: anchor.before,
+      _anchorAfter: anchor.after,
+    }
+  })
+  const L1 = resolveExportOrBlock(cleanBase, [{ id: 1, text: cleanBase }], cleanAnns)
+  assert(L1.shipped, 'L1: clean accepts ship')
+  assertEq(L1.failed.length, 0, 'L1: no failed')
+  for (let i = 1; i <= 3; i++) {
+    assert(!!flexFind(L1.text, `word${i}`), `L1: word${i} in shipped text`)
+    assert(!flexFind(L1.text, `errr${i}`), `L1: errr${i} gone from shipped text`)
+  }
+
+  // L2. Impossible accept — must block, never ship
+  const missingBase = 'Something completely different.\r\n'
+  const L2 = resolveExportOrBlock(
+    missingBase,
+    [{ id: 1, text: missingBase }],
+    [
+      {
+        id: 'L2',
+        entry_id: 1,
+        status: 'accepted',
+        original: 'teh',
+        suggestion: 'the',
+        _anchorBefore: 'has ',
+        _anchorAfter: ' typo',
+      },
+    ],
+  )
+  assert(!L2.shipped, 'L2: unmatched accept does not ship')
+  assert(L2.failed.length >= 1, 'L2: reported in failed')
+  assertEq(L2.text, null, 'L2: no download payload')
+
+  // L3. One good accept + one impossible — BLOCKED (DashboardExport throws).
+  // ensure() may mutate a working buffer; that buffer must never be shipped.
+  const mixedBase =
+    'Certified Shorthand Reporter of the State of California.\r\n' +
+    'Q.  Line has teh typo here.\r\n'
+  const mixedAnns = [
+    {
+      id: 'L3-good',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'teh',
+      suggestion: 'the',
+      _anchorBefore: 'has ',
+      _anchorAfter: ' typo',
+    },
+    {
+      id: 'L3-bad',
+      entry_id: 1,
+      status: 'accepted',
+      original: 'zzzznotfound',
+      suggestion: 'found',
+      _anchorBefore: 'xxx ',
+      _anchorAfter: ' yyy',
+    },
+  ]
+  const L3 = resolveExportOrBlock(mixedBase, [{ id: 1, text: mixedBase }], mixedAnns)
+  assert(!L3.shipped, 'L3: partial unmatched blocks export')
+  assert(L3.failed.some((f) => f.id === 'L3-bad'), 'L3: bad accept listed')
+  assertEq(L3.text, null, 'L3: no shipped download when any accept unmatched')
+  // Product: blocked export must not be treated as success even if workingText moved
+  assert(L3.workingText == null || typeof L3.workingText === 'string', 'L3: workingText is internal only')
+
+  // L4. Unanchored short-word twins — fail closed, do not ship corrupted text
+  const twinBase =
+    'of the State of California.\r\n' +
+    'Did you call the Consuelo kitchen?\r\n'
+  const L4 = resolveExportOrBlock(
+    twinBase,
+    [{ id: 99, text: 'no match here' }],
+    [
+      {
+        id: 'L4',
+        entry_id: 1,
+        status: 'accepted',
+        original: 'the',
+        suggestion: 'it',
+        // intentionally unanchored + non-unique
+      },
+    ],
+  )
+  assert(!L4.shipped, 'L4: ambiguous the→it does not ship')
+  assert(L4.failed.length >= 1, 'L4: failed closed')
+  assertEq(L4.text, null, 'L4: no download')
+  // Source twin must remain available if we inspected working buffer
+  if (L4.workingText) {
+    assert(L4.workingText.includes('of the State'), 'L4: working buffer did not corrupt certificate')
+    assert(!L4.workingText.includes('of it State'), 'L4: no of-it-State in working buffer')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// M. Editor-style accept then export ensure — must ship, idempotent
+// ---------------------------------------------------------------------------
+console.log('\nM. Editor accept path → export ensure (no unmatched)')
+{
+  const before =
+    '          10  Certified Shorthand Reporter of the State of California.\r\n' +
+    "Q.  Okay. Did you call the Consuelo's Kitchen when you had your business?\r\n"
+  const original = 'the'
+  const suggestion = 'it'
+  const { cleanContent } = buildCleanContentMap(before)
+  // Locate at the intended site only (anchor-style)
+  const site = locateAtAnchorStrict(
+    cleanContent,
+    { _anchorBefore: 'you call ', _anchorAfter: " Consuelo's Kitchen" },
+    original,
+  )
+  assert(!!site, 'M: locate dirty site')
+  const detail = applyCorrectionDetailed(before, original, suggestion, {
+    cleanStart: site.cleanStart,
+    cleanEnd: site.cleanEnd,
+  })
+  assert(detail.start !== -1, 'M: editor apply succeeded')
+  const afterEditor = detail.text
+  assert(afterEditor.includes("call it Consuelo"), 'M: editor applied suggestion')
+  assert(afterEditor.includes('of the State of California'), 'M: certificate intact after editor accept')
+  assert(!afterEditor.includes('of it State'), 'M: no twin corruption on editor accept')
+
+  const ann = {
+    id: 'M1',
+    entry_id: 1,
+    status: 'accepted',
+    original,
+    suggestion,
+    _anchorBefore: 'you call ',
+    _anchorAfter: " Consuelo's Kitchen",
+    _appliedOriginalStart: detail.start,
+    _appliedOriginalEnd: detail.start + suggestion.length,
+    _appliedOriginalMatchedText: detail.matchedText,
+    _appliedOriginalReplacement: afterEditor.substring(
+      detail.start,
+      detail.start + suggestion.length,
+    ),
+  }
+  const ship = resolveExportOrBlock(
+    afterEditor,
+    [{ id: 1, text: "Okay. Did you call it Consuelo's Kitchen when you had your business?" }],
+    [ann],
+  )
+  assert(ship.shipped, 'M: export ships after editor accept')
+  assertEq(ship.failed.length, 0, 'M: zero unmatched')
+  assertEq(ship.text, afterEditor, 'M: export ensure is no-op on already-applied')
+  assert(ship.text.includes('of the State of California'), 'M: shipped certificate intact')
+}
+
+// ---------------------------------------------------------------------------
+// N. Length-changing accepts in sequence — all must ship or none
+// ---------------------------------------------------------------------------
+console.log('\nN. Sequential length-changing accepts all ship')
+{
+  let text =
+    'Q.  He went too the store.\r\n' +
+    'A.  That was teh receipt.\r\n' +
+    'Q.  Please spell nam carefully.\r\n'
+  const steps = [
+    { original: 'too', suggestion: 'to', before: 'went ', after: ' the' },
+    { original: 'teh', suggestion: 'the', before: 'was ', after: ' receipt' },
+    { original: 'nam', suggestion: 'name', before: 'spell ', after: ' carefully' },
+  ]
+  const anns = []
+  for (const [idx, step] of steps.entries()) {
+    const { cleanContent } = buildCleanContentMap(text)
+    const site = locateAtAnchorStrict(
+      cleanContent,
+      { _anchorBefore: step.before, _anchorAfter: step.after },
+      step.original,
+    )
+    assert(!!site, `N: locate step ${idx}`)
+    const detail = applyCorrectionDetailed(text, step.original, step.suggestion, {
+      cleanStart: site.cleanStart,
+      cleanEnd: site.cleanEnd,
+    })
+    assert(detail.start !== -1, `N: apply step ${idx}`)
+    text = detail.text
+    anns.push({
+      id: `N${idx}`,
+      entry_id: 1,
+      status: 'accepted',
+      original: step.original,
+      suggestion: step.suggestion,
+      _anchorBefore: step.before,
+      _anchorAfter: step.after,
+    })
+  }
+  const ship = resolveExportOrBlock(text, [{ id: 1, text }], anns)
+  assert(ship.shipped, 'N: all length-changing accepts ship')
+  assertEq(ship.failed.length, 0, 'N: no unmatched')
+  assert(ship.text.includes('went to the'), 'N: too→to present')
+  assert(ship.text.includes('was the receipt'), 'N: teh→the present')
+  assert(ship.text.includes('spell name carefully'), 'N: nam→name present')
+  assert(!ship.text.includes('too the'), 'N: old too gone')
+  assert(!ship.text.includes('teh receipt'), 'N: old teh gone')
+  assert(!ship.text.includes('spell nam '), 'N: old nam gone')
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
 process.exit(failed ? 1 : 0)

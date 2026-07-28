@@ -5,6 +5,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 ## Open
 
 - [ ] Connect Stripe and turn on payments
+- [ ] Add CAPTCHA to signup (protect free trial tokens from bot abuse)
 - [ ] Auto-scroll to the next open annotation after accepting/ignoring one, so reporters don't have to manually click back into the transcript each time — requested by Natalie Noma (beta user)
 - [ ] Revisit sales tax nexus once cumulative revenue crosses ~$5k — Florida (home state) doesn't tax SaaS, but other states (TX, NY, WA, PA, MA, etc.) do, and nexus thresholds are typically $100k+/year per state; at $5k total it's still nowhere close, but worth a CPA check-in before it becomes a real compliance question. Also note: sales tax is a "trust fund" tax in most states, unlike income tax, LLC liability protection doesn't fully shield the responsible person from personal exposure if it's owed and unremitted
 - [ ] File U.S. Copyright Office registration for the codebase — copyright already exists automatically on creation, but registration is required before any infringement suit can be filed, and statutory damages/attorney's fees are only available if registered before infringement occurs or within 3 months of first publication. Public launch was 2026-07-24, so that grace window runs to roughly late October 2026. Cheap ($45-65 online). Use the confidential-portions redaction option for the deposit so `EXTRACTION_ONLY_PROMPT`/`PROOFREAD_ONLY_PROMPT` (`src/lib/gemini.js`) don't become part of the public record
@@ -18,6 +19,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Backlog
 
+- [ ] Move outbound transactional email off `noreply@courtreportcard.com` (currently `FROM_ADDRESS` in `supabase/functions/analyze-case/index.ts`) to a dedicated subdomain like `mail.courtreportcard.com` — isolates sending reputation from the root domain, so a spike in bounces/spam complaints from transactional mail can't affect deliverability for anything else on the main domain, and allows separate DKIM/SPF/DMARC config scoped just to transactional email
 - [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages) — two distinct issues, re-prioritized after a real 212-page upload rendered/viewed fine:
     - Higher priority: the pagination/highlight computation (around line 1120) is not memoized, so it fully recomputes on every render, not just when entries/annotations change. This matters because a large document naturally has proportionally more annotations, so a reporter working through one will be clicking accept/ignore repeatedly, each click re-triggers the full recompute across all pages. Worth fixing (wrap in `useMemo` keyed on entries/annotations/cleanContent) since this is the expected workflow for large documents, not an edge case.
     - Lower priority / watch item: no virtualization — every page mounts into the DOM at once regardless of scroll position. The 212-page real-world test showed no visible scroll/perf problem from this alone, so treat as speculative until an actual complaint or a much larger document surfaces the issue.

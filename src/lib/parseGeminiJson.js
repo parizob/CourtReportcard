@@ -5,6 +5,10 @@
  *
  * Happy path: JSON.parse only (no rewrite). Repair only runs when parse fails
  * with an illegal-control-character error (seen in prod extraction, 2026-07-27).
+ *
+ * Structural errors ("Expected ',' or '}' after property value", etc.) are
+ * NOT surgically repaired — guessing quotes can invent wrong transcript text.
+ * Callers should re-ask the model once instead (see extractContent recovery).
  */
 
 /**
@@ -80,9 +84,24 @@ export function escapeRawControlCharsInJsonStrings(text) {
   return out
 }
 
-function isControlCharParseError(err) {
+export function isControlCharParseError(err) {
   const msg = String(err?.message || err || '')
   return /Bad control character|control character in string/i.test(msg)
+}
+
+/** Malformed JSON structure — do not invent repairs; re-call the model instead. */
+export function isStructuralJsonParseError(err) {
+  const msg = String(err?.message || err || '')
+  return (
+    /Expected ',' or '}'|Expected property name|Unexpected token|Unexpected end of JSON|Unterminated string|JSON at position/i.test(
+      msg,
+    ) && !isControlCharParseError(err)
+  )
+}
+
+/** Any JSON.parse failure worth a one-shot model re-call on extract. */
+export function isGeminiJsonParseError(err) {
+  return isControlCharParseError(err) || isStructuralJsonParseError(err) || /JSON/i.test(String(err?.message || err || ''))
 }
 
 /**

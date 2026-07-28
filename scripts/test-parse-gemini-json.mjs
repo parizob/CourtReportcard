@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
- * Unit tests for Gemini JSON parse helpers (control-char repair).
- * Run: node scripts/test-parse-gemini-json.mjs
+ * Unit tests for Gemini JSON parse helpers (control-char repair + structural
+ * classification for extract recovery). Run: node scripts/test-parse-gemini-json.mjs
  */
 import {
   extractFirstJsonValue,
   escapeRawControlCharsInJsonStrings,
   parseGeminiJsonResponse,
+  isControlCharParseError,
+  isStructuralJsonParseError,
+  isGeminiJsonParseError,
 } from '../src/lib/parseGeminiJson.js'
 
 let passed = 0
@@ -81,6 +84,35 @@ console.log('parseGeminiJson')
     threw = true
   }
   assert(threw, 'still throws on genuinely broken JSON')
+}
+
+{
+  // Alison McConville class — structural, not control-char. Must NOT be "repaired"
+  // into invented text; callers re-ask the model instead.
+  const structural = '{"title":"x","entries":[{"id":1,"text":"hello}'
+  let err
+  try {
+    parseGeminiJsonResponse(structural)
+  } catch (e) {
+    err = e
+  }
+  assert(!!err, 'structural bad JSON throws')
+  assert(isStructuralJsonParseError(err), 'classified as structural')
+  assert(!isControlCharParseError(err), 'not classified as control-char')
+  assert(isGeminiJsonParseError(err), 'counts as Gemini JSON parse error (recovery eligible)')
+}
+
+{
+  const ctrlErr = new Error('Bad control character in string literal in JSON at position 12')
+  assert(isControlCharParseError(ctrlErr), 'control-char classifier')
+  assert(!isStructuralJsonParseError(ctrlErr), 'control-char is not structural')
+  assert(isGeminiJsonParseError(ctrlErr), 'control-char is recovery-eligible')
+}
+
+{
+  const structMsg = new Error("Expected ',' or '}' after property value in JSON at position 42")
+  assert(isStructuralJsonParseError(structMsg), 'Expected comma/brace classifier')
+  assert(isGeminiJsonParseError(structMsg), 'Expected comma/brace is recovery-eligible')
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

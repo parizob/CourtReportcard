@@ -237,7 +237,15 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  return parseGeminiJsonText(cleaned)
+  try {
+    return parseGeminiJsonText(cleaned)
+  } catch (err) {
+    // Attach cleaned model text so extract can re-call or persist on final failure.
+    // Broken JSON never becomes originalText / export — that stays the uploaded file.
+    const wrapped = err instanceof Error ? err : new Error(String(err))
+    ;(wrapped as Error & { rawText?: string }).rawText = cleaned
+    throw wrapped
+  }
 }
 
 // Even with responseMimeType: 'application/json', Gemini has been observed
@@ -254,7 +262,11 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
 // Also: Gemini occasionally embeds raw U+0000–U+001F chars inside JSON string
 // literals (prod 2026-07-27 Roberts / HeatherRoberts2 chunk 4 →
 // "Bad control character in string literal"). Happy path still JSON.parse only;
-// repair runs only when that specific parse error is thrown. Mirrored from
+// repair runs only when that specific parse error is thrown.
+//
+// Structural errors ("Expected ',' or '}'" — Alison McConville 2026-07-28) are
+// NOT surgically repaired (guessing quotes can invent wrong transcript text).
+// extractContent does one model re-call instead. Mirrored from
 // src/lib/parseGeminiJson.js — keep in sync.
 function extractFirstJsonValue(text: string): string {
   const start = text.search(/[{[]/)
@@ -326,6 +338,23 @@ function isControlCharParseError(err: unknown): boolean {
   return /Bad control character|control character in string/i.test(msg)
 }
 
+function isStructuralJsonParseError(err: unknown): boolean {
+  const msg = String((err as Error)?.message || err || '')
+  return (
+    /Expected ',' or '}'|Expected property name|Unexpected token|Unexpected end of JSON|Unterminated string|JSON at position/i.test(
+      msg,
+    ) && !isControlCharParseError(err)
+  )
+}
+
+function isGeminiJsonParseError(err: unknown): boolean {
+  return (
+    isControlCharParseError(err) ||
+    isStructuralJsonParseError(err) ||
+    /JSON/i.test(String((err as Error)?.message || err || ''))
+  )
+}
+
 /** Parse cleaned Gemini JSON text (fences already stripped by caller). */
 function parseGeminiJsonText(cleaned: string): any {
   const extracted = extractFirstJsonValue(cleaned)
@@ -335,6 +364,47 @@ function parseGeminiJsonText(cleaned: string): any {
     if (!isControlCharParseError(err)) throw err
     console.warn('Gemini JSON: repairing raw control characters in string literals')
     return JSON.parse(escapeRawControlCharsInJsonStrings(extracted))
+  }
+}
+
+const EXTRACT_JSON_RECOVERY_SUFFIX =
+  '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
+  'Respond with ONLY a single valid JSON object matching the required schema. ' +
+  'No markdown fences, no commentary, no trailing text. ' +
+  'Escape all quotes and control characters inside string values.'
+
+type ExtractPersistCtx = {
+  admin: any
+  userId: string
+  caseId: string
+  /** Filename stem under extracting/, e.g. "Foo_chunk3" or "Foo_entries" */
+  failLabel: string
+}
+
+/** Best-effort: keep the bad model blob for support (never becomes originalText).
+ *  Returns storage path on success so handleFailure can record it in last_error.
+ *  Kept out of the failure wipe; purged after 48h via purge_extract_raw_fail_blobs. */
+async function persistExtractJsonFail(
+  ctx: ExtractPersistCtx | undefined,
+  rawText: string | undefined,
+): Promise<string | null> {
+  if (!ctx || !rawText) return null
+  const path = `${ctx.userId}/${ctx.caseId}/extracting/${ctx.failLabel}_raw_fail.txt`
+  try {
+    const bytes = new TextEncoder().encode(rawText)
+    const { error } = await ctx.admin.storage.from('case-files').upload(path, bytes, {
+      upsert: true,
+      contentType: 'text/plain',
+    })
+    if (error) {
+      console.warn(`Failed to persist extract JSON fail blob: ${error.message}`)
+      return null
+    }
+    console.warn(`Saved extract JSON fail blob (${rawText.length} chars) → ${path}`)
+    return path
+  } catch (e) {
+    console.warn('Failed to persist extract JSON fail blob:', e)
+    return null
   }
 }
 
@@ -872,6 +942,7 @@ async function extractContent(
   mimeType: string | undefined,
   deadlineAt: number,
   chunkInfo?: { index: number; total: number; trailingContext: string },
+  persistCtx?: ExtractPersistCtx,
 ): Promise<{ title: string; entries: any[]; originalText?: string }> {
   let filePart: unknown = null
   let promptSuffix = ''
@@ -887,7 +958,36 @@ async function extractContent(
     promptSuffix = `\n\n${chunkAddendum}${contextBlock}${originalText}`
   }
 
-  const extractionResult = await callGemini(`${EXTRACTION_ONLY_PROMPT}${promptSuffix}`, filePart, deadlineAt, { thinkingLevel: 'minimal' }, MODEL_EXTRACT)
+  const prompt = `${EXTRACTION_ONLY_PROMPT}${promptSuffix}`
+  let extractionResult: any
+  try {
+    extractionResult = await callGemini(prompt, filePart, deadlineAt, { thinkingLevel: 'minimal' }, MODEL_EXTRACT)
+  } catch (err) {
+    // One recovery re-call on JSON parse failure (Alison McConville class).
+    // Do not surgically rewrite broken JSON — that can invent transcript text.
+    if (!isGeminiJsonParseError(err)) throw err
+    console.warn(
+      `Extract JSON parse failed (${String((err as Error)?.message || err)}); one recovery re-call…`,
+    )
+    try {
+      extractionResult = await callGemini(
+        `${prompt}${EXTRACT_JSON_RECOVERY_SUFFIX}`,
+        filePart,
+        deadlineAt,
+        { thinkingLevel: 'minimal' },
+        MODEL_EXTRACT,
+      )
+    } catch (err2) {
+      const raw =
+        (err2 as Error & { rawText?: string })?.rawText ||
+        (err as Error & { rawText?: string })?.rawText
+      const rawFailPath = await persistExtractJsonFail(persistCtx, raw)
+      if (rawFailPath) {
+        ;(err2 as Error & { rawFailPath?: string }).rawFailPath = rawFailPath
+      }
+      throw err2
+    }
+  }
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {
     throw new Error('Gemini response missing "entries" array.')
   }
@@ -1144,11 +1244,28 @@ async function recordCaseFailureFingerprints(admin: any, userId: string, caseFil
 // is credited twice for a single spend (seen in production 2026-07-23, case King).
 async function handleFailure(admin: any, caseRow: any, caseId: string, err: unknown, stage?: string): Promise<void> {
   console.error('Analysis failed for case', caseId, stage, err)
+
+  // Discover extract JSON fail blobs before wipe so we can keep them (48h TTL)
+  // and point ops at the path from cases.last_error. Never shown in the UI.
+  const userIdForStorage = caseRow.user_id as string | undefined
+  const extractingPrefix = userIdForStorage ? `${userIdForStorage}/${caseId}/extracting` : ''
+  let extractingFiles: { name: string }[] = []
+  if (extractingPrefix) {
+    const listed = await admin.storage.from('case-files').list(extractingPrefix)
+    extractingFiles = listed.data || []
+  }
+  const rawFailFromDisk = extractingFiles
+    .filter((f) => typeof f.name === 'string' && f.name.endsWith('_raw_fail.txt'))
+    .map((f) => `${extractingPrefix}/${f.name}`)
+  const rawFailPath =
+    (err as Error & { rawFailPath?: string })?.rawFailPath || rawFailFromDisk[0] || ''
+  const rawFailNote = rawFailPath ? ` raw_fail=${rawFailPath}` : ''
+
   // Truncated so a pathological error (e.g. a huge Gemini error body) can't
   // blow past Postgres's practical row-size comfort zone. Stage is prefixed
   // so a failure is diagnosable straight from the DB — no more reconstructing
   // which chunk/batch died from storage/API request logs after the fact.
-  const lastError = `${stage ? `[${stage}] ` : ''}${(err as Error)?.message || String(err)}`.slice(0, 2000)
+  const lastError = `${stage ? `[${stage}] ` : ''}${(err as Error)?.message || String(err)}${rawFailNote}`.slice(0, 2000)
 
   // Atomic claim: only the first failure path soft-deletes the case. Losers
   // skip refund + email so a race cannot double-credit the ledger.
@@ -1188,15 +1305,14 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
   )
   const repeatFailure = failureCount >= 2
 
-  // Clean up storage: case_files rows (transcript/extracted) plus any
-  // intermediate "extracting" JSON entries, which have no DB row.
+  // Clean up storage: case_files rows (transcript/extracted) plus intermediate
+  // extracting JSON — but keep *_raw_fail.txt for short-lived support debug
+  // (purged after 48h; not referenced by the UI).
   const storagePaths: string[] = (caseRow.case_files || [])
     .map((f: any) => f.storage_path)
     .filter(Boolean)
-  const { data: extractingFiles } = await admin.storage
-    .from('case-files')
-    .list(`${claimed.user_id}/${caseId}/extracting`)
-  for (const f of extractingFiles || []) {
+  for (const f of extractingFiles) {
+    if (typeof f.name === 'string' && f.name.endsWith('_raw_fail.txt')) continue
     storagePaths.push(`${claimed.user_id}/${caseId}/extracting/${f.name}`)
   }
   if (storagePaths.length > 0) {
@@ -1515,7 +1631,12 @@ Deno.serve(async (req: Request) => {
           // PDFs are sent as a binary file part — not text-splittable, so
           // they always take the single-call path regardless of size.
           await touchHeartbeat(admin, caseId, 'extracting')
-          finalResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt)
+          finalResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt, undefined, {
+            admin,
+            userId: caseRow.user_id,
+            caseId,
+            failLabel: `${jsonBaseName}_entries`,
+          })
         } else {
           const rawContent = await blob.text()
           // Content-based (not extension): client now uploads stripped .txt for
@@ -1528,7 +1649,12 @@ Deno.serve(async (req: Request) => {
             // Below the threshold — identical to the original single-call
             // behavior, byte for byte. This is the majority of current traffic.
             await touchHeartbeat(admin, caseId, `extracting file ${fileIndex}`)
-            finalResult = await extractContent(plainText, undefined, deadlineAt)
+            finalResult = await extractContent(plainText, undefined, deadlineAt, undefined, {
+              admin,
+              userId: caseRow.user_id,
+              caseId,
+              failLabel: `${jsonBaseName}_entries`,
+            })
           } else {
             const chunks = splitIntoChunks(plainText, PAGES_PER_CHUNK)
 
@@ -1545,6 +1671,11 @@ Deno.serve(async (req: Request) => {
                 index: chunkIndex,
                 total: chunks.length,
                 trailingContext,
+              }, {
+                admin,
+                userId: caseRow.user_id,
+                caseId,
+                failLabel: `${jsonBaseName}_chunk${chunkIndex}`,
               })
               const chunkBytes = new TextEncoder().encode(JSON.stringify(chunkResult, null, 2))
               const { error: upErr } = await admin.storage.from('case-files').upload(chunkPath, chunkBytes, { upsert: true, contentType: 'application/json' })
