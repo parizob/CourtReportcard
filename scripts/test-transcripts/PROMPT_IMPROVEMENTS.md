@@ -17,6 +17,47 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### 2026-07-27 — Medium harness baseline (`transcript_06_medium`) — watchlist only
+
+**Setup:** New ~12-page seeded file, 14 planted errors + FP traps (`res ipsa
+loquitur`, `pled`, correct early `Harborview`). Ran harness 3× (single
+proofread call — does **not** exercise production 250-entry batching).
+
+**Results:** recall **12/14, 12/14, 13/14** (86–93%); **0** unmatched FPs;
+cross-page `negligible`→`negligent` caught 3/3; late `Harborveiw`→`Harborview`
+caught 3/3.
+
+**Consistent miss:** `principal reason` → `principle` missed **3/3**.
+`notes discrete` → `discreet` missed **2/3**.
+
+**Important:** both pairs are **already** on the steno-homophone bullet list
+(`principle / principal`, `discrete / discreet`). The gap is not "missing from
+the list" — the model still skips them in long clean filler. Proposed fix is a
+short disambiguation note with worked examples (same pattern as `sit / set`
+and `compliant / complaint`), not adding the pairs again.
+
+**Status:** `applied` **DEV / harness only** (2026-07-27) — added the two
+disambiguation bullets to `PROOFREAD_ONLY_PROMPT` in `src/lib/gemini.js`
+only. **`supabase/functions/analyze-case/prompts.ts` unchanged; Edge Function
+not deployed.** Promote to prompts.ts + deploy only after harness green and
+explicit go-ahead.
+
+**Harness expanded** in the same change: `transcript_06_medium` now has 20
+seeded errors (added inverse principal/principle, inverse discrete/discreet,
+mute point, intensive purposes, would of) plus FP traps for correct school
+principal / principal place of business / matter of principle / discrete
+categories / discreet inquiry.
+
+**After (2026-07-27):**
+- Medium 3×: **20/20, 20/20, 19/20** (100/100/95%). `principal reason`
+  caught **2/3** (was 0/3). `notes discrete` caught **3/3** (was 1/3).
+  Inverse principal/principle + discreet→discrete caught 3/3. Extra seeds
+  (mute/moot, intensive purposes, would of) caught 3/3. **0** unmatched FPs
+  (correct principal / principle / discrete / discreet traps held).
+- `transcript_03_hard` 3×: still **8/9** each run; `notes discrete` missed
+  **3/3** on the short hard file (same flake as before on that fixture).
+  No new unmatched FPs.
+
 ### Rule: 2026-07-09 — Verify punctuation/capitalization is actually wrong before flagging — PART 1 APPLIED
 
 **Not from a test-harness run — from a real production case.** A user

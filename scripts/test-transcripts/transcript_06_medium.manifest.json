@@ -1,0 +1,200 @@
+{
+  "transcript": "transcript_06_medium.txt",
+  "description": "MEDIUM. ~13 pages with clean filler between planted errors. Stresses long-doc recall in one harness proofread call (not production 250-entry batching). Includes principal/principle and discrete/discreet disambiguation coverage (wrong uses + correct FP traps), early proper-name + late misspelling, cross-page-break error, and a few extra classic seeds.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "statue of limitations",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "statute",
+      "note": "statue/statute early in testimony."
+    },
+    {
+      "id": 2,
+      "match": "notes discrete from",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "discreet",
+      "note": "discrete used where discreet (careful/confidential) is meant."
+    },
+    {
+      "id": 3,
+      "match": "principal reason",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "principle",
+      "note": "principal used where principle (rule/idea) is meant."
+    },
+    {
+      "id": 4,
+      "match": "the affects of the crash",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "effects",
+      "note": "affects/effects."
+    },
+    {
+      "id": 5,
+      "match": "wave her rights",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "waive",
+      "note": "wave/waive."
+    },
+    {
+      "id": 6,
+      "match": "site the case",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "cite",
+      "note": "site/cite."
+    },
+    {
+      "id": 7,
+      "match": "defense council objected",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "counsel",
+      "note": "council/counsel."
+    },
+    {
+      "id": 8,
+      "match": "residance on Maple",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "residence",
+      "note": "residance/residence."
+    },
+    {
+      "id": 9,
+      "match": "goverment records",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "government",
+      "note": "goverment/government."
+    },
+    {
+      "id": 10,
+      "match": "Their is no dispute",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "There",
+      "note": "Their/There."
+    },
+    {
+      "id": 11,
+      "match": "per say",
+      "type": "legal_term",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "per se",
+      "note": "per say/per se."
+    },
+    {
+      "id": 12,
+      "match": "negligible under the circumstances",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "negligent",
+      "note": "CROSS-PAGE negligible→negligent."
+    },
+    {
+      "id": 13,
+      "match": "could care less",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Ambiguous idiom; flagging with [sic] is the pass condition."
+    },
+    {
+      "id": 14,
+      "match": "Harborveiw Orthopedic Center",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "Harborview",
+      "note": "LATE misspelling of proper name established earlier as Harborview."
+    },
+    {
+      "id": 15,
+      "match": "principle of the high school",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "principal",
+      "note": "Inverse principal/principle: principle used for the person."
+    },
+    {
+      "id": 16,
+      "match": "principle amount of the bill",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "principal",
+      "note": "Inverse principal/principle: principle used for a sum."
+    },
+    {
+      "id": 17,
+      "match": "discreet units of damage",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "discrete",
+      "note": "Inverse discrete/discreet: discreet used for separate/distinct units."
+    },
+    {
+      "id": 18,
+      "match": "mute point",
+      "type": "context",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "moot",
+      "note": "mute/moot homophone (also listed). Critical→moot preferred; severity may drift."
+    },
+    {
+      "id": 19,
+      "match": "For all intensive purposes",
+      "type": "context",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Eggcorn already listed in prompt."
+    },
+    {
+      "id": 20,
+      "match": "would of stopped",
+      "type": "grammar",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "would have",
+      "note": "would of → would have."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "res ipsa loquitur",
+      "note": "Correct legal Latin — should not be flagged as an error."
+    },
+    {
+      "text": "pled guilty",
+      "note": "Accepted legal variant of 'pleaded' — should not be forced to 'pleaded'."
+    },
+    {
+      "text": "Harborview Orthopedic Center",
+      "note": "Correct early spelling — only late Harborveiw is the error."
+    },
+    {
+      "text": "school principal",
+      "note": "Correct person-principal — must NOT be flipped to principle."
+    },
+    {
+      "text": "principal place of business",
+      "note": "Correct legal/business principal — must NOT be flipped to principle."
+    },
+    {
+      "text": "matter of principle",
+      "note": "Correct principle (belief/rule) — must NOT be flipped to principal."
+    },
+    {
+      "text": "discrete categories of damage",
+      "note": "Correct discrete (separate/distinct) — must NOT be flipped to discreet."
+    },
+    {
+      "text": "discreet inquiry",
+      "note": "Correct discreet (careful/confidential) — must NOT be flipped to discrete."
+    }
+  ]
+}

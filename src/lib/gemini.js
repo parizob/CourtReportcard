@@ -2154,6 +2154,8 @@ ERROR TYPES — flag every occurrence:
   • discrete / discreet        • elicit / illicit            • flaunt / flout
   • pour / pore / pore over    • moot / mute                 • waiver / waver
   • sit / set (e.g., "sit aside" → "set aside"; "sit forth" → "set forth")
+  • principle / principal — FLAG when "principal" is used for a rule/idea ("the principal reason," "in principal") → "principle"; FLAG when "principle" is used for a person or main sum ("the principle of the school," "principle amount") → "principal". Do NOT flag correct uses: school/corporate principal (the person), principal place of business, principal amount, principal on a loan, or "principle" meaning a rule/belief ("a matter of principle").
+  • discrete / discreet — FLAG when "discrete" means careful/confidential ("kept notes discrete," "a discrete inquiry") → "discreet"; FLAG when "discreet" means separate/distinct ("discreet categories," "discreet units") → "discrete". Do NOT flag correct "discrete" (separate/distinct) or correct "discreet" (careful/prudent).
   • eminent / imminent (neither belongs in a motion name — flag if used; likely steno error for "emergency" or "amended")
   • compliant / complaint (near-miss in legal filings: "amend the compliant" is always wrong)
   • corroborate / collaborate     • deposition / disposition       • allude / elude
