@@ -4,7 +4,73 @@ import SiteFooter from '../components/SiteFooter'
 import BlogTag from '../components/BlogTag'
 import BlogLaunchHero from '../components/BlogLaunchHero'
 import BlogTipsHero from '../components/BlogTipsHero'
+import BlogIndustryHero from '../components/BlogIndustryHero'
+import { useAuth } from '../context/AuthContext'
 import { getPostBySlug } from '../data/blogPosts'
+
+function RichText({ parts, text }) {
+  if (!parts?.length) return text
+  return parts.map((part, i) => {
+    if (part.href) {
+      return (
+        <a
+          key={i}
+          href={part.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary font-semibold underline underline-offset-2 hover:text-primary/80 transition-colors"
+        >
+          {part.text}
+        </a>
+      )
+    }
+    return <span key={i}>{part.text}</span>
+  })
+}
+
+function PostCta({ block }) {
+  const { openModal, isAuthenticated } = useAuth()
+
+  return (
+    <div className="mt-10 mb-2 rounded-2xl border border-outline-variant/15 bg-surface-container-lowest editorial-shadow px-6 sm:px-8 py-7 sm:py-8">
+      <p className="font-headline font-bold text-xl sm:text-2xl text-on-surface tracking-tight mb-2">
+        {block.headline}
+      </p>
+      <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed mb-6 max-w-xl">
+        {block.text}
+      </p>
+      <div className="flex flex-wrap gap-3">
+        {isAuthenticated ? (
+          <Link
+            to="/dashboard"
+            data-track-id={block.trackId}
+            className="inline-flex items-center justify-center bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+          >
+            {block.buttonLabel}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openModal('signup')}
+            data-track-id={block.trackId}
+            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+          >
+            {block.buttonLabel}
+          </button>
+        )}
+        {block.secondaryLabel && block.secondaryTo && (
+          <Link
+            to={block.secondaryTo}
+            data-track-id={`${block.trackId}_secondary`}
+            className="inline-flex items-center justify-center border-2 border-primary/30 text-primary px-6 py-3 rounded-md font-bold text-sm hover:bg-primary/10 hover:border-primary/10 transition-all"
+          >
+            {block.secondaryLabel}
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function PostBlock({ block }) {
   if (block.type === 'h2') {
@@ -18,7 +84,9 @@ function PostBlock({ block }) {
   if (block.type === 'callout') {
     return (
       <div className="my-6 rounded-xl border border-primary/20 bg-primary/[0.04] px-5 py-4">
-        <p className="text-sm sm:text-base text-on-surface leading-relaxed font-medium">{block.text}</p>
+        <p className="text-sm sm:text-base text-on-surface leading-relaxed font-medium">
+          <RichText parts={block.parts} text={block.text} />
+        </p>
       </div>
     )
   }
@@ -43,9 +111,13 @@ function PostBlock({ block }) {
     )
   }
 
+  if (block.type === 'cta') {
+    return <PostCta block={block} />
+  }
+
   return (
     <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed mb-4">
-      {block.text}
+      <RichText parts={block.parts} text={block.text} />
     </p>
   )
 }
@@ -92,6 +164,7 @@ export default function BlogPost() {
 
         {post.hero === 'launch' && <BlogLaunchHero />}
         {post.hero === 'tips' && <BlogTipsHero />}
+        {post.hero === 'industry' && <BlogIndustryHero />}
 
         <article>
           {post.content.map((block, i) => (

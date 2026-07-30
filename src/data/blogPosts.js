@@ -1,6 +1,8 @@
 // Blog posts for /blog. Add new posts at the top of the array.
-// Content blocks: { type: 'p' | 'h2' | 'pairs' | 'callout', ... }
-// Tags: use ids from BLOG_TAGS below.
+// Content blocks: { type: 'p' | 'h2' | 'pairs' | 'callout' | 'cta', ... }
+// Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
+// CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -15,9 +17,106 @@ export const BLOG_TAGS = {
     label: 'Tips',
     className: 'bg-secondary-container text-on-secondary-container border-secondary/20',
   },
+  industry: {
+    id: 'industry',
+    label: 'Industry',
+    className: 'bg-tertiary-fixed text-on-tertiary-fixed border-tertiary-fixed-dim/30',
+  },
 }
 
 export const blogPosts = [
+  {
+    slug: 'tools-can-help-court-reporters-but-the-last-pass-is-always-yours',
+    title: 'Tools Can Help Court Reporters, but the Last Pass Is Always Yours',
+    excerpt:
+      'An Indiana appeals opinion got loud about transcript quality. Skip the scare headline. The useful part is simple: help is fine. Skipping the proofread is not.',
+    date: '2026-07-30',
+    dateLabel: 'July 30, 2026',
+    dateLabelShort: '7/30/26',
+    readMinutes: 3,
+    tags: ['industry'],
+    hero: 'industry',
+    metaDescription:
+      'Court transcript proofreading for court reporters: what a recent Indiana appeals opinion means for tools, ownership, and catching mistakes before a job leaves your desk.',
+    content: [
+      {
+        type: 'p',
+        text: 'Long day. Tight deadline. You have already read the page twice. Something still feels off. Every reporter knows that feeling. It is not paranoia. It is the job.',
+      },
+      {
+        type: 'p',
+        text: 'Last week an Indiana Court of Appeals panel put that pressure on paper. In Williams v. State, Judge Paul Felix, joined by Chief Judge Tavitas and Judge Bradford, called a trial transcript "far from the best." Not because judges expect perfection. They said trial records rarely are. This one still had problems that changed meaning: typos in testimony and objections, names wrong, speakers mixed up so a motion, an objection, and closing argument got credited to the wrong voice in the room.',
+      },
+      {
+        type: 'p',
+        parts: [
+          { text: 'Eugene Volokh covered the opinion at Reason: ' },
+          {
+            text: 'Court Notes Apparent AI-Generated Errors in Court Reporter\'s Transcript',
+            href: 'https://reason.com/volokh/2026/07/25/court-notes-apparent-ai-generated-errors-in-court-reporters-transcript/',
+          },
+          { text: '.' },
+        ],
+      },
+      {
+        type: 'p',
+        text: 'We are not here to pile on that reporter. Most of us have stared at a finished job with that knot in the stomach. What the court said next is the part worth keeping:',
+      },
+      {
+        type: 'callout',
+        text: '"[W]e remind the Court Reporter that this court relies on transcripts being true and accurate representations of the transcribed proceedings."',
+      },
+      {
+        type: 'p',
+        text: 'That is Indiana Appellate Rule 28(B) in plain English. You certify it. The court trusts it. Same duty it has always been.',
+      },
+
+      { type: 'h2', text: 'Do not let the headline steal the point' },
+      {
+        type: 'p',
+        text: 'Some coverage is already turning this into a scare story about technology. You know that story. Machines will take the room. The reporter becomes optional. Budget committees start shopping for cheaper pipelines.',
+      },
+      {
+        type: 'p',
+        text: 'Read the opinion itself and the useful line is quieter. The court said tools can improve efficiency. Then it said the part that protects you: if a system helps prepare the transcript, you still have to proofread it before it becomes the record.',
+      },
+      {
+        type: 'callout',
+        text: 'The court did not ban the tools. Help is fine. Skipping the proofread is not.',
+      },
+      {
+        type: 'p',
+        text: 'That is how you fight back. Not by pretending the future will wait, and not by filing unchecked pages that hand critics exactly what they want. Use the tool that catches tired-hour mistakes. Keep the judgment that still has your name on it.',
+      },
+      {
+        type: 'p',
+        text: 'One more distinction matters. The risk the court flagged was unchecked preparation making it into the official record. Court Reportcard is not that kind of tool. We do not write the transcript for you. We do not sit in the room. You bring a finished job. We help you catch what a long day tried to hide.',
+      },
+
+      { type: 'h2', text: 'What to do on the next hard job' },
+      {
+        type: 'p',
+        text: 'Before you certify, one more look with fresh eyes: wrong speaker labels, names, homophones, missing little words. The stuff that looks fine when you are close to the job and ugly when an appellate clerk is hunting cites.',
+      },
+      {
+        type: 'p',
+        text: 'That last pass is why we built this. Upload the transcript you already made. We flag likely slips. You accept, ignore, or rewrite. Nothing changes until you say so. Then you export work that still meets your standard.',
+      },
+      {
+        type: 'callout',
+        text: 'Catch more before it leaves the desk. Keep the final say. That is the whole job.',
+      },
+      {
+        type: 'cta',
+        headline: 'Bring a hard transcript. Keep the final say.',
+        text: 'Court Reportcard is a second set of eyes for court reporters. Catch slips before the job leaves your desk.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_industry_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'court-reportcard-out-of-beta',
     title: 'We Turned the Lights On',
@@ -99,6 +198,15 @@ export const blogPosts = [
       {
         type: 'p',
         text: 'Whisper it to Billing. Watch the balance jump. Feel briefly powerful. Then get back to the pages. That is the whole party.',
+      },
+      {
+        type: 'cta',
+        headline: 'Ready when you are.',
+        text: 'Create an account, grab tokens, and put a real transcript through Court Reportcard.',
+        buttonLabel: 'Get started',
+        trackId: 'blog_cta_launch_try',
+        secondaryLabel: 'See pricing',
+        secondaryTo: '/pricing',
       },
     ],
   },
@@ -273,6 +381,15 @@ export const blogPosts = [
       {
         type: 'callout',
         text: 'Your reputation is built one clean page at a time. Homophones are just waiting for you to get tired. Do not let them have the last word.',
+      },
+      {
+        type: 'cta',
+        headline: 'Want a second set of eyes on those pairs?',
+        text: 'Court Reportcard flags homophones and other tired-hour slips before the transcript leaves your desk. You decide what changes.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_homophones_try',
+        secondaryLabel: 'See the platform',
+        secondaryTo: '/ourplatform',
       },
     ],
   },

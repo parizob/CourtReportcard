@@ -311,19 +311,27 @@ AS $function$
 declare
   v_uid uuid := auth.uid();
   v_charge integer;
+  v_status text;
   v_new integer;
 begin
   if v_uid is null or p_case_id is null then
     return null;
   end if;
 
-  select tokens_charged into v_charge
+  select tokens_charged, status
+    into v_charge, v_status
   from public.cases
   where id = p_case_id
     and user_id = v_uid
   for update;
 
   if not found then
+    return null;
+  end if;
+
+  -- Only pre-completion failures. Finished work must stay charged.
+  if v_status is distinct from 'uploaded'
+     and v_status is distinct from 'processing' then
     return null;
   end if;
 
@@ -757,6 +765,10 @@ GRANT EXECUTE ON FUNCTION public.record_upload_failure(text, text) TO authentica
 
 REVOKE ALL ON FUNCTION public.refund_case_tokens(uuid, text) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.refund_case_tokens(uuid, text) TO authenticated, service_role;
+
+-- Clients may update workflow fields only — never billing/analysis internals.
+REVOKE UPDATE ON TABLE public.cases FROM anon, authenticated;
+GRANT UPDATE (name, status, deleted_at, updated_at) ON TABLE public.cases TO authenticated;
 
 REVOKE ALL ON FUNCTION public.spend_tokens(integer) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.spend_tokens(integer) TO authenticated, service_role;

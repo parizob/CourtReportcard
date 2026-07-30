@@ -114,6 +114,7 @@ Canonical page: https://www.courtreportcard.com/pricing
 ## Optional
 
 - [Blog](https://www.courtreportcard.com/blog): Notes for court reporters
+- [Tools Can Help Court Reporters, but the Last Pass Is Always Yours](https://www.courtreportcard.com/blog/tools-can-help-court-reporters-but-the-last-pass-is-always-yours): Court transcript proofreading for court reporters: what a recent Indiana appeals opinion means for tools, ownership, and catching mistakes before a job leaves your desk.
 - [We Turned the Lights On](https://www.courtreportcard.com/blog/court-reportcard-out-of-beta): Court Reportcard is out of beta and accepting payments. A proofreading tool built for court reporters: small, dedicated, and designed to help you use technology on your terms.
 - [Counsel, Council, and Other Ways to Ruin a Perfectly Good Afternoon](https://www.courtreportcard.com/blog/common-homophone-errors-in-transcripts): A witty guide to common homophone errors in court transcripts: counsel vs council, waive vs wave, cite vs site, and more pairs every court reporter should watch for.
 - [robots.txt](https://www.courtreportcard.com/robots.txt): Crawl allow/deny

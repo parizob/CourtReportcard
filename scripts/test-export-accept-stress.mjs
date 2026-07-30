@@ -10,6 +10,9 @@
  *   4. Accept → reopen → ignore / re-accept churn: export always equals the
  *      editor transcript; ignores/opens never rewrite the file; full ignore
  *      returns byte-identical pristine text.
+ *   5. Persist JSON round-trip (storage) + custom UI suggestions: export is
+ *      byte-identical to the editor transcript; only accepted spans differ
+ *      from the pristine upload.
  *
  * Run: npm run test:export-stress
  */
@@ -1218,6 +1221,301 @@ console.log('\nP. Twin-safe accept→reopen→ignore on short words')
   state = simIgnore(state, 'P-teh')
   assertEq(state.text, pristine, 'P: reopen+ignore all → pristine')
   assertExportMatchesUserIntent(state, 'P-all-ignored')
+}
+
+/**
+ * Diff helper: every index outside [start,end) spans must match baseline.
+ * Spans are in `actual` coordinates (after edits). We instead rebuild the
+ * expected string from pristine + ordered accepts and require byte identity.
+ */
+function expectedFromAccepts(pristine, acceptsInOrder) {
+  let text = pristine
+  for (const step of acceptsInOrder) {
+    const { cleanContent } = buildCleanContentMap(text)
+    const site = locateAtAnchorStrict(
+      cleanContent,
+      { _anchorBefore: step.before, _anchorAfter: step.after },
+      step.original,
+    )
+    if (!site) throw new Error(`expectedFromAccepts: miss ${step.original}`)
+    const detail = applyCorrectionDetailed(text, step.original, step.suggestion, {
+      cleanStart: site.cleanStart,
+      cleanEnd: site.cleanEnd,
+    })
+    if (detail.start === -1) throw new Error(`expectedFromAccepts: apply ${step.original}`)
+    text = detail.text
+  }
+  return text
+}
+
+// ---------------------------------------------------------------------------
+// Q. Storage round-trip: UI accepts (incl. custom) survive JSON → export
+//     unchanged bytes everywhere else
+// ---------------------------------------------------------------------------
+console.log('\nQ. Persist round-trip + custom accepts; only intended spans change')
+{
+  const SITE_COUNT = 40
+  const protectedLine = 'Certified Shorthand Reporter of the State of California.'
+  const lines = [
+    '           1         SUPERIOR COURT OF THE STATE OF CALIFORNIA\r\n',
+    `          10  ${protectedLine}\r\n`,
+  ]
+  const specs = []
+  for (let i = 1; i <= SITE_COUNT; i++) {
+    const bad = `errX${String(i).padStart(3, '0')}`
+    const modelSug = `fixX${String(i).padStart(3, '0')}`
+    const customSug = `customX${String(i).padStart(3, '0')}`
+    lines.push(
+      `${String(100 + i).padStart(12)}  Q.  Line holds ${bad} in place.\r\n`,
+    )
+    specs.push({
+      id: `Q${i}`,
+      bad,
+      modelSug,
+      customSug,
+      // destiny assigned below
+    })
+  }
+  const pristine = lines.join('')
+
+  // Destiny: 0 accept-model, 1 accept-custom, 2 ignore, 3 leave-open
+  for (let i = 0; i < specs.length; i++) {
+    specs[i].destiny = i % 4
+  }
+
+  let state = {
+    text: pristine,
+    entries: [{ id: 1, text: pristine }],
+    annotations: specs.map((s) => {
+      const m = flexFind(pristine, s.bad)
+      const anchor = buildContextAnchor(pristine, m.start, m.end, 2)
+      return {
+        id: s.id,
+        entry_id: 1,
+        status: 'open',
+        original: s.bad,
+        suggestion: s.modelSug,
+        type: 'spelling',
+        _anchorBefore: anchor.before,
+        _anchorAfter: anchor.after,
+      }
+    }),
+  }
+
+  const acceptSteps = []
+  for (const s of specs) {
+    const ann = state.annotations.find((a) => a.id === s.id)
+    if (s.destiny === 0) {
+      // Accept model suggestion
+      state = simAccept(state, s.id)
+      acceptSteps.push({
+        original: s.bad,
+        suggestion: s.modelSug,
+        before: ann._anchorBefore,
+        after: ann._anchorAfter,
+      })
+    } else if (s.destiny === 1) {
+      // Custom UI edit then accept (mirrors acceptAnnotation(id, customText))
+      state = {
+        ...state,
+        annotations: state.annotations.map((a) =>
+          a.id === s.id
+            ? {
+                ...a,
+                suggestion: s.customSug,
+                _originalSuggestion: a.suggestion,
+              }
+            : a,
+        ),
+      }
+      state = simAccept(state, s.id)
+      acceptSteps.push({
+        original: s.bad,
+        suggestion: s.customSug,
+        before: ann._anchorBefore,
+        after: ann._anchorAfter,
+      })
+    } else if (s.destiny === 2) {
+      state = simIgnore(state, s.id)
+    }
+    // destiny 3: leave open
+  }
+
+  const afterUi = state.text
+  const expected = expectedFromAccepts(pristine, acceptSteps)
+  assertEq(afterUi, expected, 'Q: editor text equals surgical rebuild from accepts only')
+
+  // Simulate casePersist: JSON upload/download of extracted payload
+  const stored = JSON.stringify({
+    title: 'Q stress',
+    entries: state.entries,
+    annotations: state.annotations,
+    originalText: state.text,
+  })
+  const loaded = JSON.parse(stored)
+  assertEq(loaded.originalText, afterUi, 'Q: storage round-trip originalText identical')
+  assertEq(
+    JSON.stringify(loaded.annotations),
+    JSON.stringify(state.annotations),
+    'Q: storage round-trip annotations identical',
+  )
+
+  // Export path (DashboardExport.resolveExportOriginalText)
+  const ship = resolveExportOrBlock(
+    loaded.originalText,
+    loaded.entries,
+    loaded.annotations,
+  )
+  assert(ship.shipped, 'Q: export ships after persist round-trip')
+  assertEq(ship.text, afterUi, 'Q: exported transcript === editor originalText (no rewrite)')
+  assertEq(ship.text, expected, 'Q: exported transcript === accept-only rebuild')
+
+  // Second ensure (re-export / reload) must be a pure no-op
+  const again = ensureAcceptedCorrectionsInOriginalText(
+    ship.text,
+    loaded.entries,
+    loaded.annotations,
+  )
+  assertEq(again.failed.length, 0, 'Q: re-export verify clean')
+  assertEq(again.text, ship.text, 'Q: re-export does not mutate a single byte')
+
+  // Product: ignores and opens never introduced their suggestions
+  for (const s of specs) {
+    if (s.destiny === 0) {
+      assert(!!flexFind(ship.text, s.modelSug), `Q: model accept ${s.id} in export`)
+      assert(!flexFind(ship.text, s.bad), `Q: model accept ${s.id} Found gone`)
+    } else if (s.destiny === 1) {
+      assert(!!flexFind(ship.text, s.customSug), `Q: custom accept ${s.id} in export`)
+      assert(!flexFind(ship.text, s.bad), `Q: custom accept ${s.id} Found gone`)
+      assert(!flexFind(ship.text, s.modelSug), `Q: custom accept ${s.id} did not keep model sug`)
+    } else {
+      assert(!!flexFind(ship.text, s.bad), `Q: ${s.destiny === 2 ? 'ignored' : 'open'} ${s.id} Found intact`)
+      assert(!flexFind(ship.text, s.modelSug), `Q: non-accept ${s.id} model sug absent`)
+      assert(!flexFind(ship.text, s.customSug), `Q: non-accept ${s.id} custom sug absent`)
+    }
+  }
+
+  assert(ship.text.includes(protectedLine), 'Q: certificate line untouched')
+  assert(ship.text.includes('SUPERIOR COURT OF THE STATE OF CALIFORNIA'), 'Q: caption untouched')
+  assert(!ship.text.includes('of it State'), 'Q: no twin corruption')
+
+  // Full ignore after reopen of all accepts → pristine file again
+  let revert = {
+    text: loaded.originalText,
+    entries: loaded.entries,
+    annotations: loaded.annotations.map((a) => ({ ...a })),
+  }
+  for (const a of revert.annotations.filter((x) => x.status === 'accepted')) {
+    revert = simReopen(revert, a.id)
+  }
+  for (const a of revert.annotations.filter((x) => x.status === 'open')) {
+    revert = simIgnore(revert, a.id)
+  }
+  assertEq(revert.text, pristine, 'Q: reopen all accepts + ignore → pristine bytes')
+  const revertShip = resolveExportOrBlock(revert.text, revert.entries, revert.annotations)
+  assert(revertShip.shipped, 'Q: all-ignored export ships')
+  assertEq(revertShip.text, pristine, 'Q: all-ignored export === pristine upload')
+}
+
+// ---------------------------------------------------------------------------
+// R. 200 sequential custom accepts — export identity + zero collateral
+// ---------------------------------------------------------------------------
+console.log('\nR. 200 custom accepts; export identity; prefix/suffix intact each step')
+{
+  const N = 200
+  const parts = ['Certified Shorthand Reporter of the State of California.\r\n']
+  const steps = []
+  for (let i = 1; i <= N; i++) {
+    const bad = `b${i}z`
+    const good = `g${i}z`
+    parts.push(`Row ${i} says ${bad} here.\r\n`)
+    steps.push({ bad, good, before: `says `, after: ` here` })
+  }
+  let text = parts.join('')
+  const pristine = text
+  const anns = []
+
+  for (let i = 0; i < N; i++) {
+    const step = steps[i]
+    const before = text
+    const { cleanContent } = buildCleanContentMap(before)
+    // Unique context: "Row N says "
+    const beforeCtx = `Row ${i + 1} says `
+    const site = locateAtAnchorStrict(
+      cleanContent,
+      { _anchorBefore: beforeCtx, _anchorAfter: step.after },
+      step.bad,
+    )
+    assert(!!site, `R: locate ${i + 1}`)
+    const detail = applyCorrectionDetailed(before, step.bad, step.good, {
+      cleanStart: site.cleanStart,
+      cleanEnd: site.cleanEnd,
+    })
+    assert(detail.start !== -1, `R: apply ${i + 1}`)
+    const after = detail.text
+    // Prefix/suffix invariant at this step
+    assert(
+      after.startsWith(before.slice(0, detail.start)),
+      `R: prefix intact at step ${i + 1}`,
+    )
+    assert(
+      after.slice(detail.start + step.good.length) === before.slice(detail.start + step.bad.length),
+      `R: suffix intact at step ${i + 1}`,
+    )
+    text = after
+    const anchor = buildContextAnchor(pristine, flexFind(pristine, step.bad).start, flexFind(pristine, step.bad).end, 2)
+    anns.push({
+      id: `R${i}`,
+      entry_id: 1,
+      status: 'accepted',
+      original: step.bad,
+      suggestion: step.good,
+      _originalSuggestion: `model${i}`,
+      _anchorBefore: beforeCtx,
+      _anchorAfter: step.after,
+      _appliedOriginalStart: detail.start,
+      _appliedOriginalEnd: detail.start + step.good.length,
+      _appliedOriginalMatchedText: detail.matchedText,
+      _appliedOriginalReplacement: step.good,
+    })
+    // Note: offsets in anns are wrong after later edits shift them — export
+    // must still succeed via anchors (product path). Rebuild anchors from
+    // current text for the just-applied site only; older anns keep their
+    // word anchors which remain unique.
+    void anchor
+  }
+
+  // Persist round-trip
+  const blob = JSON.parse(
+    JSON.stringify({
+      originalText: text,
+      entries: [{ id: 1, text }],
+      annotations: anns,
+    }),
+  )
+
+  const ship = resolveExportOrBlock(blob.originalText, blob.entries, blob.annotations)
+  assert(ship.shipped, 'R: 200 custom accepts ship')
+  assertEq(ship.text, text, 'R: export === editor text (zero drift)')
+  assertEq(
+    ensureAcceptedCorrectionsInOriginalText(ship.text, blob.entries, blob.annotations).text,
+    ship.text,
+    'R: second ensure no-op',
+  )
+
+  for (let i = 1; i <= N; i++) {
+    assert(!!flexFind(ship.text, `g${i}z`), `R: g${i}z present`)
+    assert(!flexFind(ship.text, `b${i}z`), `R: b${i}z gone`)
+  }
+  assert(ship.text.includes('of the State of California'), 'R: certificate intact')
+  assert(!ship.text.includes('of it State'), 'R: no twin flip')
+
+  // Count how many lines still match the Row template shape
+  let rowHits = 0
+  for (let i = 1; i <= N; i++) {
+    if (ship.text.includes(`Row ${i} says g${i}z here.`)) rowHits++
+  }
+  assertEq(rowHits, N, 'R: every row template intact around its custom fix')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
