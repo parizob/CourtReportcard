@@ -7,6 +7,9 @@
  *   2. Re-running export ensure on already-correct text does not rewrite
  *      unrelated twins (short words like "the" / "it" / "my").
  *   3. Applying accepts only changes the intended site (prefix/suffix intact).
+ *   4. Accept → reopen → ignore / re-accept churn: export always equals the
+ *      editor transcript; ignores/opens never rewrite the file; full ignore
+ *      returns byte-identical pristine text.
  *
  * Run: npm run test:export-stress
  */
@@ -19,9 +22,11 @@ import {
   applyCorrectionDetailed,
   buildCleanContentMap,
   locateAtAnchorStrict,
+  locateAnnotationWithAnchor,
   flexFind,
   findAllFlexMatches,
   buildContextAnchor,
+  shiftAcceptedApplySites,
 } from '../src/lib/gemini.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -794,6 +799,425 @@ console.log('\nN. Sequential length-changing accepts all ship')
   assert(!ship.text.includes('too the'), 'N: old too gone')
   assert(!ship.text.includes('teh receipt'), 'N: old teh gone')
   assert(!ship.text.includes('spell nam '), 'N: old nam gone')
+}
+
+/**
+ * Pure editor-path simulators for originalText (export source of truth).
+ * Mirrors DashboardEditor accept/reopen at the transcript-file layer only —
+ * enough to stress export identity through accept → reopen → ignore churn.
+ */
+function simAccept(state, annId) {
+  const ann = state.annotations.find((a) => a.id === annId)
+  if (!ann || ann.status !== 'open') {
+    throw new Error(`simAccept: ${annId} not open`)
+  }
+  const { cleanContent } = buildCleanContentMap(state.text)
+  const entry = state.entries.find((e) => e.id === ann.entry_id)
+  const site =
+    locateAtAnchorStrict(cleanContent, ann, ann.original) ||
+    locateAnnotationWithAnchor(cleanContent, entry, ann, ann.original)
+  if (!site) throw new Error(`simAccept: cannot locate ${annId} ${ann.original}`)
+  const detail = applyCorrectionDetailed(state.text, ann.original, ann.suggestion, {
+    cleanStart: site.cleanStart,
+    cleanEnd: site.cleanEnd,
+  })
+  if (detail.start === -1) throw new Error(`simAccept: apply failed ${annId}`)
+
+  const nextText = detail.text
+  const replacement = nextText.substring(detail.start, detail.start + ann.suggestion.length)
+  const delta = ann.suggestion.length - detail.matchedText.length
+  let nextAnns = state.annotations.map((a) => {
+    if (a.id !== annId) return a
+    return {
+      ...a,
+      status: 'accepted',
+      _originalSuggestion: a._originalSuggestion ?? a.suggestion,
+      _appliedOriginalStart: detail.start,
+      _appliedOriginalEnd: detail.start + ann.suggestion.length,
+      _appliedOriginalMatchedText: detail.matchedText,
+      _appliedOriginalReplacement: replacement,
+      _appliedEntryId: a.entry_id,
+    }
+  })
+  if (delta !== 0) {
+    nextAnns = shiftAcceptedApplySites(
+      nextAnns,
+      {
+        entryId: ann.entry_id,
+        entryEditEnd: null,
+        entryDelta: 0,
+        originalEditEnd: detail.start + detail.matchedText.length,
+        originalDelta: delta,
+        cleanEditEnd: null,
+        cleanDelta: 0,
+      },
+      annId,
+    )
+  }
+  return { ...state, text: nextText, annotations: nextAnns }
+}
+
+function simReopen(state, annId) {
+  const ann = state.annotations.find((a) => a.id === annId)
+  if (!ann || ann.status !== 'accepted') {
+    throw new Error(`simReopen: ${annId} not accepted`)
+  }
+  const restore = ann._appliedOriginalMatchedText ?? ann.original
+  let span = null
+  if (
+    ann._appliedOriginalStart != null &&
+    ann._appliedOriginalEnd != null &&
+    state.text.substring(ann._appliedOriginalStart, ann._appliedOriginalEnd) ===
+      (ann._appliedOriginalReplacement ?? ann.suggestion)
+  ) {
+    span = { start: ann._appliedOriginalStart, end: ann._appliedOriginalEnd }
+  } else {
+    const { cleanContent, cleanToOrig } = buildCleanContentMap(state.text)
+    const entry = state.entries.find((e) => e.id === (ann._appliedEntryId ?? ann.entry_id))
+    const hit =
+      locateAtAnchorStrict(cleanContent, ann, ann.suggestion) ||
+      locateAnnotationWithAnchor(cleanContent, entry, ann, ann.suggestion)
+    if (hit) {
+      span = {
+        start: cleanToOrig[hit.cleanStart],
+        end: cleanToOrig[hit.cleanEnd - 1] + 1,
+      }
+    }
+  }
+  if (!span) throw new Error(`simReopen: cannot locate suggestion for ${annId}`)
+
+  const nextText =
+    state.text.substring(0, span.start) + restore + state.text.substring(span.end)
+  const delta = restore.length - (span.end - span.start)
+  let nextAnns = state.annotations.map((a) => {
+    if (a.id !== annId) return a
+    return {
+      ...a,
+      status: 'open',
+      suggestion: a._originalSuggestion ?? a.suggestion,
+      _originalSuggestion: undefined,
+      _appliedOriginalStart: undefined,
+      _appliedOriginalEnd: undefined,
+      _appliedOriginalMatchedText: undefined,
+      _appliedOriginalReplacement: undefined,
+      _appliedEntryId: undefined,
+    }
+  })
+  if (delta !== 0) {
+    nextAnns = shiftAcceptedApplySites(
+      nextAnns,
+      {
+        entryId: ann._appliedEntryId ?? ann.entry_id,
+        entryEditEnd: null,
+        entryDelta: 0,
+        originalEditEnd: span.end,
+        originalDelta: delta,
+        cleanEditEnd: null,
+        cleanDelta: 0,
+      },
+      annId,
+    )
+  }
+  return { ...state, text: nextText, annotations: nextAnns }
+}
+
+function simIgnore(state, annId) {
+  const ann = state.annotations.find((a) => a.id === annId)
+  if (!ann || ann.status !== 'open') {
+    throw new Error(`simIgnore: ${annId} not open`)
+  }
+  return {
+    ...state,
+    annotations: state.annotations.map((a) =>
+      a.id === annId ? { ...a, status: 'ignored' } : a,
+    ),
+  }
+}
+
+function assertExportMatchesUserIntent(state, label) {
+  const ship = resolveExportOrBlock(state.text, state.entries, state.annotations)
+  assert(ship.shipped, `${label}: export ships`)
+  assertEq(ship.failed.length, 0, `${label}: zero unmatched accepts`)
+  assertEq(ship.text, state.text, `${label}: export text === editor originalText`)
+
+  const again = ensureAcceptedCorrectionsInOriginalText(
+    ship.text,
+    state.entries,
+    state.annotations,
+  )
+  assertEq(again.failed.length, 0, `${label}: ensure clean`)
+  assertEq(again.text, ship.text, `${label}: ensure idempotent`)
+
+  for (const ann of state.annotations) {
+    if (ann.status === 'accepted') {
+      assert(
+        !!locateAtAnchorStrict(buildCleanContentMap(ship.text).cleanContent, ann, ann.suggestion) ||
+          !!flexFind(ship.text, ann.suggestion),
+        `${label}: accept ${ann.id} suggestion present`,
+      )
+      assert(
+        !locateAtAnchorStrict(buildCleanContentMap(ship.text).cleanContent, ann, ann.original),
+        `${label}: accept ${ann.id} original gone at anchor`,
+      )
+    } else if (ann.status === 'ignored' || ann.status === 'open') {
+      assert(
+        !!locateAtAnchorStrict(buildCleanContentMap(ship.text).cleanContent, ann, ann.original) ||
+          !!flexFind(ship.text, ann.original),
+        `${label}: ${ann.status} ${ann.id} left Found text alone`,
+      )
+      if (ann.suggestion && ann.suggestion !== ann.original) {
+        // Suggestion must not have been silently written for ignored/open.
+        const atSug = locateAtAnchorStrict(
+          buildCleanContentMap(ship.text).cleanContent,
+          ann,
+          ann.suggestion,
+        )
+        assert(!atSug, `${label}: ${ann.status} ${ann.id} did not apply suggestion`)
+      }
+    }
+  }
+
+  for (const phrase of PROTECTED) {
+    if (state.text.includes(phrase) || ship.text.includes('of the State')) {
+      assert(ship.text.includes(phrase) || ship.text.includes('of the State of California'),
+        `${label}: protected phrase intact`)
+      assert(!ship.text.includes('of it State'), `${label}: no certificate twin corruption`)
+    }
+  }
+  return ship
+}
+
+// ---------------------------------------------------------------------------
+// O. Long accept → reopen → ignore / re-accept churn (export always matches)
+// ---------------------------------------------------------------------------
+console.log('\nO. Long accept→reopen→ignore churn (80 sites, many cycles)')
+{
+  const SITE_COUNT = 80
+  const CYCLE_ROUNDS = 6
+  const protectedLine = 'Certified Shorthand Reporter of the State of California.'
+  const lines = [protectedLine]
+  const openAnns = []
+  for (let i = 1; i <= SITE_COUNT; i++) {
+    const bad = `typo${String(i).padStart(3, '0')}`
+    const good = `fixed${String(i).padStart(3, '0')}`
+    lines.push(
+      `${String(i).padStart(6)}          Q.  Marker word ${bad} end here.`,
+    )
+    openAnns.push({
+      id: `O${i}`,
+      entry_id: 1,
+      status: 'open',
+      original: bad,
+      suggestion: good,
+      type: 'spelling',
+    })
+  }
+  const baseline = `${lines.join('\r\n')}\r\n`
+  for (const ann of openAnns) {
+    const m = flexFind(baseline, ann.original)
+    const anchor = buildContextAnchor(baseline, m.start, m.end, 2)
+    ann._anchorBefore = anchor.before
+    ann._anchorAfter = anchor.after
+  }
+
+  let state = {
+    text: baseline,
+    entries: [{ id: 1, text: baseline }],
+    annotations: openAnns.map((a) => ({ ...a })),
+  }
+
+  // Snapshot of pristine file — ignore-all / reopen-all must be able to return here.
+  const pristine = baseline
+
+  // Round 0: accept everything, export must match.
+  for (const ann of state.annotations) {
+    state = simAccept(state, ann.id)
+  }
+  assertExportMatchesUserIntent(state, 'O-accept-all')
+  assert(!state.text.includes('typo'), 'O-accept-all: no typo* left')
+
+  // Reopen everything → file must return to pristine; then ignore all.
+  for (const ann of [...state.annotations]) {
+    state = simReopen(state, ann.id)
+  }
+  assertEq(state.text, pristine, 'O-reopen-all: byte-identical to pristine')
+  for (const ann of state.annotations) {
+    state = simIgnore(state, ann.id)
+  }
+  assertExportMatchesUserIntent(state, 'O-ignore-all')
+  assertEq(state.text, pristine, 'O-ignore-all: file untouched')
+
+  // Deterministic churn: for each round, accept a sliding window, reopen half,
+  // ignore a third of those, re-accept the rest. Export must always match intent.
+  // Reset to open on pristine first.
+  state = {
+    text: pristine,
+    entries: [{ id: 1, text: pristine }],
+    annotations: openAnns.map((a) => ({
+      ...a,
+      status: 'open',
+      _appliedOriginalStart: undefined,
+      _appliedOriginalEnd: undefined,
+      _appliedOriginalMatchedText: undefined,
+      _appliedOriginalReplacement: undefined,
+      _appliedEntryId: undefined,
+      _originalSuggestion: undefined,
+    })),
+  }
+
+  for (let round = 0; round < CYCLE_ROUNDS; round++) {
+    const ids = state.annotations.map((a) => a.id)
+    // Accept every site that is currently open
+    for (const id of ids) {
+      const a = state.annotations.find((x) => x.id === id)
+      if (a.status === 'open') state = simAccept(state, id)
+    }
+    assertExportMatchesUserIntent(state, `O-r${round}-after-accept`)
+
+    // Reopen a rotating subset (half of accepted)
+    const accepted = state.annotations.filter((a) => a.status === 'accepted')
+    const reopenSet = accepted.filter((_, idx) => (idx + round) % 2 === 0)
+    for (const a of reopenSet) {
+      state = simReopen(state, a.id)
+    }
+    assertExportMatchesUserIntent(state, `O-r${round}-after-reopen`)
+
+    // Of the reopened (now open): ignore 2/3, leave 1/3 open then re-accept later
+    const opened = state.annotations.filter((a) => a.status === 'open')
+    for (let i = 0; i < opened.length; i++) {
+      if (i % 3 !== 0) state = simIgnore(state, opened[i].id)
+    }
+    assertExportMatchesUserIntent(state, `O-r${round}-after-ignore`)
+
+    // Re-accept remaining open
+    for (const a of state.annotations.filter((x) => x.status === 'open')) {
+      state = simAccept(state, a.id)
+    }
+    assertExportMatchesUserIntent(state, `O-r${round}-after-reaccept`)
+
+    // Spot-check: every ignored site still has Found text; every accepted has suggestion
+    for (const ann of state.annotations) {
+      if (ann.status === 'ignored') {
+        assert(!!flexFind(state.text, ann.original), `O-r${round}: ignored ${ann.id} Found remains`)
+        assert(!flexFind(state.text, ann.suggestion), `O-r${round}: ignored ${ann.id} suggestion absent`)
+      }
+      if (ann.status === 'accepted') {
+        assert(!!flexFind(state.text, ann.suggestion), `O-r${round}: accepted ${ann.id} suggestion present`)
+        assert(!flexFind(state.text, ann.original), `O-r${round}: accepted ${ann.id} Found gone`)
+      }
+    }
+
+    // Force a full reopen of all accepts so next round starts from a clean open set
+    // mixed with ignores (ignores stay ignored — product: reopen only accepted/ignored cards;
+    // we only reopen accepted here).
+    for (const a of state.annotations.filter((x) => x.status === 'accepted')) {
+      state = simReopen(state, a.id)
+    }
+    // Turn remaining open back to a known baseline for next round's accept wave:
+    // reopen should have restored Found text; open flags that were previously
+    // accepted are open again; ignored stay ignored with Found intact.
+    assertExportMatchesUserIntent(state, `O-r${round}-end`)
+  }
+
+  // Final: reopen any leftover accepts, leave ignores — export == only-ignored mutation = pristine sites for ignores + any still-open Found
+  for (const a of state.annotations.filter((x) => x.status === 'accepted')) {
+    state = simReopen(state, a.id)
+  }
+  // Ignore everything still open → file must equal pristine
+  for (const a of state.annotations.filter((x) => x.status === 'open')) {
+    state = simIgnore(state, a.id)
+  }
+  assertEq(state.text, pristine, 'O-final: all ignored → pristine file')
+  assertExportMatchesUserIntent(state, 'O-final-all-ignored')
+}
+
+// ---------------------------------------------------------------------------
+// P. Short-word twins under accept→reopen→ignore (certificate never flips)
+// ---------------------------------------------------------------------------
+console.log('\nP. Twin-safe accept→reopen→ignore on short words')
+{
+  const protectedLine = 'Certified Shorthand Reporter of the State of California.'
+  let state = {
+    text:
+      `${protectedLine}\r\n` +
+      "Q.  Okay. Did you call the Consuelo's Kitchen when you had your business?\r\n" +
+      'A.  That was too much pressure on the witness.\r\n' +
+      'Q.  He went too the store for teh receipt.\r\n',
+    entries: [{ id: 1, text: '' }],
+    annotations: [
+      {
+        id: 'P-the',
+        entry_id: 1,
+        status: 'open',
+        original: 'the',
+        suggestion: 'it',
+        _anchorBefore: 'you call ',
+        _anchorAfter: " Consuelo's Kitchen",
+      },
+      {
+        id: 'P-too1',
+        entry_id: 1,
+        status: 'open',
+        original: 'too',
+        suggestion: 'to',
+        _anchorBefore: 'was ',
+        _anchorAfter: ' much',
+      },
+      {
+        id: 'P-too2',
+        entry_id: 1,
+        status: 'open',
+        original: 'too',
+        suggestion: 'to',
+        _anchorBefore: 'went ',
+        _anchorAfter: ' the',
+      },
+      {
+        id: 'P-teh',
+        entry_id: 1,
+        status: 'open',
+        original: 'teh',
+        suggestion: 'the',
+        _anchorBefore: 'for ',
+        _anchorAfter: ' receipt',
+      },
+    ],
+  }
+  state.entries[0].text = state.text
+  const pristine = state.text
+
+  // accept → reopen → accept → reopen → ignore for each, interleaved
+  const order = ['P-the', 'P-too2', 'P-teh', 'P-too1']
+  for (const id of order) {
+    state = simAccept(state, id)
+    assertExportMatchesUserIntent(state, `P-accept-${id}`)
+    assert(state.text.includes(protectedLine), `P-accept-${id}: certificate intact`)
+    assert(!state.text.includes('of it State'), `P-accept-${id}: no twin corruption`)
+    state = simReopen(state, id)
+    assertExportMatchesUserIntent(state, `P-reopen-${id}`)
+  }
+  assertEq(state.text, pristine, 'P: full reopen restores pristine')
+
+  // Accept the→it and teh→the; ignore both too→to
+  state = simAccept(state, 'P-the')
+  state = simAccept(state, 'P-teh')
+  state = simIgnore(state, 'P-too1')
+  state = simIgnore(state, 'P-too2')
+  assertExportMatchesUserIntent(state, 'P-mixed-final')
+  assert(state.text.includes("call it Consuelo"), 'P: the→it applied')
+  assert(state.text.includes('for the receipt'), 'P: teh→the applied')
+  assert(state.text.includes('was too much'), 'P: ignored too1 intact')
+  assert(state.text.includes('went too the'), 'P: ignored too2 intact')
+  assert(state.text.includes(protectedLine), 'P: certificate intact')
+  assert(!state.text.includes('of it State'), 'P: certificate not corrupted')
+
+  // Reopen the accepts; ignore them — back to pristine
+  state = simReopen(state, 'P-the')
+  state = simReopen(state, 'P-teh')
+  state = simIgnore(state, 'P-the')
+  state = simIgnore(state, 'P-teh')
+  assertEq(state.text, pristine, 'P: reopen+ignore all → pristine')
+  assertExportMatchesUserIntent(state, 'P-all-ignored')
 }
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)

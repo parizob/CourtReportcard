@@ -383,7 +383,7 @@ export default function DashboardUpload() {
         {/* Header */}
         <div className="shrink-0">
           <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
-          <p className="text-xs text-on-surface-variant mt-1">Name your case and upload your transcript to get started.</p>
+          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">Name your case and upload an English transcript (.txt or .rtf) to get started.</p>
         </div>
 
         {/* Retry block — same file contents failed twice already */}
@@ -465,7 +465,7 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-xl">upload_file</span>
                 </div>
                 <p className="text-sm font-semibold text-on-surface">Drop file here or click to browse</p>
-                <p className="text-xs text-on-surface-variant/60 mt-1">.txt or .rtf</p>
+                <p className="text-xs text-on-surface-variant/60 mt-1">.txt or .rtf · English only</p>
                 <input
                   type="file"
                   className="hidden"

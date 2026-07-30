@@ -14,6 +14,11 @@ const sections = [
   },
   {
     num: '3.',
+    title: 'Supported Transcripts',
+    body: `The Service is designed for English-language court transcripts. Proofreading for other languages is not supported. Results for non-English content may be incomplete or unreliable. By uploading a file, you represent that you are submitting an English-language transcript for review.`,
+  },
+  {
+    num: '4.',
     title: 'Disclaimer of Warranties',
     body: `To the fullest extent permitted by applicable law, the Service and all content, features, and functionality are provided without any warranty whatsoever. Court Reportcard does not warrant that:`,
     bullets: [
@@ -24,12 +29,12 @@ const sections = [
     ],
   },
   {
-    num: '4.',
+    num: '5.',
     title: 'Limitation of Liability',
     body: `To the maximum extent permitted by applicable law, Court Reportcard shall not be liable for any direct, indirect, incidental, special, consequential, exemplary, or punitive damages of any kind, including but not limited to loss of profits, revenue, data, goodwill, or business, arising out of or related to your use of or inability to use the Service, even if advised of the possibility of such damages. Our total aggregate liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed the greater of (a) the amounts you paid to Court Reportcard for the Service in the twelve (12) months preceding the claim, or (b) fifty dollars ($50.00). This limitation applies regardless of the legal theory under which the claim is brought.`,
   },
   {
-    num: '5.',
+    num: '6.',
     title: 'Indemnification',
     body: `You agree to defend, indemnify, and hold harmless Court Reportcard from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to:`,
     bullets: [
@@ -41,7 +46,7 @@ const sections = [
     ],
   },
   {
-    num: '6.',
+    num: '7.',
     title: 'Prohibited Materials (PHI, Sealed, and Protective Orders)',
     body: `The Service is currently not HIPAA-compliant. You are strictly prohibited from uploading, processing, or transmitting any documents that contain Protected Health Information (PHI) or any data regulated by the Health Insurance Portability and Accountability Act (HIPAA). You are also strictly prohibited from uploading, processing, or transmitting any transcript or document that is sealed, subject to a sealing order, or subject to a protective order.`,
     bullets: [
@@ -50,7 +55,7 @@ const sections = [
     ],
   },
   {
-    num: '7.',
+    num: '8.',
     title: 'Data Privacy, Processing, and Retention',
     body: `We take the confidentiality of your legal transcripts seriously.`,
     bullets: [
@@ -59,7 +64,7 @@ const sections = [
     ],
   },
   {
-    num: '8.',
+    num: '9.',
     title: 'Billing and Tokens',
     body: `The Service operates on a token system. One (1) token equals one (1) transcript page processed through the Service.`,
     bullets: [
@@ -71,22 +76,22 @@ const sections = [
     ],
   },
   {
-    num: '9.',
+    num: '10.',
     title: 'Account Security',
     body: `You are responsible for maintaining the confidentiality of your login credentials. Because the Service handles sensitive legal texts, you must notify us immediately at courtreportcard@gmail.com of any unauthorized use of your account. You agree not to share your account access with third parties.`,
   },
   {
-    num: '10.',
+    num: '11.',
     title: 'Termination',
     body: `We reserve the right to suspend or terminate your account at any time, with or without notice, for conduct that we believe violates these Terms or is harmful to other users, Court Reportcard, or third parties. Upon termination, your right to use the Service ceases immediately. Unused purchased tokens are not redeemable for cash upon termination.`,
   },
   {
-    num: '11.',
+    num: '12.',
     title: 'Dispute Resolution',
     body: `Before filing any formal legal claim, you agree to contact us at courtreportcard@gmail.com and give us thirty (30) days to attempt to resolve the dispute informally. Any claim not resolved informally shall be resolved through binding individual arbitration rather than in court, except that either party may bring an individual claim in small claims court if it qualifies. You waive any right to participate in a class action lawsuit or class-wide arbitration.`,
   },
   {
-    num: '12.',
+    num: '13.',
     title: 'Changes to These Terms',
     body: `We may modify these Terms at any time. Material changes will be communicated via email or through the Service. Your continued use of the Service after any modification constitutes your acceptance of the updated Terms. If you do not agree to the updated Terms, you must stop using the Service.`,
   },
@@ -109,7 +114,7 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: July 22, 2026
+            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: July 29, 2026
           </p>
         </div>
 
