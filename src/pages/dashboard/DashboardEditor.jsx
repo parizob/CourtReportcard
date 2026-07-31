@@ -1603,7 +1603,13 @@ export default function DashboardEditor() {
                 <div
                   key={ann.id}
                   id={`ann-card-${ann.id}`}
-                  className="relative p-4 rounded-lg border-l-4 border-error bg-error-container/30"
+                  role="group"
+                  onClick={(e) => {
+                    // Same as Resolved: click the card body to jump. Leave buttons alone.
+                    if (e.target.closest('button, input, textarea, select, a, label')) return
+                    jumpToAnnotation(ann)
+                  }}
+                  className="relative p-4 rounded-lg border-l-4 border-error bg-error-container/30 cursor-pointer"
                 >
                   <div className="absolute top-2 right-2">
                     <Tooltip text="Jump to in transcript" placement="left">
@@ -1643,22 +1649,35 @@ export default function DashboardEditor() {
         )}
 
         {openAnnotations.map((ann) => (
-          <div key={ann.id} id={`ann-card-${ann.id}`} className={`relative p-4 rounded-lg ${severityCardBorder(ann.severity)}`}>
-            <div className="absolute top-2 right-2 flex items-center gap-1">
-              <Tooltip text="Jump to in transcript" placement="left">
-                <button
-                  onClick={() => jumpToAnnotation(ann)}
-                  className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-xs">my_location</span>
-                </button>
-              </Tooltip>
+          <div
+            key={ann.id}
+            id={`ann-card-${ann.id}`}
+            role="group"
+            onClick={(e) => {
+              // Same as Resolved: click the card body to jump. Leave Accept / custom
+              // correction / Ignore (and the small icon buttons) alone.
+              if (e.target.closest('button, input, textarea, select, a, label')) return
+              jumpToAnnotation(ann)
+            }}
+            className={`group relative p-4 rounded-lg cursor-pointer ${severityCardBorder(ann.severity)}`}
+          >
+            <div className="absolute top-2 right-2 flex flex-col items-center gap-0.5">
               <Tooltip text="Ignore suggestion" placement="left">
                 <button
+                  type="button"
                   onClick={() => ignoreAnnotation(ann.id)}
                   className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-outline-variant/20 transition-colors text-xs leading-none"
                 >
                   &times;
+                </button>
+              </Tooltip>
+              <Tooltip text="Jump to in transcript" placement="left">
+                <button
+                  type="button"
+                  onClick={() => jumpToAnnotation(ann)}
+                  className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/30 group-hover:text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xs">my_location</span>
                 </button>
               </Tooltip>
             </div>
