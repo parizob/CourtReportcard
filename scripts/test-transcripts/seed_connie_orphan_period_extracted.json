@@ -1,0 +1,29 @@
+{
+  "title": "Connie orphan period seed",
+  "extracted_at": "2026-07-31T12:24:58.302Z",
+  "originalText": "\r\n                                                                          1\r\n\r\n\r\n\r\n               1                            IN THE CIRCUIT COURT OF THE FIFTH\r\n                                            JUDICIAL CIRCUIT, IN AND FOR\r\n               2                            LAKE COUNTY, FLORIDA\r\n\r\n               3                            CASE NO.: 26-CA-SEED\r\n\r\n               4\r\n                  CONNIE ORPHAN PERIOD SEED,\r\n               5\r\n                        Plaintiff,\r\n               6\r\n                  vs.\r\n               7\r\n\r\n               8  EXAMPLE UTILITY CO.,\r\n               9\r\n                       Defendant.\r\n              10   ____________________________________/\r\n\r\n              11       DEPOSITION OF KIMBER FONG\r\n\r\n              12          DATE TAKEN:    Tuesday, July 29, 2026\r\n\r\n\r\n                                                                          2\r\n\r\n\r\n\r\n               1                  MR. HALE:  Good morning.\r\n\r\n               2                  To try to establish time card fraud, PG&E\r\n\r\n               3     pointed to data gleaned from a software program called\r\n\r\n               4     RSIGuard.\r\n\r\n               5\r\n\r\n               6              RSIGuard is an ergonomic software application\r\n\r\n               7     designed to prevent and manage repetitive stress\r\n\r\n               8     injuries purported to track mouse clicks and key\r\n\r\n               9     strokes.\r\n\r\n              10              It doesn't track all time spent on a computer.\r\n\r\n              11                  That is all for this seed transcript.\r\n\r\n",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. HALE",
+      "text": "MR. HALE:  Good morning.\n\nTo try to establish time card fraud, PG&E\n\npointed to data gleaned from a software program called\n\nRSIGuard.\n\nRSIGuard is an ergonomic software application\n\ndesigned to prevent and manage repetitive stress\n\ninjuries purported to track mouse clicks and key\n\nstrokes.\n\nIt doesn't track all time spent on a computer.\n\nThat is all for this seed transcript."
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "critical",
+      "original": "key strokes",
+      "suggestion": "keystrokes",
+      "explanation": "'Keystrokes' is a single compound word. (Connie orphan-period seed — accept this to verify the fix.)",
+      "confidence": 1,
+      "status": "open",
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "clicks and ",
+      "_anchorAfter": ".\n\n             It"
+    }
+  ]
+}

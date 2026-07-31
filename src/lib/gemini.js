@@ -904,23 +904,30 @@ const _LINE_NUM_RE = /^(\s*\d{1,4}\s{2,})(.*)/s
 /**
  * Estimates the intended column width of a transcript by taking the 85th-percentile
  * length of numbered content lines (most lines sit at or below the column limit).
+ * Measure on the pre-accept text so a just-stacked long line doesn't raise the bar.
  */
 export function _detectColumnWidth(text) {
-  const lengths = text.split('\n')
-    .filter(l => _LINE_NUM_RE.test(l) && l.trim().length > 10)
-    .map(l => l.length)
-  if (!lengths.length) return 66
+  const lengths = text.split(/\r?\n/)
+    .filter((l) => _LINE_NUM_RE.test(l) && l.trim().length > 10)
+    .map((l) => l.length)
+  if (!lengths.length) return null
   lengths.sort((a, b) => a - b)
-  return lengths[Math.floor(lengths.length * 0.85)] || 66
+  return lengths[Math.floor(lengths.length * 0.85)] || null
 }
 
 /**
- * After a correction widens a line beyond `colWidth`, moves the overflow words
- * to the beginning of the next numbered line (before its existing first word).
- * Iterates until no numbered line exceeds the column width.
+ * After a correction widens a line beyond `colWidth`, moves overflow words down
+ * instead of leaving them stacked past the margin:
+ *   • next numbered line empty / punctuation-only → place overflow there
+ *     (keeps "keystrokes." together; doesn't leave "." alone)
+ *   • next numbered line has real content → insert a continuation line indented
+ *     to the content column (no new line number) so we don't glue onto the next
+ *     sentence
  */
 export function _reflowLines(text, colWidth) {
-  const lines = text.split('\n')
+  if (!text || colWidth == null || colWidth <= 0) return text
+  const nl = text.includes('\r\n') ? '\r\n' : '\n'
+  const lines = text.split(/\r?\n/)
   let changed = false
 
   for (let i = 0; i < lines.length; i++) {
@@ -945,6 +952,7 @@ export function _reflowLines(text, colWidth) {
 
     const overflow = words.slice(splitIdx)
     if (!overflow.length) continue
+    const overflowText = overflow.join(' ')
 
     // Find next numbered line
     let nextIdx = i + 1
@@ -955,16 +963,29 @@ export function _reflowLines(text, colWidth) {
     if (nextIdx < lines.length) {
       const nm = _LINE_NUM_RE.exec(lines[nextIdx])
       if (nm) {
-        // Prepend overflow before the first word of the next numbered line
         const nextContent = nm[2].trimStart()
-        lines[nextIdx] = nm[1] + overflow.join(' ') + (nextContent ? ' ' + nextContent : '')
+        if (!nextContent || /^[.,!?;:]+$/.test(nextContent)) {
+          // Empty or punct-only line — land overflow here (attach lone punct).
+          if (/^[.,!?;:]+$/.test(nextContent) && !/[.,!?;:]$/.test(overflowText)) {
+            lines[nextIdx] = nm[1] + overflowText + nextContent
+          } else {
+            lines[nextIdx] = nm[1] + overflowText
+          }
+        } else {
+          // Real content below — don't glue sentences; insert a continuation
+          // line padded to the content column (no line number).
+          const contPad = ' '.repeat(prefix.length)
+          lines.splice(nextIdx, 0, contPad + overflowText)
+        }
       }
+    } else {
+      const contPad = ' '.repeat(prefix.length)
+      lines.push(contPad + overflowText)
     }
     changed = true
-    // Don't advance i — the next line may now also overflow; loop will catch it
   }
 
-  return changed ? lines.join('\n') : text
+  return changed ? lines.join(nl) : text
 }
 
 /**
@@ -1048,11 +1069,21 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
 
     // When word counts differ across a line boundary, a flat string replace would
     // destroy the transcript line structure (line numbers and newlines vanish).
-    // Instead: put all replacement words on the first content word's position and
-    // blank the remaining matched content words, preserving separators/line numbers.
+    // Preserve separators/line numbers and blank the unused content-word slots.
+    //
+    // Always place the joined suggestion on the LAST content word (continuation
+    // line). Putting it on the first line:
+    //   • orphans trailing punctuation after the blanked continuation word
+    //     ("strokes." → a line with only ".") — Connie Parchman / ESC v PGE
+    //   • stacks a longer replacement past the margin on the opening line
+    //     ("key strokes" → "bubbly tubbly wubbly" glued onto line 8)
+    // Landing on the continuation line keeps "…word." together and avoids
+    // blowing the prior line's length.
     if (matchedRegion.includes('\n') && contentIndices.length > 0) {
-      tokens[contentIndices[0]] = { type: 'word', value: suggWords.join(' ') }
-      for (let i = 1; i < contentIndices.length; i++) {
+      const joined = suggWords.join(' ')
+      const last = contentIndices[contentIndices.length - 1]
+      tokens[last] = { type: 'word', value: joined }
+      for (let i = 0; i < contentIndices.length - 1; i++) {
         tokens[contentIndices[i]] = { type: 'word', value: '' }
       }
       return tokens.map((t) => t.value).join('')
@@ -1070,6 +1101,11 @@ export function applyCorrectionDetailed(text, original, suggestion, options = {}
     if (replacement === '' && suggestion === '') {
       ;({ from, to } = expandDeletionRange(text, from, to))
     }
+    // Same-line over-margin lengthening: leave the long line as-is. Inserting
+    // unnumbered continuations isn't court-correct, and renumbering 1–25 across
+    // later pages (plus shifting every accept offset) is too risky. Cross-line
+    // word-count mismatches still land on the last matched numbered line via
+    // buildReplacement (Connie orphan-period fix).
     return {
       text: text.substring(0, from) + replacement + text.substring(to),
       start: from,
@@ -1304,21 +1340,40 @@ export function isSuggestionAlreadyApplied(text, suggestionHit, originalHit, ori
  * True when splicing `restoreText` over `spanText` would collapse transcript
  * line structure (legacy reopen used flat ann.original over a multi-line span).
  */
+/**
+ * Margin-wrap replacements look like "\\n + spaces + words" (continuation
+ * indent, no line-number gutter). Flat matchedText is the correct undo for
+ * those — unlike a true cross-line match, where undo bytes must keep breaks.
+ */
+export function isMarginWrapReplacement(spanText) {
+  if (!spanText || !/^\r?\n[ \t]+\S/.test(spanText)) return false
+  // Line-number gutter on a later line ⇒ structured cross-line apply, not wrap.
+  return !/^\r?\n[\s\S]*?\d{1,4}\s{2,}\S/.test(spanText)
+}
+
 export function wouldFlattenTranscriptStructure(spanText, restoreText) {
   if (!spanText || restoreText == null) return false
-  return /[\r\n]/.test(spanText) && !/[\r\n]/.test(restoreText)
+  if (!/[\r\n]/.test(spanText) || /[\r\n]/.test(restoreText)) return false
+  // Flat undo of a margin-wrap continuation is correct and required for reopen.
+  if (isMarginWrapReplacement(spanText)) return false
+  return true
 }
 
 /**
  * True when this accept was cross-line (stored replacement/matched has a
  * break) but we lack structured undo bytes — reopen must not use flat original.
+ * Margin-wrap accepts (replacement introduces a continuation line; matched is
+ * still same-line) are OK — flat matchedText is the right undo.
  */
 export function missingCrossLineReopenBytes(ann) {
   if (!ann) return false
   const replacement = ann._appliedOriginalReplacement
   const matched = ann._appliedOriginalMatchedText
   if (replacement != null && /[\r\n]/.test(replacement)) {
-    return matched == null || !/[\r\n]/.test(matched)
+    if (matched == null || matched === '') return true
+    if (/[\r\n]/.test(matched)) return false
+    if (isMarginWrapReplacement(replacement)) return false
+    return true
   }
   return false
 }

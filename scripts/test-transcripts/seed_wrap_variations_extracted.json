@@ -1,0 +1,59 @@
+{
+  "title": "Wrap variations seed v2",
+  "extracted_at": "2026-07-31T12:41:18.578Z",
+  "originalText": "\r\n                                                                          1\r\n\r\n\r\n\r\n               1                            IN THE CIRCUIT COURT OF THE FIFTH\r\n                                            JUDICIAL CIRCUIT, IN AND FOR\r\n               2                            LAKE COUNTY, FLORIDA\r\n\r\n               3                            CASE NO.: 26-CA-WRAP2\r\n\r\n               4       DEPOSITION OF WRAP VARIATIONS SEED V2\r\n\r\n               5          DATE TAKEN:    Friday, July 31, 2026\r\n\r\n\r\n                                                                          2\r\n\r\n\r\n\r\n               1                  MR. HALE:  Variation A -- Connie cross-line.\r\n\r\n               2\r\n\r\n               3              RSIGuard is an ergonomic software application\r\n\r\n               4     designed to prevent and manage repetitive stress\r\n\r\n               5     injuries purported to track mouse clicks and key\r\n\r\n               6     strokes.\r\n\r\n               7              It doesn't track all time spent on a computer.\r\n\r\n               8\r\n\r\n               9                  Q.    Variation B -- same-line over margin.\r\n\r\n              10     Injuries purported to track mouse clicks and widgetry.\r\n\r\n              11     A.    Yes.  That is correct.\r\n\r\n              12\r\n\r\n              13                  Q.    Variation C -- wrap must not hit the A.\r\n\r\n              14     Did the software purport to track mouse clicks and gadgetry?\r\n\r\n              15     A.    No.  Not all computer time.\r\n\r\n              16\r\n\r\n              17                  That is all for this wrap variations seed.\r\n\r\n",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. HALE",
+      "text": "MR. HALE:  Variation A -- Connie cross-line.\n\nRSIGuard is an ergonomic software application\n\ndesigned to prevent and manage repetitive stress\n\ninjuries purported to track mouse clicks and key\n\nstrokes.\n\nIt doesn't track all time spent on a computer.\n\nQ.    Variation B -- same-line over margin.\n\nInjuries purported to track mouse clicks and widgetry.\n\nA.    Yes.  That is correct.\n\nQ.    Variation C -- wrap must not hit the A.\n\nDid the software purport to track mouse clicks and gadgetry?\n\nA.    No.  Not all computer time.\n\nThat is all for this wrap variations seed."
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "critical",
+      "original": "key strokes",
+      "suggestion": "keystrokes",
+      "explanation": "VARIATION A (Connie): Accept. Line 6 should become \"keystrokes.\" — not a lone period. Unique phrase — will not collide with B/C.",
+      "confidence": 1,
+      "status": "open",
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "clicks and ",
+      "_anchorAfter": ".\n\n             It"
+    },
+    {
+      "id": 2,
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "warning",
+      "original": "widgetry",
+      "suggestion": "bubbly tubbly wubbly widgetry extra words",
+      "explanation": "VARIATION B: Accept. Should wrap under line 10 (continuation indent), not stack past the margin, and not glue onto A on line 11.",
+      "confidence": 1,
+      "status": "open",
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "clicks and ",
+      "_anchorAfter": ".\n\n             A."
+    },
+    {
+      "id": 3,
+      "entry_id": 1,
+      "type": "spelling",
+      "severity": "warning",
+      "original": "gadgetry",
+      "suggestion": "bubbly tubbly wubbly gadgetry and more words",
+      "explanation": "VARIATION C (Q→A): Accept on the Q. Overflow stays under the Q; line 15 must remain \"A. No.\"",
+      "confidence": 1,
+      "status": "open",
+      "start": 0,
+      "end": 0,
+      "_anchorBefore": "clicks and ",
+      "_anchorAfter": "?\n\n             A."
+    }
+  ]
+}

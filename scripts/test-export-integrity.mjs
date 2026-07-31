@@ -42,6 +42,11 @@ import {
   REPEATED_PARAGRAPH_TYPE,
   REPEATED_PARAGRAPH_SUGGESTION,
 } from '../src/lib/gemini.js'
+import { readFileSync } from 'fs'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 let passed = 0
 let failed = 0
@@ -1383,6 +1388,78 @@ console.log('\n=== Export integrity ===\n')
     detail.text.substring(detail.end)
   assert(ruined !== before, 'flat original would ruin formatting')
   assert(!ruined.includes('\n               16'), 'flat restore drops line 16 indent')
+}
+
+// --- 20b. Connie Parchman: compound join must not orphan trailing punctuation ---
+{
+  console.log('\n20b. Cross-line compound join keeps period with the word (Connie)')
+  // Seed: scripts/test-transcripts/seed_connie_orphan_period.txt
+  // (ESC v PGE shape — "key" / "strokes." split across lines 8–9).
+  const seedPath = join(__dirname, 'test-transcripts/seed_connie_orphan_period.txt')
+  const seed = readFileSync(seedPath, 'utf8')
+  assert(seed.includes('key\r\n'), 'seed has CRLF split after key')
+  assert(/9\s+strokes\./.test(seed), 'seed has strokes. on line 9')
+  const detail = applyCorrectionDetailed(seed, 'key strokes', 'keystrokes')
+  assert(detail.start !== -1, 'Connie compound apply found match')
+  assert(detail.text.includes('keystrokes.'), 'period stays attached to keystrokes')
+  assert(
+    !/(?:^|\n)\s*\d+\s+\.\s*(?:\r?\n|$)/.test(detail.text),
+    'no orphan period-only gutter line'
+  )
+  assert(
+    /9\s+keystrokes\./.test(detail.text),
+    'keystrokes. lands on the continuation line with the period'
+  )
+  // Same bug without explicit gutter digits (entry-shaped whitespace).
+  const entryBefore =
+    'injuries purported to track mouse clicks and key\n\n' +
+    '             strokes.\n\n' +
+    '             It doesn\'t track all time spent on a computer.'
+  const entryDetail = applyCorrectionDetailed(entryBefore, 'key strokes', 'keystrokes')
+  assert(entryDetail.text.includes('keystrokes.'), 'entry-shaped: period stays with word')
+  assert(
+    !/\n\s+\.\s*(?:\n|$)/.test(entryDetail.text),
+    'entry-shaped: no orphan period line'
+  )
+
+  // More words than matched: must NOT stack on line 8 and orphan "." on line 9.
+  const expanded = applyCorrectionDetailed(seed, 'key strokes', 'bubbly tubbly wubbly')
+  assert(expanded.start !== -1, 'expanded compound apply found match')
+  assert(
+    expanded.text.includes('bubbly tubbly wubbly.'),
+    'expanded replacement keeps period attached'
+  )
+  assert(
+    !/(?:^|\n)\s*\d+\s+\.\s*(?:\r?\n|$)/.test(expanded.text),
+    'expanded: no orphan period-only gutter line'
+  )
+  assert(
+    /9\s+bubbly tubbly wubbly\./.test(expanded.text),
+    'expanded text lands on continuation line, not stacked on line 8'
+  )
+  assert(
+    !/clicks and bubbly tubbly wubbly/.test(expanded.text),
+    'expanded text does not stack onto the prior line'
+  )
+
+  // Same-line over-margin: we intentionally do NOT insert continuation lines
+  // (unnumbered lines aren't court-correct; renumbering is too risky). The
+  // suggestion still applies; the line may run long for CAT to clean up.
+  const sameLineSeed = seed.replace(
+    /key\r\n\r\n\s+9\s+strokes\./,
+    'keystrokes.'
+  )
+  const longPhrase = 'bubbly tubbly wubbly keystrokes extra words'
+  const sameLine = applyCorrectionDetailed(sameLineSeed, 'keystrokes', longPhrase)
+  assert(sameLine.start !== -1, 'same-line expand found match')
+  assert(
+    sameLine.text.includes(`clicks and ${longPhrase}`),
+    'same-line expand stays on the numbered line (no unnumbered wrap)'
+  )
+  assert(
+    !/^\s+bubbly tubbly wubbly/m.test(sameLine.text.replace(/clicks and bubbly[^\n]*/, '')),
+    'same-line expand does not insert an unnumbered continuation line'
+  )
 }
 
 // --- 21. Legacy reopen guard (missing structured undo) ---

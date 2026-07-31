@@ -827,8 +827,10 @@ function simAccept(state, annId) {
   if (detail.start === -1) throw new Error(`simAccept: apply failed ${annId}`)
 
   const nextText = detail.text
-  const replacement = nextText.substring(detail.start, detail.start + ann.suggestion.length)
-  const delta = ann.suggestion.length - detail.matchedText.length
+  // Use the full applied span (may be a margin-wrap with leading newline), not
+  // suggestion.length — wrap replacements are longer than the bare suggestion.
+  const replacement = nextText.substring(detail.start, detail.end)
+  const delta = replacement.length - detail.matchedText.length
   let nextAnns = state.annotations.map((a) => {
     if (a.id !== annId) return a
     return {
@@ -836,7 +838,7 @@ function simAccept(state, annId) {
       status: 'accepted',
       _originalSuggestion: a._originalSuggestion ?? a.suggestion,
       _appliedOriginalStart: detail.start,
-      _appliedOriginalEnd: detail.start + ann.suggestion.length,
+      _appliedOriginalEnd: detail.end,
       _appliedOriginalMatchedText: detail.matchedText,
       _appliedOriginalReplacement: replacement,
       _appliedEntryId: a.entry_id,
