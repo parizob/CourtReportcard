@@ -400,3 +400,19 @@ inside long colloquy blocks, and trickier `[sic]` vs. correction judgment calls.
   serious than a miss.
 - **Missing-word inference:** the model can hallucinate a missing "not". Watch
   the false-positive trap in `transcript_01` ("Did you recall whether...").
+
+---
+
+## Harness: 2026-07-30 — Subject-verb / existential-there (`transcript_09_sv_agreement`)
+
+**Motivation:** Prod spot-check after Lisa Reid EUO (`there was so many`
+unflagged). Scan of 40 recent Prod cases also found unflagged
+`there was a lot of cars` / `there was a lot of keys`. Correct legal
+subjunctive `if it were…` must stay unflagged.
+
+**Action:** Added `transcript_09_sv_agreement.txt` + manifest
+(3 seeds: `there was so many`, `there was a lot of cars`, `They was`;
+FP traps: `if it were…`, correct `There were so many…`). **No prompt
+change** — harness-only until recall on this file is measured.
+
+**Status:** harness added 2026-07-30. Prompt change: not proposed yet.

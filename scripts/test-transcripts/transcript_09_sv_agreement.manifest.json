@@ -1,0 +1,44 @@
+{
+  "transcript": "transcript_09_sv_agreement.txt",
+  "description": "Subject-verb / existential-there regression. Seeded from Prod misses (Lisa Reid 'there was so many'; CONNORS/Craft 'there was a lot of' + plural). Includes they was. False-positive traps: correct legal subjunctive 'if it were' and correct 'there were so many'.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "there was so many",
+      "type": "grammar",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Prod miss (Lisa Reid EUO). Spoken witness error: existential there + plural. Prefer [sic]; flagging at all is the pass. Correction to 'there were so many' is also acceptable judgment."
+    },
+    {
+      "id": 2,
+      "match": "there was a lot of cars",
+      "type": "grammar",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Prod-shaped miss (CONNORS / State v. Craft). 'there was a lot of' + plural noun. Prefer [sic]; flagging at all is the pass."
+    },
+    {
+      "id": 3,
+      "match": "They was",
+      "type": "grammar",
+      "expected_severity": "warning",
+      "expected_suggestion_contains": "[sic]",
+      "note": "Clear spoken subject-verb disagreement. Prefer [sic]; 'They were' also fine if model treats as reporter error."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "if it were\n               25   to be used at hearing",
+      "note": "CORRECT legal/subjunctive English. Must NOT be flagged as subject-verb disagreement."
+    },
+    {
+      "text": "if it were made as part of an insurance",
+      "note": "CORRECT subjunctive. Must NOT be flagged."
+    },
+    {
+      "text": "There were so many workers available by",
+      "note": "CORRECT agreement. Must NOT be flagged."
+    }
+  ]
+}
