@@ -64,7 +64,7 @@ YOUR PROOFREADING MANDATE:
 2. WHEN IN DOUBT, FLAG IT. A false positive the reviewer dismisses is infinitely better than a missed error that reaches the judge. If a word seems off, annotate it.
 3. UNDERSTAND THE MEANING. Read for what the speaker is actually trying to say. Then ask: does each word match that meaning precisely?
 4. CHECK ACROSS SENTENCE BOUNDARIES. Missing words and run-on errors often span two lines.
-5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance.
+5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance. Finding one error in a sentence or on a line does not finish that sentence — keep reading for additional independent errors (spelling, articles a/an, homophones, grammar, punctuation, etc.) and emit a separate annotation for each.
 
 ERROR TYPES — flag every occurrence:
 

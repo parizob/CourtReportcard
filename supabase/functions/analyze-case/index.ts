@@ -15,6 +15,19 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum } from './prompts.ts'
+import {
+  PROOFREAD_PARALLEL_CONCURRENCY,
+  PROOFREAD_CLAIM_STALE_MS,
+  PROOFREAD_WATCHDOG_GRACE_MS,
+  proofreadBatchJsonName,
+  proofreadBatchClaimName,
+  proofreadMergeLockName,
+  proofreadWatchdogLockName,
+  isProofreadBatchComplete,
+  isProofreadClaimStale,
+  planProofreadDispatch,
+  needsProofreadZombieWatchdog,
+} from './proofreadParallel.ts'
 
 // Measured directly (scripts/calibrate-extraction-model.mjs) against production
 // EXTRACTION_ONLY_PROMPT: ~51% faster and ~48% cheaper per page than
@@ -25,13 +38,17 @@ const MODEL_PROOFREAD = 'gemini-2.5-pro'  // Full quality, uncapped thinking —
 const SITE_URL = 'https://courtreportcard.com'
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
 
-// Paid-plan Edge Functions are hard-killed at 400s wall-clock (Free is 150s).
-// Abort Gemini calls a bit before that so the failure path (refund + email)
-// always gets to run instead of the worker being killed mid-analysis and
-// leaving the case stuck. Raised from 135s on 2026-07-24 after Pro upgrade —
-// medium hearing transcripts (~140–170 entries, uncapped Pro) were measured
-// locally at ~146s and were returning empty `[]` or timing out under 135s.
-const ANALYSIS_DEADLINE_MS = 370000
+// Edge Functions are hard-killed at wall-clock (Free ~150s, Paid ~400s).
+// Abort Gemini a bit before that so catch/refund/claim-release can run —
+// a hard kill leaves orphan proofread `.claim` files and hangs the wave.
+// Override per project via secret ANALYSIS_DEADLINE_MS (Dev free → 135000;
+// Prod paid → 370000). Default assumes paid.
+const ANALYSIS_DEADLINE_MS = (() => {
+  const raw = Number(Deno.env.get('ANALYSIS_DEADLINE_MS'))
+  return Number.isFinite(raw) && raw > 10_000 ? raw : 370_000
+})()
+const PROOFREAD_CLAIM_REFRESH_MS = 45_000
+const PROOFREAD_WATCHDOG_TICK_MS = 45_000
 
 // ── Chunking (large-transcript support) ──
 // Measured directly (see scripts/calibrate-chunk-size.mjs against the real
@@ -54,6 +71,9 @@ const CHUNK_THRESHOLD_PAGES = 20
 // (370s deadline) — bigger batches are not worth reintroducing that variance;
 // smaller ones would multiply Gemini calls without fixing the real limit.
 const ENTRIES_PER_PROOFREAD_BATCH = 250
+// Proofread batches for one file run in capped waves (see proofreadParallel.ts)
+// instead of a strict serial self-fetch chain — same Gemini call count, lower
+// wall-clock on multi-batch jobs. Extract chunks stay serial (v1).
 // 1 initial attempt + 3 retries per chunk/batch before falling through to the
 // full refund+delete path — see handleFailure. Helps transient failures
 // (timeout, momentary 5xx). Empty proofread results retry here too, then
@@ -1537,6 +1557,391 @@ function safeJsonBaseName(fileName: string): string {
 }
 
 // Fires the next unit of work (next chunk, next batch, next file, or the
+// ── Proofread parallelization (capped waves) ──
+// Each batch claims a `.claim` marker before calling Gemini, writes the
+// result `.json` when done, then refills the wave up to
+// PROOFREAD_PARALLEL_CONCURRENCY and/or race-claims the merge lock.
+
+async function listStorageNames(admin: any, dir: string): Promise<string[]> {
+  const { data, error } = await admin.storage.from('case-files').list(dir, { limit: 1000 })
+  if (error) throw new Error(`Failed to list ${dir}: ${error.message}`)
+  return (data || []).map((f: { name: string }) => f.name)
+}
+
+async function scanProofreadInventory(
+  admin: any,
+  extractingDir: string,
+  jsonBaseName: string,
+  numBatches: number,
+): Promise<{ complete: Set<number>; inFlight: Set<number> }> {
+  const names = new Set(await listStorageNames(admin, extractingDir))
+  const complete = new Set<number>()
+  const inFlight = new Set<number>()
+  for (let i = 0; i < numBatches; i++) {
+    const jsonName = proofreadBatchJsonName(jsonBaseName, i)
+    const claimName = proofreadBatchClaimName(jsonBaseName, i)
+    if (names.has(jsonName)) {
+      complete.add(i)
+      continue
+    }
+    if (!names.has(claimName)) continue
+    const claimPath = `${extractingDir}/${claimName}`
+    const { data: blob } = await admin.storage.from('case-files').download(claimPath)
+    let claimedAt: string | null = null
+    if (blob) {
+      try {
+        const parsed = JSON.parse(await blob.text())
+        claimedAt = parsed?.claimed_at ?? null
+      } catch {
+        claimedAt = null
+      }
+    }
+    if (isProofreadClaimStale(claimedAt)) {
+      await admin.storage.from('case-files').remove([claimPath])
+    } else {
+      inFlight.add(i)
+    }
+  }
+  return { complete, inFlight }
+}
+
+type ClaimResult = 'already_done' | 'busy' | 'claimed'
+
+async function tryClaimProofreadBatch(
+  admin: any,
+  extractingDir: string,
+  jsonBaseName: string,
+  batchIndex: number,
+  attempt: number,
+): Promise<ClaimResult> {
+  const jsonPath = `${extractingDir}/${proofreadBatchJsonName(jsonBaseName, batchIndex)}`
+  const claimPath = `${extractingDir}/${proofreadBatchClaimName(jsonBaseName, batchIndex)}`
+
+  const { data: jsonBlob } = await admin.storage.from('case-files').download(jsonPath)
+  if (jsonBlob) {
+    try {
+      const parsed = JSON.parse(await jsonBlob.text())
+      if (isProofreadBatchComplete(parsed)) return 'already_done'
+    } catch {
+      // Corrupt partial — treat as missing and reclaim below.
+    }
+  }
+
+  const claimBody = new TextEncoder().encode(JSON.stringify({
+    status: 'in_progress',
+    claimed_at: new Date().toISOString(),
+    attempt,
+  }))
+
+  const { data: claimBlob } = await admin.storage.from('case-files').download(claimPath)
+  if (claimBlob) {
+    let claimedAt: string | null = null
+    try {
+      claimedAt = JSON.parse(await claimBlob.text())?.claimed_at ?? null
+    } catch {
+      claimedAt = null
+    }
+    if (!isProofreadClaimStale(claimedAt) && attempt === 0) return 'busy'
+    const { error } = await admin.storage.from('case-files').upload(claimPath, claimBody, {
+      upsert: true,
+      contentType: 'application/json',
+    })
+    if (error) throw new Error(`Failed to refresh claim for batch ${batchIndex}: ${error.message}`)
+    return 'claimed'
+  }
+
+  const { error } = await admin.storage.from('case-files').upload(claimPath, claimBody, {
+    upsert: false,
+    contentType: 'application/json',
+  })
+  if (error) return 'busy'
+  return 'claimed'
+}
+
+async function releaseProofreadBatchClaim(
+  admin: any,
+  extractingDir: string,
+  jsonBaseName: string,
+  batchIndex: number,
+): Promise<void> {
+  const claimPath = `${extractingDir}/${proofreadBatchClaimName(jsonBaseName, batchIndex)}`
+  await admin.storage.from('case-files').remove([claimPath])
+}
+
+/** Refresh claimed_at so a live (slow) Gemini call is not stolen as stale. */
+async function refreshProofreadBatchClaim(
+  admin: any,
+  extractingDir: string,
+  jsonBaseName: string,
+  batchIndex: number,
+  attempt: number,
+): Promise<void> {
+  const claimPath = `${extractingDir}/${proofreadBatchClaimName(jsonBaseName, batchIndex)}`
+  const claimBody = new TextEncoder().encode(JSON.stringify({
+    status: 'in_progress',
+    claimed_at: new Date().toISOString(),
+    attempt,
+  }))
+  const { error } = await admin.storage.from('case-files').upload(claimPath, claimBody, {
+    upsert: true,
+    contentType: 'application/json',
+  })
+  if (error) console.warn('proofread claim refresh failed', batchIndex, error.message)
+}
+
+/**
+ * When siblings finish and one batch is still claimed, nobody is left to call
+ * refill after that claim goes stale (or after a hard kill). Schedule a
+ * tick-chain watchdog (short sleeps + self-fetch) so recovery does not wait
+ * on the 15‑minute stuck sweeper — and so Free-tier 150s kills cannot leave
+ * a single long sleep unfinished.
+ */
+async function scheduleProofreadZombieWatchdog(opts: {
+  admin: any
+  SUPABASE_URL: string
+  SERVICE_ROLE_KEY: string
+  caseId: string
+  fileIndex: number
+  jsonBaseName: string
+  extractingDir: string
+  numBatches: number
+  complete: Set<number>
+  inFlight: Set<number>
+}): Promise<void> {
+  const {
+    admin, SUPABASE_URL, SERVICE_ROLE_KEY, caseId, fileIndex,
+    jsonBaseName, extractingDir, numBatches, complete, inFlight,
+  } = opts
+  if (!needsProofreadZombieWatchdog({ numBatches, completeIndices: complete, inFlightIndices: inFlight })) {
+    return
+  }
+
+  const lockPath = `${extractingDir}/${proofreadWatchdogLockName(jsonBaseName)}`
+  const lockBytes = new TextEncoder().encode(JSON.stringify({
+    claimed_at: new Date().toISOString(),
+    file_index: fileIndex,
+  }))
+  const { error: lockErr } = await admin.storage.from('case-files').upload(lockPath, lockBytes, {
+    upsert: false,
+    contentType: 'application/json',
+  })
+  if (lockErr) return // another sibling already armed the watchdog
+
+  const totalTicks = Math.max(
+    1,
+    Math.ceil((PROOFREAD_CLAIM_STALE_MS + PROOFREAD_WATCHDOG_GRACE_MS) / PROOFREAD_WATCHDOG_TICK_MS),
+  )
+  console.warn(
+    `proofread zombie watchdog armed case=${caseId} file=${fileIndex} ` +
+    `complete=${complete.size}/${numBatches} inFlight=${[...inFlight].join(',') || '-'} ticks=${totalTicks}`,
+  )
+  try {
+    await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      case_id: caseId,
+      pass: 'proofread_watchdog',
+      file_index: fileIndex,
+      batch_index: 0,
+      attempt: 0,
+      watchdog_tick: 0,
+      watchdog_ticks: totalTicks,
+    })
+  } catch (err) {
+    console.warn('failed to dispatch proofread watchdog', err)
+    await admin.storage.from('case-files').remove([lockPath])
+  }
+}
+
+async function dispatchProofreadBatches(
+  SUPABASE_URL: string,
+  SERVICE_ROLE_KEY: string,
+  caseId: string,
+  fileIndex: number,
+  batchIndices: number[],
+): Promise<void> {
+  if (batchIndices.length === 0) return
+  await Promise.all(batchIndices.map((i) =>
+    selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      case_id: caseId,
+      pass: 'proofread',
+      file_index: fileIndex,
+      batch_index: i,
+      attempt: 0,
+    })
+  ))
+}
+
+/**
+ * After a batch settles (done / busy / skipped): refill the wave and/or
+ * race-claim merge when every batch JSON is present.
+ * Returns 'merged' | 'dispatched' | 'waiting' | 'busy_merge'.
+ */
+async function refillProofreadWaveOrMerge(opts: {
+  admin: any
+  SUPABASE_URL: string
+  SERVICE_ROLE_KEY: string
+  caseId: string
+  caseRow: any
+  fileIndex: number
+  jsonBaseName: string
+  extractingDir: string
+  extractedDir: string
+  entriesPath: string
+  finalPath: string
+  finalName: string
+  title: string
+  entries: any[]
+  originalText: string | undefined
+  numBatches: number
+  attempt: number
+}): Promise<'merged' | 'dispatched' | 'waiting' | 'busy_merge'> {
+  const {
+    admin, SUPABASE_URL, SERVICE_ROLE_KEY, caseId, caseRow, fileIndex,
+    jsonBaseName, extractingDir, extractedDir, entriesPath, finalPath, finalName,
+    title, entries, originalText, numBatches, attempt,
+  } = opts
+
+  const { data: existingFinal } = await admin.storage.from('case-files').list(extractedDir, { search: finalName })
+  if ((existingFinal?.length ?? 0) > 0) {
+    await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0,
+    })
+    return 'merged'
+  }
+
+  const { complete, inFlight } = await scanProofreadInventory(admin, extractingDir, jsonBaseName, numBatches)
+
+  if (complete.size >= numBatches) {
+    const lockPath = `${extractingDir}/${proofreadMergeLockName(jsonBaseName)}`
+    const lockBytes = new TextEncoder().encode(JSON.stringify({
+      claimed_at: new Date().toISOString(),
+      file_index: fileIndex,
+    }))
+    const { data: existingLock } = await admin.storage.from('case-files').download(lockPath)
+    if (existingLock) {
+      let lockClaimedAt: string | null = null
+      try {
+        lockClaimedAt = JSON.parse(await existingLock.text())?.claimed_at ?? null
+      } catch {
+        lockClaimedAt = null
+      }
+      if (!isProofreadClaimStale(lockClaimedAt)) {
+        // Another worker is merging (or just finished — final check above).
+        return 'busy_merge'
+      }
+      // Stale lock — steal.
+      const { error: stealErr } = await admin.storage.from('case-files').upload(lockPath, lockBytes, {
+        upsert: true, contentType: 'application/json',
+      })
+      if (stealErr) throw new Error(`Failed to steal merge lock for ${jsonBaseName}: ${stealErr.message}`)
+    } else {
+      const { error: lockErr } = await admin.storage.from('case-files').upload(lockPath, lockBytes, {
+        upsert: false, contentType: 'application/json',
+      })
+      if (lockErr) return 'busy_merge'
+    }
+
+    try {
+      let allAnnotations: any[] = []
+      let droppedAnnotationsCount = 0
+      const batchPaths: string[] = []
+      const claimPaths: string[] = []
+      for (let i = 0; i < numBatches; i++) {
+        const p = `${extractingDir}/${proofreadBatchJsonName(jsonBaseName, i)}`
+        batchPaths.push(p)
+        claimPaths.push(`${extractingDir}/${proofreadBatchClaimName(jsonBaseName, i)}`)
+        const { data: blob, error } = await admin.storage.from('case-files').download(p)
+        if (error || !blob) throw new Error(`Missing annotation batch ${i} for ${jsonBaseName} during merge`)
+        const batchResult = JSON.parse(await blob.text())
+        if (!isProofreadBatchComplete(batchResult)) {
+          throw new Error(`Annotation batch ${i} for ${jsonBaseName} is not complete during merge`)
+        }
+        allAnnotations.push(...(batchResult.annotations || []))
+        droppedAnnotationsCount += batchResult.droppedCount || 0
+      }
+
+      const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+      const seen = new Set<string>()
+      allAnnotations = allAnnotations.filter((a) => {
+        const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      allAnnotations.forEach((a, i) => { a.id = i + 1 })
+      allAnnotations = mergeStructuralReviewAnnotations(originalText, entries, allAnnotations)
+
+      const finalJson: any = {
+        title: title || '',
+        extracted_at: new Date().toISOString(),
+        entries,
+        annotations: allAnnotations,
+        dropped_annotations_count: droppedAnnotationsCount,
+      }
+      if (originalText !== undefined) finalJson.originalText = originalText
+
+      const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
+      await admin.storage.from('case-files').upload(finalPath, finalBytes, { upsert: true, contentType: 'application/json' })
+      await admin.from('case_files').insert({
+        case_id: caseId,
+        file_type: 'extracted',
+        file_name: finalName,
+        file_size: finalBytes.byteLength,
+        storage_path: finalPath,
+        mime_type: 'application/json',
+      })
+      await admin.storage.from('case-files').remove([entriesPath, ...batchPaths, ...claimPaths, lockPath])
+
+      await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+        case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0,
+      })
+      return 'merged'
+    } catch (err) {
+      const stage = `proofread merge file ${fileIndex} attempt ${attempt}`
+      if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+        try {
+          // Re-enter via sentinel batch_index so merge retries don't re-run Gemini.
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+            case_id: caseId,
+            pass: 'proofread',
+            file_index: fileIndex,
+            batch_index: numBatches,
+            attempt: attempt + 1,
+          })
+        } catch (retryErr) {
+          await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
+        }
+      } else {
+        await handleFailure(admin, caseRow, caseId, err, stage)
+      }
+      return 'busy_merge'
+    }
+  }
+
+  const toStart = planProofreadDispatch({
+    numBatches,
+    completeIndices: complete,
+    inFlightIndices: inFlight,
+    concurrency: PROOFREAD_PARALLEL_CONCURRENCY,
+  })
+  if (toStart.length === 0) {
+    await scheduleProofreadZombieWatchdog({
+      admin,
+      SUPABASE_URL,
+      SERVICE_ROLE_KEY,
+      caseId,
+      fileIndex,
+      jsonBaseName,
+      extractingDir,
+      numBatches,
+      complete,
+      inFlight,
+    })
+    return 'waiting'
+  }
+  await dispatchProofreadBatches(SUPABASE_URL, SERVICE_ROLE_KEY, caseId, fileIndex, toStart)
+  return 'dispatched'
+}
+
 // pass transition) with its own fresh ANALYSIS_DEADLINE_MS budget. Always
 // marked `internal` so the receiving invocation skips the client JWT check.
 // Retries transient 5xx / network failures — production incident 2026-07-20
@@ -1598,7 +2003,8 @@ async function touchHeartbeat(admin: any, caseId: string, stage?: string): Promi
 //               self-fetched with a fresh budget, then merges into the same
 //               `_entries.json` the rest of the pipeline already expects.
 //   'proofread' — Pro, full thinking. Batches large entry sets (batch_index)
-//               the same way, then merges annotations and finalizes the case
+//               in capped parallel waves (PROOFREAD_PARALLEL_CONCURRENCY),
+//               race-safe merge via storage lock, then finalizes the case
 //               once every transcript file's every batch is done.
 // `file_index` sequences multiple transcript files on one case (rare in
 // practice, but preserved from the original design). `attempt` is a bounded
@@ -1629,6 +2035,8 @@ Deno.serve(async (req: Request) => {
   let internal: boolean
   let failReason: string
   let failStage: string
+  let watchdogTick: number
+  let watchdogTicks: number
   try {
     const body = await req.json()
     caseId = body.case_id
@@ -1640,6 +2048,8 @@ Deno.serve(async (req: Request) => {
     internal = body.internal === true
     failReason = typeof body.reason === 'string' ? body.reason : 'STUCK_ANALYSIS_TIMEOUT'
     failStage = typeof body.stage === 'string' ? body.stage : 'stuck sweeper'
+    watchdogTick = Number(body.watchdog_tick) || 0
+    watchdogTicks = Number(body.watchdog_ticks) || 0
   } catch {
     return json({ error: 'Invalid request body.' }, 400)
   }
@@ -1693,6 +2103,100 @@ Deno.serve(async (req: Request) => {
   if (pass === 'fail') {
     await handleFailure(admin, caseRow, caseId, new Error(failReason), failStage)
     return json({ ok: true, status: 'failed' }, 200)
+  }
+
+  // Zombie-claim recovery: short ticks under Free-tier wall-clock, then refill
+  // (scan drops stale claims and re-dispatches / merges).
+  if (pass === 'proofread_watchdog') {
+    const work = (async () => {
+      const transcriptFiles = caseFiles
+        .filter((f: any) => f.file_type === 'transcript')
+        .sort((a: any, b: any) => a.file_name.localeCompare(b.file_name))
+      const dbFile = transcriptFiles[fileIndex]
+      if (!dbFile) return
+      const jsonBaseName = safeJsonBaseName(dbFile.file_name)
+      const extractingDir = `${caseRow.user_id}/${caseId}/extracting`
+      const extractedDir = `${caseRow.user_id}/${caseId}/extracted`
+      const entriesPath = `${extractingDir}/${jsonBaseName}_entries.json`
+      const finalName = `${jsonBaseName}_extracted.json`
+      const finalPath = `${extractedDir}/${finalName}`
+      const lockPath = `${extractingDir}/${proofreadWatchdogLockName(jsonBaseName)}`
+
+      const dropLock = async () => {
+        await admin.storage.from('case-files').remove([lockPath])
+      }
+
+      try {
+        await new Promise((r) => setTimeout(r, PROOFREAD_WATCHDOG_TICK_MS))
+
+        const { data: live } = await admin.from('cases').select('status').eq('id', caseId).single()
+        if (live?.status !== 'processing') {
+          await dropLock()
+          return
+        }
+
+        const ticks = watchdogTicks > 0 ? watchdogTicks : Math.max(
+          1,
+          Math.ceil((PROOFREAD_CLAIM_STALE_MS + PROOFREAD_WATCHDOG_GRACE_MS) / PROOFREAD_WATCHDOG_TICK_MS),
+        )
+        if (watchdogTick + 1 < ticks) {
+          // Keep the lock across ticks so siblings don't arm a second chain.
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+            case_id: caseId,
+            pass: 'proofread_watchdog',
+            file_index: fileIndex,
+            batch_index: 0,
+            attempt: 0,
+            watchdog_tick: watchdogTick + 1,
+            watchdog_ticks: ticks,
+          })
+          return
+        }
+
+        // Drop lock before refill so a still-blocked wave can re-arm cleanly.
+        await dropLock()
+
+        const { data: entriesBlob } = await admin.storage.from('case-files').download(entriesPath)
+        if (!entriesBlob) return
+        let title = ''
+        let entries: any[] = []
+        let originalText: string | undefined
+        try {
+          const parsed = JSON.parse(await entriesBlob.text())
+          title = parsed.title || ''
+          entries = Array.isArray(parsed.entries) ? parsed.entries : []
+          originalText = parsed.originalText
+        } catch {
+          return
+        }
+        const numBatches = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PROOFREAD_BATCH))
+        await touchHeartbeat(admin, caseId, `proofread watchdog file ${fileIndex}`)
+        await refillProofreadWaveOrMerge({
+          admin,
+          SUPABASE_URL,
+          SERVICE_ROLE_KEY,
+          caseId,
+          caseRow,
+          fileIndex,
+          jsonBaseName,
+          extractingDir,
+          extractedDir,
+          entriesPath,
+          finalPath,
+          finalName,
+          title,
+          entries,
+          originalText,
+          numBatches,
+          attempt: 0,
+        })
+      } catch (err) {
+        console.warn('proofread watchdog failed', caseId, err)
+        try { await dropLock() } catch { /* ignore */ }
+      }
+    })()
+    runInBackground(work)
+    return json({ ok: true, status: 'proofread_watchdog' }, 202)
   }
 
   // Duplicate-kick guard — only relevant for the genuine first external call
@@ -2022,98 +2526,57 @@ Deno.serve(async (req: Request) => {
     return json({ error: `Entries file for ${dbFile.file_name} is corrupt or unreadable.` }, 400)
   }
   const numBatches = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PROOFREAD_BATCH))
-  const batchName = `${jsonBaseName}_annotations_batch${batchIndex}.json`
+  const batchName = proofreadBatchJsonName(jsonBaseName, batchIndex)
   const batchPath = `${extractingDir}/${batchName}`
 
+  const waveOpts = {
+    admin,
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    caseId,
+    caseRow,
+    fileIndex,
+    jsonBaseName,
+    extractingDir,
+    extractedDir,
+    entriesPath,
+    finalPath,
+    finalName,
+    title,
+    entries,
+    originalText,
+    numBatches,
+    attempt,
+  }
+
+  // Sentinel: merge-only retry / stuck resume (no Gemini).
   if (batchIndex >= numBatches) {
-    // All batches for this file are in — merge annotations and finalize it.
     const work = (async () => {
       try {
-        let allAnnotations: any[] = []
-        let droppedAnnotationsCount = 0
-        const batchPaths: string[] = []
-        for (let i = 0; i < numBatches; i++) {
-          const p = `${extractingDir}/${jsonBaseName}_annotations_batch${i}.json`
-          batchPaths.push(p)
-          const { data: blob, error } = await admin.storage.from('case-files').download(p)
-          if (error || !blob) throw new Error(`Missing annotation batch ${i} for ${jsonBaseName} during merge`)
-          const batchResult = JSON.parse(await blob.text())
-          allAnnotations.push(...(batchResult.annotations || []))
-          droppedAnnotationsCount += batchResult.droppedCount || 0
-        }
-
-        // Final cross-batch safety net: the annotation-range-guard in
-        // proofreadContent already prevents cross-batch contamination at the
-        // source, but this catches any remaining byte-identical duplicate
-        // near a seam, the same way the single-call path always has.
-        const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
-        const seen = new Set<string>()
-        allAnnotations = allAnnotations.filter((a) => {
-          const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
-          if (seen.has(key)) return false
-          seen.add(key)
-          return true
-        })
-        allAnnotations.forEach((a, i) => { a.id = i + 1 })
-        // Deterministic CAT repeated Q./A. (not prompt-only — extraction can merge turns).
-        allAnnotations = mergeStructuralReviewAnnotations(originalText, entries, allAnnotations)
-
-        const finalJson: any = {
-          title: title || '',
-          extracted_at: new Date().toISOString(),
-          entries,
-          annotations: allAnnotations,
-          dropped_annotations_count: droppedAnnotationsCount,
-        }
-        if (originalText !== undefined) finalJson.originalText = originalText
-
-        const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
-        await admin.storage.from('case-files').upload(finalPath, finalBytes, { upsert: true, contentType: 'application/json' })
-        await admin.from('case_files').insert({
-          case_id: caseId,
-          file_type: 'extracted',
-          file_name: finalName,
-          file_size: finalBytes.byteLength,
-          storage_path: finalPath,
-          mime_type: 'application/json',
-        })
-        await admin.storage.from('case-files').remove([entriesPath, ...batchPaths])
-
-        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
+        await touchHeartbeat(admin, caseId, `proofread merge file ${fileIndex}`)
+        await refillProofreadWaveOrMerge(waveOpts)
       } catch (err) {
-        const stage = `proofread merge file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
-        if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
-          try {
-            await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
-          } catch (retryErr) {
-            await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
-          }
-        } else {
-          await handleFailure(admin, caseRow, caseId, err, stage)
-        }
+        await handleFailure(admin, caseRow, caseId, err, `proofread merge file ${fileIndex} attempt ${attempt}`)
       }
     })()
     runInBackground(work)
     return json({ ok: true, status: 'proofread_merging' }, 202)
   }
 
-  // Idempotency — this batch already exists: skip straight to the next one.
-  const { data: existingBatch } = await admin.storage.from('case-files').list(extractingDir, { search: batchName })
-  if ((existingBatch?.length ?? 0) > 0) {
-    const work = (async () => {
-      try {
-        await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
-      } catch (err) {
-        await handleFailure(admin, caseRow, caseId, err, `proofread batch_index advance (file ${fileIndex} batch ${batchIndex})`)
-      }
-    })()
-    runInBackground(work)
-    return json({ ok: true, skipped: 'batch_already_proofread' }, 202)
-  }
-
   const work = (async () => {
     const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+    let claimed = false
     try {
+      const claim = await tryClaimProofreadBatch(admin, extractingDir, jsonBaseName, batchIndex, attempt)
+      if (claim === 'already_done' || claim === 'busy') {
+        await refillProofreadWaveOrMerge(waveOpts)
+        return
+      }
+      claimed = true
+
+      // Fill other wave slots while this invocation runs Gemini for batchIndex.
+      await refillProofreadWaveOrMerge(waveOpts)
+
       await touchHeartbeat(admin, caseId, `proofreading file ${fileIndex} batch ${batchIndex}`)
       // A handful of leading entries from the previous batch are included as
       // context (not owned by this batch) so a judgment call right at the
@@ -2128,7 +2591,21 @@ Deno.serve(async (req: Request) => {
       const rangeGuard = numBatches > 1 ? { min: entries[batchStart].id, max: entries[batchEnd - 1].id } : undefined
 
       const ownedCount = batchEnd - batchStart
-      const { annotations, droppedCount } = await proofreadContent(batchEntries, deadlineAt, rangeGuard)
+      // Keep claim + case heartbeat fresh while Gemini runs so (a) stuck
+      // sweeper doesn't treat a live batch as abandoned and (b) a shortened
+      // claim-stale window can reclaim hard-killed workers without stealing
+      // slow-but-alive ones.
+      const claimPulse = setInterval(() => {
+        void touchHeartbeat(admin, caseId, `proofreading file ${fileIndex} batch ${batchIndex}`)
+        void refreshProofreadBatchClaim(admin, extractingDir, jsonBaseName, batchIndex, attempt)
+      }, PROOFREAD_CLAIM_REFRESH_MS)
+      let annotations: any[]
+      let droppedCount: number
+      try {
+        ;({ annotations, droppedCount } = await proofreadContent(batchEntries, deadlineAt, rangeGuard))
+      } finally {
+        clearInterval(claimPulse)
+      }
       if (annotations.length === 0 && ownedCount >= MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY) {
         if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
           console.warn(
@@ -2146,15 +2623,33 @@ Deno.serve(async (req: Request) => {
         )
       }
       const batchBytes = new TextEncoder().encode(JSON.stringify({ annotations, droppedCount }, null, 2))
-      const { error: upErr } = await admin.storage.from('case-files').upload(batchPath, batchBytes, { upsert: true, contentType: 'application/json' })
+      const { error: upErr } = await admin.storage.from('case-files').upload(batchPath, batchBytes, {
+        upsert: true,
+        contentType: 'application/json',
+      })
       if (upErr) throw new Error(`Failed to save annotation batch ${batchIndex} for ${jsonBaseName}: ${upErr.message}`)
 
-      await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex + 1, attempt: 0 })
+      await releaseProofreadBatchClaim(admin, extractingDir, jsonBaseName, batchIndex)
+      claimed = false
+      await refillProofreadWaveOrMerge({ ...waveOpts, attempt: 0 })
     } catch (err) {
+      if (claimed) {
+        try {
+          await releaseProofreadBatchClaim(admin, extractingDir, jsonBaseName, batchIndex)
+        } catch (releaseErr) {
+          console.warn('failed to release proofread claim', batchIndex, releaseErr)
+        }
+      }
       const stage = `proofread file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
       if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
         try {
-          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex, batch_index: batchIndex, attempt: attempt + 1 })
+          await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
+            case_id: caseId,
+            pass: 'proofread',
+            file_index: fileIndex,
+            batch_index: batchIndex,
+            attempt: attempt + 1,
+          })
         } catch (retryErr) {
           await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
         }

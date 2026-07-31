@@ -52,12 +52,18 @@
    - **Pass 2 — proofread** (`PROOFREAD_ONLY_PROMPT`, `gemini-2.5-pro`):
      testimony entries only (CAPTION/INDEX/CERTIFICATE/EXHIBITS/HEADING are
      skipped) are proofread in batches of `ENTRIES_PER_PROOFREAD_BATCH` (250),
-     with `CONTEXT_ENTRIES` (8) carried from the previous batch. An empty
-     annotation result on a batch of ≥40 owned entries is treated as a soft
-     failure and retried (up to `MAX_CHUNK_ATTEMPTS`) rather than finalized
-     as a clean transcript. Returns
-     `annotations`: `{ type, severity, original, suggestion, explanation,
-     confidence, entry_id }`.
+     with `CONTEXT_ENTRIES` (8) carried from the previous batch (from the
+     already-merged entries — does not require the previous batch's Gemini
+     result). Batches for one file run in **capped waves** of
+     `PROOFREAD_PARALLEL_CONCURRENCY` (3): each unit claims a `.claim`
+     marker, writes `_annotations_batchN.json`, then refills the wave;
+     merge is race-claimed via `_proofread_merge.lock` (see
+     `src/lib/proofreadParallel.js` / `analyze-case/proofreadParallel.ts`).
+     Extract chunks remain serial. An empty annotation result on a batch of
+     ≥40 owned entries is treated as a soft failure and retried (up to
+     `MAX_CHUNK_ATTEMPTS`) rather than finalized as a clean transcript.
+     Returns `annotations`: `{ type, severity, original, suggestion,
+     explanation, confidence, entry_id }`.
    - **Position repair** (`fixAnnotationPositions` / `flexFind`): Gemini's
      `entry_id`/offsets are sometimes wrong. `flexFind` searches for the
      `original` string (exact → case-insensitive → whitespace-flexible →

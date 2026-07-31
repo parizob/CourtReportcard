@@ -470,10 +470,28 @@ export function buildContextAnchor(text, start, end, maxWords = 2) {
   return { before, after }
 }
 
+/** All non-overlapping exact indexOf hits for `phrase` in `haystack`. */
+function findAllExactMatches(haystack, phrase) {
+  if (!haystack || !phrase) return []
+  const hits = []
+  let from = 0
+  while (from < haystack.length) {
+    const i = haystack.indexOf(phrase, from)
+    if (i === -1) break
+    hits.push(i)
+    from = i + Math.max(1, phrase.length)
+  }
+  return hits
+}
+
 /**
  * Find searchWord only via before+needle+after. No whole-doc fallback.
  * Critical for accept: looking up suggestion "the" while the file still has
  * "teh" must return null — not the earlier store "the".
+ *
+ * Also requires the full phrase to be UNIQUE in the haystack. Taking the
+ * first twin paints the wrong line after a nearby accept makes a weak
+ * anchor (e.g. "briefly with " + ", ref") match several repeated answers.
  */
 export function locateAtAnchorStrict(haystack, ann, searchWord) {
   if (!haystack || !searchWord) return null
@@ -483,20 +501,14 @@ export function locateAtAnchorStrict(haystack, ann, searchWord) {
     return null
   }
 
-  const tryWith = (b, needle, a) => {
-    if (!(b || a)) return null
-    const phrase = b + needle + a
-    const exactIdx = haystack.indexOf(phrase)
-    if (exactIdx !== -1) {
-      return {
-        cleanStart: exactIdx + b.length,
-        cleanEnd: exactIdx + b.length + needle.length,
-        start: exactIdx + b.length,
-        end: exactIdx + b.length + needle.length,
-      }
-    }
-    const flex = flexFind(haystack, phrase)
-    if (!flex) return null
+  const hitFromPhraseIndex = (exactIdx, b, needle) => ({
+    cleanStart: exactIdx + b.length,
+    cleanEnd: exactIdx + b.length + needle.length,
+    start: exactIdx + b.length,
+    end: exactIdx + b.length + needle.length,
+  })
+
+  const hitFromFlexRegion = (flex, b, needle) => {
     const region = haystack.substring(flex.start, flex.end)
     if (b) {
       const bb = flexFind(region, b)
@@ -517,6 +529,18 @@ export function locateAtAnchorStrict(haystack, ann, searchWord) {
       start: flex.start + n.start,
       end: flex.start + n.end,
     }
+  }
+
+  const tryWith = (b, needle, a) => {
+    if (!(b || a)) return null
+    const phrase = b + needle + a
+    const exactHits = findAllExactMatches(haystack, phrase)
+    if (exactHits.length > 1) return null
+    if (exactHits.length === 1) return hitFromPhraseIndex(exactHits[0], b, needle)
+
+    const flexHits = findAllFlexMatches(haystack, phrase)
+    if (flexHits.length !== 1) return null
+    return hitFromFlexRegion(flexHits[0], b, needle)
   }
 
   const hit = tryWith(before, searchWord, after)
@@ -1541,6 +1565,30 @@ export function ensureAcceptedCorrectionsInOriginalText(originalText, entries, a
       continue
     }
 
+    // Unique-only strict locate returns null when before+suggestion+after
+    // appears more than once (repeated answers). If the original phrase is
+    // gone and the suggestion phrase exists at least once, the accept is
+    // already in the file — do not fail closed on ambiguity alone.
+    if (
+      !isDeletion &&
+      hasAnchor &&
+      !hasSuggestion &&
+      !stillOriginal
+    ) {
+      const sugPhrase = `${ann._anchorBefore}${ann.suggestion}${ann._anchorAfter}`
+      const origPhrase = `${ann._anchorBefore}${ann.original}${ann._anchorAfter}`
+      const sugHits = findAllExactMatches(cleanContent, sugPhrase)
+      const origHits = findAllExactMatches(cleanContent, origPhrase)
+      if (sugHits.length >= 1 && origHits.length === 0) {
+        continue
+      }
+      const sugFlex = findAllFlexMatches(cleanContent, sugPhrase)
+      const origFlex = findAllFlexMatches(cleanContent, origPhrase)
+      if (sugFlex.length >= 1 && origFlex.length === 0) {
+        continue
+      }
+    }
+
     if (stillOriginal) {
       const detail = applyCorrectionDetailed(text, ann.original, ann.suggestion, {
         cleanStart: stillOriginal.cleanStart,
@@ -2443,7 +2491,7 @@ YOUR PROOFREADING MANDATE:
 2. WHEN IN DOUBT, FLAG IT. A false positive the reviewer dismisses is infinitely better than a missed error that reaches the judge. If a word seems off, annotate it.
 3. UNDERSTAND THE MEANING. Read for what the speaker is actually trying to say. Then ask: does each word match that meaning precisely?
 4. CHECK ACROSS SENTENCE BOUNDARIES. Missing words and run-on errors often span two lines.
-5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance.
+5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance. Finding one error in a sentence or on a line does not finish that sentence — keep reading for additional independent errors (spelling, articles a/an, homophones, grammar, punctuation, etc.) and emit a separate annotation for each.
 
 ERROR TYPES — flag every occurrence:
 

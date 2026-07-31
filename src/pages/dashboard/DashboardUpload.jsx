@@ -21,16 +21,17 @@ const MAX_FILE_BYTES = {
 
 // Rough, honest expectation-setting for the post-upload confirmation screen —
 // larger documents go through the chunked/batched pipeline (see
-// CHUNK_THRESHOLD_PAGES in supabase/functions/analyze-case/index.ts) and take
-// meaningfully longer, with proofread batch time varying by content density.
-// Ranges are intentionally generous rather than precise so a slower-than-usual
-// run still lands inside what we told the user to expect.
+// CHUNK_THRESHOLD_PAGES / PROOFREAD_PARALLEL_CONCURRENCY in
+// supabase/functions/analyze-case/). Proofread batches run in capped parallel
+// waves; extract chunks stay serial. Ranges stay generous so a slow run still
+// lands inside what we told the user to expect. Tuned 2026-07-31 against Dev
+// parallel soak (~51-page dense job ~4 min end-to-end).
 function processingTimeEstimate(pages) {
-  if (pages < 20) return 'This usually takes 2 to 5 minutes.'
-  if (pages < 50) return 'This usually takes 5 to 10 minutes.'
-  if (pages < 100) return 'This usually takes 10 to 20 minutes.'
-  if (pages < 150) return 'This can take up to 30 minutes.'
-  return 'This can take 30 minutes or more for very large documents.'
+  if (pages < 20) return { prefix: 'This usually takes ', duration: '2 to 5 minutes', suffix: '.' }
+  if (pages < 50) return { prefix: 'This usually takes ', duration: '3 to 7 minutes', suffix: '.' }
+  if (pages < 100) return { prefix: 'This usually takes ', duration: '6 to 12 minutes', suffix: '.' }
+  if (pages < 150) return { prefix: 'This usually takes ', duration: '10 to 20 minutes', suffix: '.' }
+  return { prefix: 'This can take ', duration: '15 to 30 minutes', suffix: ' for very large documents.' }
 }
 
 // Storage object keys are used in HTTP URLs. Characters like `#` and `?` become
@@ -63,7 +64,13 @@ export default function DashboardUpload() {
   const preview = searchParams.get('preview')
   const previewRetryBanner = preview === 'retry-banner'
   const previewTooLarge = preview === 'too-large'
-  const [caseName, setCaseName] = useState('')
+  // UI-only: confirmation card without upload / Gemini (e.g. ?preview=started&pages=55).
+  const previewStarted = preview === 'started'
+  const previewPages = (() => {
+    const n = Number(searchParams.get('pages'))
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 55
+  })()
+  const [caseName, setCaseName] = useState(previewStarted ? 'Sample Case' : '')
   const [transcriptFiles, setTranscriptFiles] = useState([])
   const [fileHash, setFileHash] = useState(null)
   // retryBlocked keeps Upload disabled; retryBannerVisible is the dismissible alert.
@@ -72,12 +79,12 @@ export default function DashboardUpload() {
   const [retryBannerExiting, setRetryBannerExiting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadPhase, setUploadPhase] = useState('')
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(previewStarted)
   const [error, setError] = useState('')
   const [tooLargeBannerVisible, setTooLargeBannerVisible] = useState(previewTooLarge)
   const [tooLargeBannerExiting, setTooLargeBannerExiting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [pendingPages, setPendingPages] = useState(0)
+  const [pendingPages, setPendingPages] = useState(previewStarted ? previewPages : 0)
   const [counting, setCounting] = useState(false)
   const [phiCertified, setPhiCertified] = useState(false)
 
@@ -338,6 +345,7 @@ export default function DashboardUpload() {
   if (done) {
     // Same shell as the upload form: center in the content column (not the
     // full viewport, which pulls the card left toward the sidebar).
+    const timeEst = processingTimeEstimate(pendingPages)
     return (
       <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex flex-col px-6 py-8">
         <div className="w-full max-w-md mx-auto my-auto bg-surface-container-lowest rounded-2xl editorial-shadow p-12 text-center">
@@ -346,25 +354,32 @@ export default function DashboardUpload() {
           </div>
           <h2 className="font-headline text-2xl font-bold text-on-surface mb-3">Analysis started</h2>
           <p className="text-sm text-on-surface-variant mb-2 leading-relaxed">
-            We're analyzing <span className="font-semibold text-on-surface">{caseName}</span> now. {processingTimeEstimate(pendingPages)} You can safely close this tab.
+            We're analyzing <span className="font-semibold text-on-surface">{caseName}</span> now.{' '}
+            {timeEst.prefix}
+            <span className="inline-block px-1.5 py-0.5 rounded-md bg-primary-fixed/50 text-on-surface font-semibold whitespace-nowrap">
+              {timeEst.duration}
+            </span>
+            {timeEst.suffix}{' '}
+            You can safely close this tab.
           </p>
           <p className="text-sm text-on-surface-variant mb-8 leading-relaxed">
             We'll email you the moment it's ready, and you can track progress on your dashboard.
           </p>
 
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-col items-center gap-3">
             <Link
               to="/dashboard"
-              className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center gap-2"
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-sm hover:brightness-110 transition-all editorial-shadow whitespace-nowrap"
             >
-              <span className="material-symbols-outlined text-base">dashboard</span>
+              <span className="material-symbols-outlined text-[18px]">dashboard</span>
               Go to Dashboard
             </Link>
             <button
+              type="button"
               onClick={resetForm}
-              className="border border-outline-variant/40 text-on-surface px-6 py-3 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
+              className="group text-sm font-bold text-primary inline-flex items-center gap-1 hover:text-primary-container transition-colors"
             >
-              <span className="material-symbols-outlined text-base">add</span>
+              <span className="material-symbols-outlined text-[16px] transition-transform group-hover:scale-125">add</span>
               Upload another
             </button>
           </div>

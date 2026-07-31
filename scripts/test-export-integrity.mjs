@@ -1239,6 +1239,65 @@ console.log('\n=== Export integrity ===\n')
   assertEq(locWrong, null, 'does not paint wrong Exhibit Number 2 occurrence')
 }
 
+// --- 18i. Weak anchors + twin answers: never paint the earliest twin ---
+{
+  console.log('\n18i. Strict locate rejects non-unique weak anchors (dense twin)')
+
+  // After accepting briefley→briefly on ref 1002, both lines share
+  // "briefly with a Alvarez, ref" — weak after=", ref" must not latch onto 1002.
+  const cleanTwin =
+    'Yes, briefly with a Alvarez, ref 1002.\n' +
+    'Yes, briefly with a Alvarez, ref 1362.\n'
+  const annTwin = {
+    id: 133,
+    status: 'open',
+    entry_id: 649,
+    original: 'a Alvarez',
+    suggestion: 'an Alvarez',
+    _anchorBefore: 'briefly with ',
+    _anchorAfter: ', ref',
+  }
+  assertEq(
+    locateAtAnchorStrict(cleanTwin, annTwin, 'a Alvarez'),
+    null,
+    'strict locate null when briefly+a Alvarez+, ref is not unique'
+  )
+
+  const entryOwned = { id: 649, text: 'Yes, briefly with a Alvarez, ref 1362.' }
+  const locOwned = locateAnnotationWithAnchor(
+    cleanTwin,
+    entryOwned,
+    annTwin,
+    'a Alvarez'
+  )
+  assert(!!locOwned, 'entry-scoped locate still finds owned twin')
+  if (locOwned) {
+    assertEq(
+      cleanTwin.substring(locOwned.cleanStart, locOwned.cleanEnd),
+      'a Alvarez',
+      'owned twin underline is a Alvarez'
+    )
+    assert(
+      locOwned.cleanStart > cleanTwin.indexOf('ref 1002'),
+      'owned twin paints on the 1362 line, not 1002'
+    )
+  }
+
+  // Unique phrase (distinctive after) still works.
+  const annUnique = {
+    ...annTwin,
+    _anchorAfter: ', ref 1362',
+  }
+  const locUnique = locateAtAnchorStrict(cleanTwin, annUnique, 'a Alvarez')
+  assert(!!locUnique, 'strict locate works when after-anchor makes phrase unique')
+  if (locUnique) {
+    assert(
+      locUnique.cleanStart > cleanTwin.indexOf('1002'),
+      'unique after-anchor lands on second twin'
+    )
+  }
+}
+
 // --- 18g. Drop open flags that cannot be placed in the transcript file ---
 {
   console.log('\n18g. dropTranscriptUnplaceableAnnotations')

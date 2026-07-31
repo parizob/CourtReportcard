@@ -17,6 +17,88 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-07-31 — Don't stop after the first error on a line/sentence — PROPOSED
+
+**Not from the standard harness 3× loop — from Dev soak of
+`transcript_07_dense_50pages` (case "Test Parallel").**
+
+**Observation:** On `Yes, briefley with a Alvarez, ref 1002.` production
+proofread flagged only `briefley` → `briefly`. It did **not** emit a separate
+annotation for `a Alvarez` → `an Alvarez` on that same entry. The same
+article error **was** flagged on later twin lines that already said
+`briefly` (refs 1362 / 1482 / 1602). So the model knows the article check;
+it satisficed after the spelling hit on the stacked line.
+
+**Already in the prompt (related, not sufficient):**
+- Mandate opener: "NOTHING gets missed" / "flag every occurrence"
+- Rule **#5:** `EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple
+  errors. One annotation per error instance.`
+
+#5 tells the model how to **emit** multiple errors (don't merge). It does
+**not** tell the model to **keep scanning** after finding the first one in
+a sentence. That gap is the miss class.
+
+**Proposed edit** — extend rule #5 in `PROOFREAD_ONLY_PROMPT` (both
+`supabase/functions/analyze-case/prompts.ts` and the mirrored copy in
+`src/lib/gemini.js`) from:
+
+```
+5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance.
+```
+
+to:
+
+```
+5. EVERY ERROR GETS ITS OWN ANNOTATION. Do not batch multiple errors. One annotation per error instance. Finding one error in a sentence or on a line does not finish that sentence — keep reading for additional independent errors (spelling, articles a/an, homophones, grammar, punctuation, etc.) and emit a separate annotation for each.
+```
+
+**Why this shape:** one sentence added to an existing numbered mandate;
+names the failure mode (stop after first find) without a new ERROR TYPES
+section; calls out articles/homophones as examples of what still applies
+alongside an obvious spelling hit.
+
+**Risks / FP watch:** slight increase in same-line annotation density on
+messy answers. Should not invent new error classes. Watch that it does not
+encourage double-flagging the same span two ways.
+
+**Validation plan (after sign-off, before marking applied):**
+1. Harness baseline 3× (`node scripts/run-proofread-test.mjs`) — record
+   recall + unmatched FPs.
+2. Apply the one-line #5 extension to both prompt copies.
+3. Harness 3× again — no recall drop; unmatched FPs not up.
+4. Optional soak: re-upload dense 50p (or a small fixture with
+   `briefley` + `a Alvarez` on one line) and confirm both flags land on
+   that entry.
+
+**Status:** `applied` 2026-07-31 — both prompt copies updated:
+- `supabase/functions/analyze-case/prompts.ts`
+- `src/lib/gemini.js` (harness mirror)
+
+**Before (harness 3×, full set):** recall **170/192, 174/192, 171/192**
+(89 / 91 / 89%); unmatched FPs **25 / 23 / 26**.
+
+**After (harness 3×, full set):** recall **171/192, 172/192, 170/192**
+(89 / 90 / 89%); unmatched FPs **25 / 25 / 46**.
+
+**Notes:**
+- Aggregate recall flat (no clear win or loss). `transcript_03_hard`
+  improved **8/9 → 9/9** on all three after runs (multi-error sentence
+  coverage — the intended class).
+- `transcript_06_medium` slipped **20/20 → 18/20** on after runs
+  (missed `notes discrete` / `principal reason` — known flaky pairs
+  already on the homophone list; not a new FP class).
+- After-run FP **46** was an outlier: `transcript_08_chunk_seams` alone
+  reported **23** unmatched (normally 2–3); other after runs stayed at
+  **25**. Treat as non-determinism, not a stable FP regression.
+- Dense 50p stayed **112/128**; its manifest only seeds `briefley` on the
+  stacked lines (not a separate `a Alvarez` seed), so harness recall
+  cannot score that specific dual-flag win.
+
+**Deploy:** apply Edge Function prompt via `analyze-case` deploy (Dev
+first; Prod when shipping).
+
+---
+
 ### 2026-07-27 — Medium harness baseline (`transcript_06_medium`) — watchlist only
 
 **Setup:** New ~12-page seeded file, 14 planted errors + FP traps (`res ipsa

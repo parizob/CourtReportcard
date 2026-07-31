@@ -8,7 +8,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Auto-scroll to the next open annotation after accept/ignore, so reporters don't have to click back into the transcript manually — requested by Natalie Noma (beta user)
 - [ ] Revisit sales tax nexus once revenue crosses ~$5k — FL doesn't tax SaaS, other states do at $100k+/year nexus. Not close yet; check with a CPA before it matters. Note: sales tax is a trust-fund tax, LLC protection doesn't fully shield personal exposure if owed and unremitted
 - [ ] File U.S. Copyright Office registration for the codebase — needed to preserve statutory damages/attorney's fees eligibility. Grace window (3 months from 2026-07-24 launch) runs to ~late Oct 2026. ~$45-65. Use the confidential-portions redaction option so the prompts (`src/lib/gemini.js`) don't become public record
-- [ ] Parallelize chunk/batch processing to cut large-document wall-clock time (could plausibly be 3-5x faster) — needs a race-safe merge step first. **Not worth building yet**, no real upload has approached the scale where this matters (largest so far: 50 pages)
+- [ ] Parallelize **extract** chunks the same way as proofread (capped waves + race-safe merge) — proofread parallelization shipped first; extract still serial
+- [x] Parallelize proofread batches (capped waves of 3, claim files + merge lock) — see `src/lib/proofreadParallel.js` + `analyze-case` proofread pass
 - [ ] Phase 2 glossary support (extraction emits terms, proofread batches get them as context) — deferred until Phase 1 chunking is proven solid in production
 - [ ] Move Supabase, Vercel, and the domain registrar off personal email/card onto Parizo Labs LLC's business email and Mercury checking — currently all billed under Brandon's personal Gmail; avoids commingling and single-inbox recovery risk
 

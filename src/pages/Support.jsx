@@ -26,7 +26,7 @@ const faqs = [
   },
   {
     q: 'How long does a review take?',
-    a: 'Review time depends on transcript length. For instance, transcripts under 40 pages usually take between 2 and 5 minutes.',
+    a: 'Review time depends on transcript length. Short transcripts (under about 20 pages) usually take 2 to 5 minutes. Around 50 pages is often closer to 3 to 7 minutes; larger jobs take longer.',
   },
   {
     q: 'Can I export to court-specific formats?',
