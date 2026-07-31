@@ -17,11 +17,15 @@ import { fileURLToPath } from 'url'
 import {
   buildCleanContentMap,
   locateAnnotationWithAnchor,
+  locateAtAnchorStrict,
   jumpSearchNeedles,
   ensureAnnotationAnchors,
   sanitizeAnnotationsLeakedLineNumbers,
   toCleanContentNeedle,
   compactSpanText,
+  buildUniqueContextAnchor,
+  isAnchorPhraseUnique,
+  buildContextAnchor,
 } from '../src/lib/gemini.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -38,7 +42,6 @@ function scoreFixture(filePath, { forceOpen = false } = {}) {
     annotations = annotations.map((a) => ({ ...a, status: 'open' }))
   }
   annotations = sanitizeAnnotationsLeakedLineNumbers(entries, annotations)
-  annotations = ensureAnnotationAnchors(entries, annotations)
 
   const originalText = data.originalText
   if (!originalText) {
@@ -46,6 +49,7 @@ function scoreFixture(filePath, { forceOpen = false } = {}) {
   }
 
   const { cleanContent, parsedLines } = buildCleanContentMap(originalText)
+  annotations = ensureAnnotationAnchors(entries, annotations, cleanContent)
   const highlights = []
   const jumpLines = {}
   const misses = []
@@ -157,13 +161,69 @@ function scoreFixture(filePath, { forceOpen = false } = {}) {
   }
 }
 
+// --- Offline unit: repeated "Blvd" twins (no Gemini) ---
+{
+  let failedTwin = 0
+  const assert = (cond, name) => {
+    if (cond) console.log('PASS', name)
+    else {
+      console.log('FAIL', name)
+      failedTwin++
+    }
+  }
+  const hay = [
+    'How often did you use Kingsley Blvd, ref 1055?',
+    'How often did you use Kingsley Blvd, ref 1111?',
+    'How often did you use Kingsley Blvd, ref 1200?',
+  ].join('\n\n')
+  const needle = 'Blvd'
+  const start = hay.indexOf('Blvd, ref 1111')
+  const short = buildContextAnchor(hay, start, start + needle.length, 2)
+  assert(short != null, 'short anchor builds')
+  assert(
+    !isAnchorPhraseUnique(hay, short.before, needle, short.after),
+    '2-word anchor is ambiguous across twin Blvd lines',
+  )
+  const unique = buildUniqueContextAnchor(hay, start, start + needle.length, {
+    needle,
+    uniqueIn: hay,
+  })
+  assert(unique != null, 'unique anchor builds')
+  assert(
+    isAnchorPhraseUnique(hay, unique.before, needle, unique.after),
+    'grown anchor is unique (includes ref 1111)',
+  )
+  assert(
+    String(unique.after).includes('1111'),
+    'unique after-context includes the distinguishing ref number',
+  )
+  const ann = {
+    original: 'Blvd',
+    suggestion: 'Blvd.',
+    status: 'open',
+    _anchorBefore: unique.before,
+    _anchorAfter: unique.after,
+  }
+  const hit = locateAtAnchorStrict(hay, ann, 'Blvd')
+  assert(hit != null, 'strict locate finds the 1111 twin')
+  assert(
+    hay.substring(hit.cleanStart, hit.cleanEnd + 20).includes('1111'),
+    'strict locate landed on ref 1111 line',
+  )
+  if (failedTwin) {
+    console.error(`\n${failedTwin} twin-anchor unit failure(s)`)
+    process.exit(1)
+  }
+  console.log('\nTwin-anchor units OK')
+}
+
 const defaultFixture = path.join(__dirname, '.repro/alison-islam-extracted.json')
 const args = process.argv.slice(2)
 const files = (args.length ? args : [defaultFixture]).filter((f) => fs.existsSync(f))
 
 if (files.length === 0) {
-  console.error('No fixtures found. Pass extracted JSON path(s).')
-  process.exit(1)
+  console.log('No highlight fixtures found (twin units already ran).')
+  process.exit(0)
 }
 
 let failed = 0

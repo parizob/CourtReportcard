@@ -470,6 +470,58 @@ export function buildContextAnchor(text, start, end, maxWords = 2) {
   return { before, after }
 }
 
+/** Exact non-overlapping count of `phrase` in `haystack` (no model). */
+export function countExactPhraseOccurrences(haystack, phrase) {
+  if (!haystack || !phrase) return 0
+  return findAllExactMatches(haystack, phrase).length
+}
+
+/**
+ * True when before+needle+after (or its cleanContent form) appears exactly
+ * once in haystack. Pure string counting — never calls Gemini.
+ */
+export function isAnchorPhraseUnique(haystack, before, needle, after) {
+  if (!haystack) return false
+  const raw = `${before || ''}${needle || ''}${after || ''}`
+  const cleaned =
+    `${toCleanContentNeedle(before || '')}` +
+    `${toCleanContentNeedle(needle || '')}` +
+    `${toCleanContentNeedle(after || '')}`
+  const phrases = []
+  if (raw) phrases.push(raw)
+  if (cleaned && cleaned !== raw) phrases.push(cleaned)
+  for (const p of phrases) {
+    const n = countExactPhraseOccurrences(haystack, p)
+    if (n === 1) return true
+    if (n > 1) return false
+  }
+  return false
+}
+
+/**
+ * Like buildContextAnchor, but widens the word window until
+ * before+needle+after is unique in `uniqueIn` (usually cleanContent).
+ * Falls back to the widest window if still ambiguous at maxWords.
+ */
+export function buildUniqueContextAnchor(text, start, end, opts = {}) {
+  const minWords = Math.max(1, opts.minWords ?? 2)
+  const maxWords = Math.max(minWords, opts.maxWords ?? 12)
+  const needle =
+    typeof opts.needle === 'string' ? opts.needle : text.substring(start, end)
+  const uniqueIn = opts.uniqueIn ?? text
+
+  let best = null
+  for (let w = minWords; w <= maxWords; w++) {
+    const anchor = buildContextAnchor(text, start, end, w)
+    if (!anchor) return best
+    best = anchor
+    if (isAnchorPhraseUnique(uniqueIn, anchor.before, needle, anchor.after)) {
+      return anchor
+    }
+  }
+  return best
+}
+
 /** All non-overlapping exact indexOf hits for `phrase` in `haystack`. */
 function findAllExactMatches(haystack, phrase) {
   if (!haystack || !phrase) return []
@@ -687,8 +739,12 @@ export function locateAnnotationWithAnchor(cleanContent, entry, ann, searchWord)
  * Ensure each annotation has a tight _anchorBefore/_anchorAfter. Rebuilds
  * from a verified needle span when possible so older wide anchors (that
  * included earlier words like "too") get replaced on load.
+ *
+ * Pass `uniqueHaystack` (usually cleanContent / originalText) so anchors
+ * widen until before+needle+after is unique in the full transcript — not
+ * just within one entry. Pure string counting; no Gemini.
  */
-export function ensureAnnotationAnchors(entries, annotations) {
+export function ensureAnnotationAnchors(entries, annotations, uniqueHaystack = null) {
   if (!Array.isArray(annotations)) return annotations
   let changed = false
   const next = annotations.map((ann) => {
@@ -719,13 +775,6 @@ export function ensureAnnotationAnchors(entries, annotations) {
       ) {
         start = ann.start
         end = ann.end
-      } else if (
-        typeof ann._anchorBefore === 'string' &&
-        typeof ann._anchorAfter === 'string'
-      ) {
-        // Keep existing anchor if we cannot verify a span (still better than
-        // a whole-entry first-match for twin words).
-        return ann
       } else {
         const located = locateAnnotationInCleanContent(entry.text, entry, ann, needle)
         if (!located) return ann
@@ -734,7 +783,32 @@ export function ensureAnnotationAnchors(entries, annotations) {
       }
     }
 
-    const anchor = buildContextAnchor(entry.text, start, end)
+    // Prefer building the unique phrase from cleanContent/originalText so
+    // entry↔transcript drift (entry "Blvd." vs file "Blvd,") cannot mint an
+    // anchor that uniquely matches the wrong twin.
+    let anchorText = entry.text
+    let anchorStart = start
+    let anchorEnd = end
+    let anchorNeedle = needle
+    if (uniqueHaystack) {
+      const mapped = locateAnnotationInCleanContent(
+        uniqueHaystack,
+        entry,
+        { ...ann, start, end },
+        needle,
+      )
+      if (mapped) {
+        anchorText = uniqueHaystack
+        anchorStart = mapped.cleanStart
+        anchorEnd = mapped.cleanEnd
+        anchorNeedle = uniqueHaystack.substring(mapped.cleanStart, mapped.cleanEnd)
+      }
+    }
+
+    const anchor = buildUniqueContextAnchor(anchorText, anchorStart, anchorEnd, {
+      needle: anchorNeedle,
+      uniqueIn: uniqueHaystack || entry.text,
+    })
     if (!anchor) return ann
     if (
       ann._anchorBefore === anchor.before &&

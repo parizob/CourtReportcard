@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -260,9 +260,16 @@ export default function DashboardEditor() {
           dedupedEntries,
           fixAnnotationPositions(dedupedEntries, sanitizedAnnotations)
         )
-        // Context anchors disambiguate twin words; repair cleans legacy
-        // _cleanStart drift from older saves.
-        const anchored = ensureAnnotationAnchors(dedupedEntries, positioned)
+        // Context anchors disambiguate twin words; widen until unique in
+        // cleanContent. Repair cleans legacy _cleanStart drift from older saves.
+        const loadClean = parsed.originalText
+          ? buildCleanContentMap(parsed.originalText).cleanContent
+          : null
+        const anchored = ensureAnnotationAnchors(
+          dedupedEntries,
+          positioned,
+          loadClean
+        )
         const repaired = repairAcceptedCleanSpans(
           parsed.originalText || null,
           dedupedEntries,
@@ -768,12 +775,18 @@ export default function DashboardEditor() {
       }
     }
 
-    // Context anchor around the applied suggestion — stable across earlier
-    // accepts that change length (twin "the" on the same line).
+    // Context anchor around the applied suggestion — widen until unique in
+    // the full transcript so repeated "Blvd"/"Yes." twins stay jumpable.
     const postEntry = newEntries.find((e) => e.id === appliedEntryId)
+    const acceptClean = updatedOriginalText
+      ? buildCleanContentMap(updatedOriginalText).cleanContent
+      : null
     const appliedAnchor =
       postEntry && appliedAt != null && appliedEnd != null
-        ? buildContextAnchor(postEntry.text, appliedAt, appliedEnd)
+        ? buildUniqueContextAnchor(postEntry.text, appliedAt, appliedEnd, {
+            needle: finalSuggestion,
+            uniqueIn: acceptClean || postEntry.text,
+          })
         : ann._anchorBefore != null
           ? { before: ann._anchorBefore, after: ann._anchorAfter }
           : null
@@ -836,7 +849,8 @@ export default function DashboardEditor() {
         updatedOriginalText,
         newEntries,
         fixAnnotationPositions(newEntries, updatedAnnotations)
-      )
+      ),
+      acceptClean
     )
 
     entriesRef.current = newEntries
@@ -1198,10 +1212,17 @@ export default function DashboardEditor() {
       if (entrySpan && entryRestoreText) {
         const e = curEntries.find((row) => row.id === (a._appliedEntryId ?? a.entry_id))
         if (e) {
-          const rebuilt = buildContextAnchor(
+          const reopenClean = curOriginalText
+            ? buildCleanContentMap(curOriginalText).cleanContent
+            : e.text
+          const rebuilt = buildUniqueContextAnchor(
             e.text,
             entrySpan.start,
-            entrySpan.start + entryRestoreText.length
+            entrySpan.start + entryRestoreText.length,
+            {
+              needle: entryRestoreText,
+              uniqueIn: reopenClean,
+            }
           )
           if (rebuilt) openAnchor = rebuilt
         }
@@ -1228,9 +1249,13 @@ export default function DashboardEditor() {
     if (reopenShift) {
       updated = shiftAcceptedApplySites(updated, reopenShift, annotationId)
     }
+    const reopenEnsureClean = curOriginalText
+      ? buildCleanContentMap(curOriginalText).cleanContent
+      : null
     updated = ensureAnnotationAnchors(
       curEntries,
-      repairAcceptedCleanSpans(curOriginalText, curEntries, updated)
+      repairAcceptedCleanSpans(curOriginalText, curEntries, updated),
+      reopenEnsureClean
     )
 
     annotationsRef.current = updated
@@ -2124,7 +2149,27 @@ export default function DashboardEditor() {
               )
               let located = null
               let usedNeedle = null
+              // Accepted: prefer the stored apply span so twin "Blvd." rows
+              // don't have to re-win a unique phrase search after Accept.
+              if (
+                ann.status === 'accepted' &&
+                ann.suggestion !== '' &&
+                Number.isFinite(ann._cleanStart) &&
+                Number.isFinite(ann._cleanEnd) &&
+                ann._cleanEnd > ann._cleanStart &&
+                ann._cleanEnd <= cleanContent.length
+              ) {
+                const stored = cleanContent.substring(ann._cleanStart, ann._cleanEnd)
+                if (
+                  stored === ann.suggestion ||
+                  compactSpanText(stored) === compactSpanText(ann.suggestion)
+                ) {
+                  located = { cleanStart: ann._cleanStart, cleanEnd: ann._cleanEnd }
+                  usedNeedle = ann.suggestion
+                }
+              }
               for (const needle of needles) {
+                if (located) break
                 located = locateAnnotationWithAnchor(
                   cleanContent,
                   annotationEntry,
