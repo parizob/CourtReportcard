@@ -59,12 +59,12 @@ export default function LandingPage() {
                 <button
                   onClick={() => openModal('signup')}
                   data-track-id="landing_hero_try_now"
-                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
                 >
-                  Try Now
+                  Get started
                 </button>
-                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-md font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10 hover:translate-y-[-1px]">
-                  Platform Demo
+                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10 hover:translate-y-[-1px]">
+                  See how it works
                 </Link>
               </div>
             </div>
@@ -140,8 +140,8 @@ export default function LandingPage() {
                     </div>
                     <div className="flex items-center gap-3 ml-auto shrink-0">
                       <div className="flex flex-col items-end">
-                        <span className="hidden sm:block text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Confidence Score</span>
-                        <span className="text-lg font-headline font-black text-primary leading-none">98.4%</span>
+                        <span className="hidden sm:block text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Ready to review</span>
+                        <span className="text-lg font-headline font-black text-primary leading-none">12 issues</span>
                       </div>
                       <button type="button" className="bg-primary text-on-primary p-2 rounded-lg transition-transform hover:scale-105 active:scale-95" aria-hidden="true" tabIndex={-1}>
                         <span className="material-symbols-outlined text-lg">auto_fix_high</span>
