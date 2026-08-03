@@ -67,7 +67,9 @@ export function stripRtf(rtf) {
   s = s.replace(/\\par\b ?/g, '\n')
   s = s.replace(/\\line\b ?/g, '\n')
   s = s.replace(/\\tab\b ?/g, '\t')
-  s = s.replace(/\\page\b ?/g, '\n\n')
+  // Real page breaks → form feed so countPages can charge by page, not by
+  // leftover nonempty lines from headers/footers/crumbs after strip.
+  s = s.replace(/\\page\b ?/g, '\f')
 
   // Decode \'XX hex sequences (e.g. \'93 → fancy quote). Treats as Latin-1.
   s = s.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))

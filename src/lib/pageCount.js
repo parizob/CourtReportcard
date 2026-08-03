@@ -1,27 +1,34 @@
 /**
- * Counts pages in a transcript TXT.
+ * Counts pages in a transcript (plain text after any RTF strip).
  *
- * Primary: detects the centered page-number headers that court reporter software
- * places far to the right of the page (30+ leading spaces, a 1–4 digit number,
- * nothing else). These are the actual page breaks and give the exact count.
- *
- * Fallback: if no page-break markers are found, counts numbered transcript lines
- * (e.g. " 1  text", " 12  text") and divides by 25 (industry standard lines/page).
- * A final fallback counts all non-empty lines.
+ * Order of signals (strongest first):
+ * 1. Form-feed page breaks (`\f`) — stripRtf turns RTF `\page` into these.
+ * 2. Centered page-number headers (30+ leading spaces + digits only).
+ * 3. Numbered transcript lines (1–25 style, spaces or tabs) ÷ 25.
+ * 4. All non-empty lines ÷ 25 (last resort — can overcount fat RTF leftovers).
  */
 export function countPages(text) {
   if (!text) return 0
 
-  const lines = text.split('\n')
+  // RTF `\page` becomes `\f` in stripRtf. Prefer segment count over line heuristics
+  // so header/footer crumbs cannot inflate token charges (89 → ~240 class bug).
+  if (text.includes('\f')) {
+    const segments = text.split('\f').filter((part) => part.trim().length > 0)
+    if (segments.length > 0) return segments.length
+  }
 
-  // Primary: look for lines that are only a page number with heavy left-padding.
-  // These appear as e.g. "                                                       3"
-  // Line numbers (1–25 per page) use only ~16 spaces of padding, so 30 is a safe threshold.
+  const lines = text.split(/\r?\n/)
+
+  // Centered page-number headers from court reporter TXT exports.
+  // Line numbers (1–25/page) use only ~16 spaces of padding; 30+ is a page header.
   const pageMarkers = lines.filter((l) => /^\s{30,}\d{1,4}\s*$/.test(l))
   if (pageMarkers.length > 0) return pageMarkers.length
 
-  // Fallback: count numbered content lines and divide by 25.
-  const numbered = lines.filter((l) => /^\s*\d{1,4}\s{2,}/.test(l)).length
-  const lineCount = numbered > 0 ? numbered : lines.filter((l) => l.trim().length > 0).length
-  return Math.max(1, Math.ceil(lineCount / 25))
+  // Numbered content lines. Allow tabs (common after RTF `\tab`) and require
+  // only 1–2 digit line nums so years like "2024  ..." are less likely to match.
+  const numbered = lines.filter((l) => /^\s*\d{1,2}(?:[ \t]{2,}|\t)/.test(l)).length
+  if (numbered > 0) return Math.max(1, Math.ceil(numbered / 25))
+
+  const nonempty = lines.filter((l) => l.trim().length > 0).length
+  return Math.max(1, Math.ceil(nonempty / 25))
 }

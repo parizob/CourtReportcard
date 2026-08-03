@@ -98,12 +98,17 @@ const FOUNDER_ALERT_EMAIL = 'courtreportcard@gmail.com'
 /** Mirrors src/lib/pageCount.js's countPages. */
 function countPages(text: string): number {
   if (!text) return 0
-  const lines = text.split('\n')
+  if (text.includes('\f')) {
+    const segments = text.split('\f').filter((part) => part.trim().length > 0)
+    if (segments.length > 0) return segments.length
+  }
+  const lines = text.split(/\r?\n/)
   const pageMarkers = lines.filter((l) => /^\s{30,}\d{1,4}\s*$/.test(l))
   if (pageMarkers.length > 0) return pageMarkers.length
-  const numbered = lines.filter((l) => /^\s*\d{1,4}\s{2,}/.test(l)).length
-  const lineCount = numbered > 0 ? numbered : lines.filter((l) => l.trim().length > 0).length
-  return Math.max(1, Math.ceil(lineCount / 25))
+  const numbered = lines.filter((l) => /^\s*\d{1,2}(?:[ \t]{2,}|\t)/.test(l)).length
+  if (numbered > 0) return Math.max(1, Math.ceil(numbered / 25))
+  const nonempty = lines.filter((l) => l.trim().length > 0).length
+  return Math.max(1, Math.ceil(nonempty / 25))
 }
 
 /** Mirrors src/lib/chunkSplit.js's TURN_START_RE + findSpeakerTurnBoundaries. */
@@ -1100,7 +1105,8 @@ function stripRtf(rtf: string): string {
   s = s.replace(/\\par\b ?/g, '\n')
   s = s.replace(/\\line\b ?/g, '\n')
   s = s.replace(/\\tab\b ?/g, '\t')
-  s = s.replace(/\\page\b ?/g, '\n\n')
+  // Mirror src/lib/rtf.js — form feed so countPages charges by real page breaks.
+  s = s.replace(/\\page\b ?/g, '\f')
   s = s.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
   s = s.replace(/\\u(-?\d+)\??/g, (_, n) => {
     let code = parseInt(n, 10)
