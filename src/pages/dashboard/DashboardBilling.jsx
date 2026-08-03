@@ -25,7 +25,7 @@ const tiers = [
     price: '$49',
     period: '/mo',
     tokens: 2000,
-    features: ['2,000 tokens/mo (2,000 pages)', 'Priority analysis', 'TXT & JSON exports', 'Priority support'],
+    features: ['2,000 tokens/mo (2,000 pages)', 'Priority analysis', 'TXT & RTF exports', 'Priority support'],
     cta: 'Coming Soon',
   },
   {
@@ -34,7 +34,7 @@ const tiers = [
     price: 'Custom',
     period: '',
     tokens: null,
-    features: ['Custom token volume', 'Team collaboration', 'TXT & JSON exports', 'Dedicated account manager', 'Custom integrations'],
+    features: ['Custom token volume', 'Team collaboration', 'TXT & RTF exports', 'Dedicated account manager', 'Custom integrations'],
     cta: 'Coming Soon',
   },
 ]

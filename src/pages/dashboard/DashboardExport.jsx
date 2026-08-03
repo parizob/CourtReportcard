@@ -19,6 +19,7 @@ export default function DashboardExport() {
   const [error, setError] = useState('')
   const [exportBlocked, setExportBlocked] = useState(false)
   const [exporting, setExporting] = useState(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   /** Accepted fixes that failed export verify — shown as an explicit list, not buried in prose. */
   const [verifyFailed, setVerifyFailed] = useState([])
 
@@ -566,27 +567,6 @@ export default function DashboardExport() {
           </div>
         </div>
 
-        {/* Annotated export — full width */}
-        <p className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Annotated Export</p>
-
-        <button
-          onClick={() => handleExport('json')}
-          disabled={!!exporting || exportBlocked}
-          data-track-id="export_json"
-          className="shrink-0 bg-surface-container-lowest rounded-xl editorial-shadow px-4 py-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-        >
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600 bg-opacity-80 group-hover:scale-105 transition-transform">
-            <span className="material-symbols-outlined text-lg">data_object</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-headline font-bold text-on-surface text-sm">Annotated Export <span className="text-on-surface-variant font-normal">(.json)</span></p>
-            <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug">Full transcript with all annotations, corrections, and audit trail.</p>
-          </div>
-          <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-            {exporting === 'json' ? 'check_circle' : 'download'}
-          </span>
-        </button>
-
         {/* Coming soon — compact */}
         <div className="shrink-0 flex items-center gap-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Coming soon</p>
@@ -599,6 +579,44 @@ export default function DashboardExport() {
               <span className="text-xs font-semibold text-on-surface-variant">{f.label}</span>
             </div>
           ))}
+        </div>
+
+        {/* Advanced: JSON kept for support / technical use, not the main path */}
+        <div className="shrink-0 border-t border-outline-variant/15 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors"
+            aria-expanded={showAdvanced}
+          >
+            <span className="material-symbols-outlined text-sm">
+              {showAdvanced ? 'expand_less' : 'expand_more'}
+            </span>
+            Advanced
+          </button>
+          {showAdvanced && (
+            <button
+              onClick={() => handleExport('json')}
+              disabled={!!exporting || exportBlocked}
+              data-track-id="export_json"
+              className="mt-2 w-full bg-surface-container-lowest rounded-xl border border-outline-variant/20 px-4 py-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+            >
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-surface-container text-on-surface-variant group-hover:scale-105 transition-transform">
+                <span className="material-symbols-outlined text-lg">data_object</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-headline font-bold text-on-surface text-sm">
+                  Technical file <span className="text-on-surface-variant font-normal">(.json)</span>
+                </p>
+                <p className="text-[11px] text-on-surface-variant leading-snug">
+                  For support or technical use only. Most reporters can ignore this.
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                {exporting === 'json' ? 'check_circle' : 'download'}
+              </span>
+            </button>
+          )}
         </div>
 
       </div>
