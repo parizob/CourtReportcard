@@ -33,8 +33,12 @@ const faqs = [
     a: 'Court Reportcard currently supports .txt, .rtf, and .json exports. PDF, Word, and additional formats are coming soon.',
   },
   {
-    q: 'Is this the right tool for classified, sealed, or HIPAA-protected transcripts?',
-    a: 'Not yet. Court Reportcard is not HIPAA compliant. Please do not upload transcripts containing protected health information, classified material, sealed material, content subject to a protective order, or any content subject to strict regulatory requirements. We take this seriously and will communicate clearly when compliance certification is in place.',
+    q: 'Can I use Court Reportcard for personal injury or medical transcripts?',
+    a: 'Court Reportcard is built for general legal transcripts and does not sign Business Associate Agreements (BAAs). Transcripts that contain unredacted Protected Health Information (PHI) are not allowed under our Terms of Service. If you work personal injury or medical cases, fully de-identify the document to HIPAA standards before you upload, or use the platform only for proceedings that do not include PHI.',
+  },
+  {
+    q: 'Can I upload sealed transcripts or materials under a protective order?',
+    a: 'No. Sealed transcripts and documents subject to a sealing order or protective order are not allowed on Court Reportcard. Our Terms of Service prohibit uploading that material. Use the platform only for transcripts that are not sealed and not under a protective order.',
   },
   {
     q: 'How do I know my transcript won\'t be shared or used to train a model?',
