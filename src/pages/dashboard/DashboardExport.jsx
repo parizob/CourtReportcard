@@ -12,14 +12,12 @@ export default function DashboardExport() {
   const [caseData, setCaseData] = useState(null)
   const [entries, setEntries] = useState([])
   const [annotations, setAnnotations] = useState([])
-  const [title, setTitle] = useState('')
   const [originalText, setOriginalText] = useState(null)
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(!!caseId)
   const [error, setError] = useState('')
   const [exportBlocked, setExportBlocked] = useState(false)
   const [exporting, setExporting] = useState(null)
-  const [showAdvanced, setShowAdvanced] = useState(false)
   /** Accepted fixes that failed export verify — shown as an explicit list, not buried in prose. */
   const [verifyFailed, setVerifyFailed] = useState([])
 
@@ -65,7 +63,6 @@ export default function DashboardExport() {
         const loadedAnnotations = parsed.annotations || []
 
         setCaseData(caseRow)
-        setTitle(parsed.title || '')
         setEntries(parsed.entries || [])
         setAnnotations(loadedAnnotations)
         setOriginalText(parsed.originalText || null)
@@ -229,14 +226,6 @@ export default function DashboardExport() {
       .join('\n')
   }
 
-  const buildJsonExport = () => {
-    const syncedOriginal = resolveExportOriginalText()
-    const payload = { title, entries, annotations }
-    if (syncedOriginal) payload.originalText = syncedOriginal
-    else if (originalText) payload.originalText = originalText
-    return JSON.stringify(payload, null, 2)
-  }
-
   const triggerDownload = (content, filename, mime) => {
     const blob = new Blob([content], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -276,10 +265,6 @@ export default function DashboardExport() {
         }
         case 'rtf_clean': {
           triggerDownload(encodeRtf(buildCleanText()), `${baseName}.rtf`, 'application/rtf')
-          break
-        }
-        case 'json': {
-          triggerDownload(buildJsonExport(), `${baseName}_annotated.json`, 'application/json')
           break
         }
         default:
@@ -474,43 +459,13 @@ export default function DashboardExport() {
 
         {/* Download guidance + export formats */}
         <div className="shrink-0 flex flex-col gap-2">
-          <div className="flex flex-col items-center gap-1.5">
-            <p className="text-xs text-on-surface-variant leading-relaxed text-center">
-              Download your reviewed transcript by selecting an option below. It is encouraged to review the file before submission.
-            </p>
-            <div className="relative group/tip w-fit">
-              <button
-                type="button"
-                className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm">help_outline</span>
-                Not sure which version to use?
-              </button>
-              <div className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 w-80 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
-                <div className="w-2 h-2 bg-[#1a1a2e] rotate-45 mx-auto mb-[-5px]" />
-                <div className="bg-[#1a1a2e] text-white rounded-xl px-5 py-4 text-[11px] leading-relaxed shadow-xl">
-                  <p className="text-white font-bold text-sm text-center mb-3 tracking-tight">Which version should I use?</p>
-                  <div className="grid grid-cols-2 divide-x divide-white/15">
-                    <div className="pr-4 flex flex-col items-center text-center">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">With Line Numbers</p>
-                      <p className="text-white/75 leading-relaxed">Use if your software imports the file as-is.</p>
-                      <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Case CATalyst</span></p>
-                    </div>
-                    <div className="pl-4 flex flex-col items-center text-center">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed-dim mb-1.5">Without Line Numbers</p>
-                      <p className="text-white/75 leading-relaxed">Use if your software adds its own numbers on import.</p>
-                      <p className="text-white/40 mt-2 text-[10px]">e.g. <span className="text-white/70 font-medium">Eclipse</span></p>
-                    </div>
-                  </div>
-                  <p className="text-white/30 mt-3 text-[10px] text-center">When in doubt, check your software's import settings.</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-on-surface-variant leading-relaxed text-center">
+            Download your reviewed transcript by selecting an option below. It is encouraged to review the file before submission.
+          </p>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-5 mt-4">
             {/* With line numbers */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">With Line<br className="sm:hidden" /> Numbers</p>
               {[
                 { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
@@ -538,7 +493,7 @@ export default function DashboardExport() {
             </div>
 
             {/* Without line numbers */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Without Line<br className="sm:hidden" /> Numbers</p>
               {[
                 { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
@@ -565,10 +520,41 @@ export default function DashboardExport() {
               ))}
             </div>
           </div>
+
+          <div className="relative group/tip w-fit mx-auto mt-3">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">help_outline</span>
+              Not sure which version to use?
+            </button>
+            <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(22rem,calc(100vw-2rem))] opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
+              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl editorial-shadow p-3 space-y-2">
+                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">With line numbers</p>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                    Use if your software imports the file as-is.
+                  </p>
+                  <p className="text-[10px] text-outline mt-1">e.g. Case CATalyst</p>
+                </div>
+                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-1">Without line numbers</p>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                    Use if your software adds its own numbers on import.
+                  </p>
+                  <p className="text-[10px] text-outline mt-1">e.g. Eclipse</p>
+                </div>
+                <p className="text-[10px] text-outline px-1 pt-0.5 leading-relaxed">
+                  When in doubt, check your software&apos;s import settings.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Coming soon — compact */}
-        <div className="shrink-0 flex items-center gap-3">
+        <div className="shrink-0 flex items-center gap-3 pt-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Coming soon</p>
           {[
             { icon: 'picture_as_pdf', label: 'PDF', color: 'text-red-400' },
@@ -579,44 +565,6 @@ export default function DashboardExport() {
               <span className="text-xs font-semibold text-on-surface-variant">{f.label}</span>
             </div>
           ))}
-        </div>
-
-        {/* Advanced: JSON kept for support / technical use, not the main path */}
-        <div className="shrink-0 border-t border-outline-variant/15 pt-3">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors"
-            aria-expanded={showAdvanced}
-          >
-            <span className="material-symbols-outlined text-sm">
-              {showAdvanced ? 'expand_less' : 'expand_more'}
-            </span>
-            Advanced
-          </button>
-          {showAdvanced && (
-            <button
-              onClick={() => handleExport('json')}
-              disabled={!!exporting || exportBlocked}
-              data-track-id="export_json"
-              className="mt-2 w-full bg-surface-container-lowest rounded-xl border border-outline-variant/20 px-4 py-3 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-            >
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-surface-container text-on-surface-variant group-hover:scale-105 transition-transform">
-                <span className="material-symbols-outlined text-lg">data_object</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-headline font-bold text-on-surface text-sm">
-                  Technical file <span className="text-on-surface-variant font-normal">(.json)</span>
-                </p>
-                <p className="text-[11px] text-on-surface-variant leading-snug">
-                  For support or technical use only. Most reporters can ignore this.
-                </p>
-              </div>
-              <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                {exporting === 'json' ? 'check_circle' : 'download'}
-              </span>
-            </button>
-          )}
         </div>
 
       </div>
