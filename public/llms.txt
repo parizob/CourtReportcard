@@ -110,6 +110,7 @@ Canonical page: https://www.courtreportcard.com/pricing
 - [About](https://www.courtreportcard.com/aboutus): Origin story and mission
 - [Privacy Policy](https://www.courtreportcard.com/privacy): Full retention, encryption, and training policy
 - [Terms of Service](https://www.courtreportcard.com/terms): Account and service terms
+- [Data Processing Agreement](https://www.courtreportcard.com/dpa): How we process uploaded transcript content
 
 ## Optional
 

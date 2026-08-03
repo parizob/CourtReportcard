@@ -79,7 +79,7 @@ export default function Privacy() {
 
         <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 mb-8">
           <p className="text-sm text-on-surface leading-relaxed">
-            This policy describes how Court Reportcard handles the confidential legal materials you upload to the Service. It is written for the practitioner who needs to understand &mdash; precisely &mdash; what we do with their files, how long we keep them, and who can see them. For our broader contractual terms, see the <Link to="/terms" className="text-primary font-semibold hover:underline">Terms of Service</Link>.
+            This policy describes how Court Reportcard handles the confidential legal materials you upload to the Service. It is written for the practitioner who needs to understand &mdash; precisely &mdash; what we do with their files, how long we keep them, and who can see them. For our broader contractual terms, see the <Link to="/terms" className="text-primary font-semibold hover:underline">Terms of Service</Link>. Processing of uploaded transcript content on your behalf is also described in the <Link to="/dpa" className="text-primary font-semibold hover:underline">Data Processing Agreement</Link>.
           </p>
         </div>
 

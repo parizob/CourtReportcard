@@ -84,6 +84,15 @@ export const staticPages = [
     priority: 0.3,
   },
   {
+    path: '/dpa',
+    title: 'Data Processing Agreement',
+    llmsLabel: 'Data Processing Agreement',
+    llmsNote: 'How we process uploaded transcript content',
+    section: 'company',
+    changefreq: 'yearly',
+    priority: 0.3,
+  },
+  {
     path: '/blog',
     title: 'Blog',
     llmsLabel: 'Blog',

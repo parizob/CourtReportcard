@@ -4,6 +4,7 @@ import OurPlatform from './pages/OurPlatform'
 import AboutUs from './pages/AboutUs'
 import TermsOfService from './pages/TermsOfService'
 import Privacy from './pages/Privacy'
+import DataProcessingAgreement from './pages/DataProcessingAgreement'
 import Support from './pages/Support'
 import Pricing from './pages/Pricing'
 import Blog from './pages/Blog'
@@ -42,6 +43,7 @@ function AppShell() {
           <Route path="/ourplatform" element={<OurPlatform />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/dpa" element={<DataProcessingAgreement />} />
           <Route
             path="/dashboard"
             element={
