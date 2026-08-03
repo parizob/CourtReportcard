@@ -11,7 +11,7 @@ const sections = [
   {
     num: '2.',
     title: 'Acceptance of Terms & Professional Responsibility',
-    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms and by the Data Processing Agreement available at /dpa (the "DPA"), which is incorporated into these Terms by reference. The Service is an automated proofreading tool designed to assist, not replace, professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
+    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms and by the Data Processing Agreement available at https://www.courtreportcard.com/dpa (the "DPA"), which is incorporated into these Terms by reference. The Service is an automated proofreading tool designed to assist, not replace, professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
   },
   {
     num: '3.',
@@ -58,7 +58,15 @@ const sections = [
   {
     num: '8.',
     title: 'Data Privacy, Processing, and Retention',
-    body: `We take the confidentiality of your legal transcripts seriously. Processing of uploaded transcript content is also governed by the Data Processing Agreement at /dpa, which forms part of these Terms.`,
+    body: (
+      <>
+        We take the confidentiality of your legal transcripts seriously. Processing of uploaded transcript content is also governed by the Data Processing Agreement at{' '}
+        <Link to="/dpa" className="text-primary font-semibold hover:underline">
+          https://www.courtreportcard.com/dpa
+        </Link>
+        , which forms part of these Terms.
+      </>
+    ),
     bullets: [
       'No Model Training: Text uploaded to Court Reportcard is processed using enterprise-grade APIs. Your uploaded documents, text, and corrections are never used to train, fine-tune, or improve any models.',
       'Data Retention: Uploaded files and generated suggestions are temporarily stored on secure, certified cloud infrastructure solely to facilitate your editing session. Files and their associated data will be permanently deleted from our servers upon your manual deletion or automatically after 90 days, whichever occurs first.',

@@ -115,11 +115,6 @@ const sections = [
     title: 'Order of Precedence and Changes',
     body: `If there is a conflict between this DPA and the Terms or Privacy Policy regarding the processing of Customer Content, this DPA controls for that conflict. We may update this DPA as described in the Terms for changes to those Terms. Material changes will be communicated by email or through the Service. Continued use of the Service after an update constitutes acceptance of the updated DPA.`,
   },
-  {
-    num: '17.',
-    title: 'Contact',
-    body: `For questions about this DPA or data processing, contact us at courtreportcard@gmail.com.`,
-  },
 ]
 
 export default function DataProcessingAgreement() {
