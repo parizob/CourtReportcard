@@ -9,12 +9,12 @@ export function isPageHeaderLine(line) {
 }
 
 /**
- * Detect the column where left-gutter line numbers (1–25) start.
- * Returns null when the file does not look like a numbered transcript
- * (e.g. stripped RTF with no line column) so we never blank real content
- * that happens to start with a 1–2 digit number.
+ * Columns where left-gutter line numbers (1–25) repeatedly start.
+ * Only columns with ≥3 hits qualify — a one-off "12 Main Street" at a
+ * nearby indent must not unlock blanking.
+ * Returns [] when the file does not look like a numbered transcript.
  */
-export function detectLineNumberDigitStart(lines) {
+export function detectLineNumberDigitStarts(lines) {
   const counts = new Map()
   for (const line of lines) {
     const l = (line || '').replace(/\r$/, '')
@@ -29,29 +29,37 @@ export function detectLineNumberDigitStart(lines) {
     const start = m[1].length
     counts.set(start, (counts.get(start) || 0) + 1)
   }
-  let best = null
-  let bestN = 0
+  // Primary: column must appear ≥3 times. Secondary: ≥2 times and adjacent to a
+  // primary column (real transcripts wobble by one space between 1-digit and
+  // 2-digit line nums). A single "12 Main Street" at a nearby indent stays out.
+  const primary = new Set()
   for (const [start, n] of counts) {
-    if (n > bestN) {
-      best = start
-      bestN = n
+    if (n >= 3) primary.add(start)
+  }
+  const allowed = new Set(primary)
+  for (const [start, n] of counts) {
+    if (n >= 2 && (primary.has(start - 1) || primary.has(start + 1))) {
+      allowed.add(start)
     }
   }
-  // Need repeated hits at the same column — a couple of "12 Main St" lines
-  // must not unlock blanking for the whole file.
-  if (bestN < 3) return null
-  return best
+  return [...allowed].sort((a, b) => a - b)
 }
 
-function leadMatchesGutter(leadLen, digitStart) {
-  return Math.abs(leadLen - digitStart) <= 1
+/** @deprecated use detectLineNumberDigitStarts — kept for call sites needing one column */
+export function detectLineNumberDigitStart(lines) {
+  const starts = detectLineNumberDigitStarts(lines)
+  return starts.length ? starts[0] : null
+}
+
+function leadInGutter(leadLen, allowedStarts) {
+  return allowedStarts.includes(leadLen)
 }
 
 /** What numbering is actually present in the export body (for Export UI defaults). */
 export function detectExportNumbering(text) {
   const lines = (text || '').split('\n')
   return {
-    hasLineNumbers: detectLineNumberDigitStart(lines) != null,
+    hasLineNumbers: detectLineNumberDigitStarts(lines).length > 0,
     hasPageNumbers: lines.some(isPageHeaderLine),
   }
 }
@@ -64,8 +72,8 @@ export function detectExportNumbering(text) {
 export function blankLineNumbers(text) {
   if (!text) return text
   const lines = text.split('\n')
-  const digitStart = detectLineNumberDigitStart(lines)
-  if (digitStart == null) return text
+  const allowedStarts = detectLineNumberDigitStarts(lines)
+  if (!allowedStarts.length) return text
 
   return lines
     .map((line) => {
@@ -76,7 +84,7 @@ export function blankLineNumbers(text) {
       const bare = l.match(/^(\s*)(\d{1,2})\s*$/)
       if (bare && bare[1].length < 30) {
         const num = parseInt(bare[2], 10)
-        if (num >= 1 && num <= 25 && leadMatchesGutter(bare[1].length, digitStart)) {
+        if (num >= 1 && num <= 25 && leadInGutter(bare[1].length, allowedStarts)) {
           return ''
         }
         return line
@@ -88,7 +96,7 @@ export function blankLineNumbers(text) {
       if (lead.length >= 30) return line
       const num = parseInt(digits, 10)
       if (num < 1 || num > 25) return line
-      if (!leadMatchesGutter(lead.length, digitStart)) return line
+      if (!leadInGutter(lead.length, allowedStarts)) return line
 
       const blanked = lead + ' '.repeat(digits.length) + gap + rest
       if (!blanked.trim()) return ''
@@ -105,8 +113,8 @@ export function blankLineNumbers(text) {
 export function stripLineNumberColumn(text) {
   if (!text) return text
   const lines = text.split('\n')
-  const digitStart = detectLineNumberDigitStart(lines)
-  if (digitStart == null) return text
+  const allowedStarts = detectLineNumberDigitStarts(lines)
+  if (!allowedStarts.length) return text
 
   let colWidth = Infinity
   for (const l of lines) {
@@ -115,7 +123,7 @@ export function stripLineNumberColumn(text) {
     const m = raw.match(/^(\s*\d{1,2}\s+)\S/)
     if (!m) continue
     const lead = (raw.match(/^(\s*)/) || ['', ''])[1].length
-    if (!leadMatchesGutter(lead, digitStart)) continue
+    if (!leadInGutter(lead, allowedStarts)) continue
     colWidth = Math.min(colWidth, m[1].length)
   }
   if (!isFinite(colWidth) || colWidth === 0) return text
@@ -128,13 +136,13 @@ export function stripLineNumberColumn(text) {
       if (isPageHeaderLine(l)) return raw
       if (/^\s*\d{1,2}\s*$/.test(l) && l.search(/\d/) < colWidth) {
         const lead = (l.match(/^(\s*)/) || ['', ''])[1].length
-        if (leadMatchesGutter(lead, digitStart)) return ''
+        if (leadInGutter(lead, allowedStarts)) return ''
       }
       const isNumbered = /^\s*\d{1,2}\s/.test(l)
       const bandIsBlank = /^\s*$/.test(l.slice(0, colWidth))
       if (isNumbered) {
         const lead = (l.match(/^(\s*)/) || ['', ''])[1].length
-        if (!leadMatchesGutter(lead, digitStart)) return raw
+        if (!leadInGutter(lead, allowedStarts)) return raw
         return l.slice(colWidth) + cr
       }
       if (bandIsBlank) return l.slice(colWidth) + cr

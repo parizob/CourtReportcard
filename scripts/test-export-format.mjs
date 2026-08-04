@@ -183,6 +183,18 @@ console.log('no false blanks on content numbers')
   assert(out.split('\n').some((l) => l === '12 years old, she said.'), 'wrong-column 12 kept')
 }
 
+{
+  // One-off near the gutter must not be blanked (old ±1 on mode would catch it)
+  const near = [
+    '       1     Q. Where do you live?',
+    '       2     A. Nearby.',
+    '       3     Q. Thanks.',
+    '      12 Main Street',
+  ].join('\n')
+  const out = formatExportText(near, { includeLineNumbers: false, includePageNumbers: false })
+  assert(out.includes('12 Main Street'), 'near-gutter address kept')
+}
+
 console.log('helpers')
 assert(stripPageHeaderLines(fixture).split('\n').filter(isPageHeaderLine).length === 0, 'stripPageHeaderLines')
 assert(stripLineNumberColumn(fixture).includes('Q. What'), 'stripLineNumberColumn keeps Q')
