@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: 'Can I export to court-specific formats?',
-    a: 'Court Reportcard currently supports .txt and .rtf exports for bringing your reviewed transcript into your software. PDF, Word, and additional formats are coming soon.',
+    a: 'Court Reportcard currently supports .txt and .rtf exports. On the Export page you can choose whether to include line numbers and page numbers before you download, which helps when re-importing into Case CATalyst, Eclipse, or similar software. PDF, Word, and additional formats are coming soon.',
   },
   {
     q: 'Can I use Court Reportcard for personal injury or medical transcripts?',

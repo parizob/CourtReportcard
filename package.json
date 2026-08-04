@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:export": "node scripts/test-export-integrity.mjs",
     "test:export-stress": "node scripts/test-export-accept-stress.mjs",
+    "test:export-format": "node scripts/test-export-format.mjs",
     "test:fidelity": "node scripts/test-transcript-fidelity-stress.mjs",
     "test:parse-json": "node scripts/test-parse-gemini-json.mjs",
     "test:highlight-jump": "node scripts/test-highlight-jump-coverage.mjs",

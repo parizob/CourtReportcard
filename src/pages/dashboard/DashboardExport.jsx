@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
+import { detectExportNumbering, formatExportText } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
 
 export default function DashboardExport() {
@@ -20,6 +21,11 @@ export default function DashboardExport() {
   const [exporting, setExporting] = useState(null)
   /** Accepted fixes that failed export verify — shown as an explicit list, not buried in prose. */
   const [verifyFailed, setVerifyFailed] = useState([])
+  // Defaults follow what is in the file (naked RTF often has neither).
+  const [includeLineNumbers, setIncludeLineNumbers] = useState(true)
+  const [includePageNumbers, setIncludePageNumbers] = useState(true)
+  const [hasLineNumbers, setHasLineNumbers] = useState(true)
+  const [hasPageNumbers, setHasPageNumbers] = useState(true)
 
   useEffect(() => {
     if (!caseId) return
@@ -66,6 +72,11 @@ export default function DashboardExport() {
         setEntries(parsed.entries || [])
         setAnnotations(loadedAnnotations)
         setOriginalText(parsed.originalText || null)
+        const numbering = detectExportNumbering(parsed.originalText || '')
+        setHasLineNumbers(numbering.hasLineNumbers)
+        setHasPageNumbers(numbering.hasPageNumbers)
+        setIncludeLineNumbers(numbering.hasLineNumbers)
+        setIncludePageNumbers(numbering.hasPageNumbers)
 
         // File is source of truth. Sync metrics from it so dashboard matches
         // what they can download. In-session save failures are fail-closed above.
@@ -157,11 +168,6 @@ export default function DashboardExport() {
     return output
   }
 
-  // Removes the line-number column while preserving all content indentation.
-  // Line numbers sit in a fixed-width band on the left; we detect that band's
-  // width (the body's left margin) and slice exactly that many characters from
-  // every line. Content indentation BEYOND the band is left untouched, so
-  // captions, "Plaintiff," indents, Q/A alignment, etc. stay exactly as-is.
   const resolveExportOriginalText = () => {
     if (!originalText) return null
     const { text, failed } = ensureAcceptedCorrectionsInOriginalText(
@@ -197,33 +203,9 @@ export default function DashboardExport() {
     return text
   }
 
-  const buildCleanText = () => {
+  const buildExportBody = () => {
     const source = resolveExportOriginalText() || buildPlainText()
-    const lines = source.split('\n')
-
-    // The body left margin = the smallest "<spaces><number><spaces>" prefix
-    // among numbered lines. Un-indented lines (vs., names, Q/A) produce the true
-    // column width; indented lines produce a longer prefix and don't lower the min.
-    let colWidth = Infinity
-    for (const l of lines) {
-      const m = l.match(/^(\s*\d{1,4}\s+)\S/)
-      if (m) colWidth = Math.min(colWidth, m[1].length)
-    }
-    if (!isFinite(colWidth) || colWidth === 0) return source
-
-    return lines
-      .map((line) => {
-        // Blank testimony line: just a bare line number in the left band, no
-        // content. (A lone number further right is a page number — leave it.)
-        if (/^\s*\d{1,4}\s*$/.test(line) && line.search(/\d/) < colWidth) return ''
-        const isNumbered = /^\s*\d{1,4}\s/.test(line)
-        const bandIsBlank = /^\s*$/.test(line.slice(0, colWidth))
-        // Only cut the band when it holds a line number or pure whitespace
-        // (continuation/blank lines). Never slice into actual content.
-        if (isNumbered || bandIsBlank) return line.slice(colWidth)
-        return line
-      })
-      .join('\n')
+    return formatExportText(source, { includeLineNumbers, includePageNumbers })
   }
 
   const triggerDownload = (content, filename, mime) => {
@@ -248,27 +230,11 @@ export default function DashboardExport() {
     setVerifyFailed([])
     try {
       const baseName = (caseData?.name || 'transcript').replace(/[^a-zA-Z0-9_-]/g, '_')
-      switch (format) {
-        case 'txt': {
-          const content = resolveExportOriginalText() || buildPlainText()
-          triggerDownload(content, `${baseName}.txt`, 'text/plain')
-          break
-        }
-        case 'rtf': {
-          const content = resolveExportOriginalText() || buildPlainText()
-          triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
-          break
-        }
-        case 'txt_clean': {
-          triggerDownload(buildCleanText(), `${baseName}.txt`, 'text/plain')
-          break
-        }
-        case 'rtf_clean': {
-          triggerDownload(encodeRtf(buildCleanText()), `${baseName}.rtf`, 'application/rtf')
-          break
-        }
-        default:
-          break
+      const content = buildExportBody()
+      if (format === 'txt') {
+        triggerDownload(content, `${baseName}.txt`, 'text/plain')
+      } else if (format === 'rtf') {
+        triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
       }
       try {
         sessionStorage.removeItem(`exportVerifyFailed:${caseId}`)
@@ -457,93 +423,119 @@ export default function DashboardExport() {
           )}
         </div>
 
-        {/* Download guidance + export formats */}
-        <div className="shrink-0 flex flex-col gap-2">
+        {/* Options + download */}
+        <div className="shrink-0 flex flex-col gap-3">
           <p className="text-xs text-on-surface-variant leading-relaxed text-center">
-            Download your reviewed transcript by selecting an option below. It is encouraged to review the file before submission.
+            Choose what to include, then download. It is encouraged to review the file before submission.
           </p>
 
-          <div className="grid grid-cols-2 gap-5 mt-4">
-            {/* With line numbers */}
-            <div className="flex flex-col gap-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">With Line<br className="sm:hidden" /> Numbers</p>
-              {[
-                { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
-                { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
-              ].map(({ format, icon, color, ext, desc }) => (
-                <button
-                  key={format}
-                  onClick={() => handleExport(format)}
-                  disabled={!!exporting || exportBlocked}
-                  data-track-id={`export_${format}`}
-                  className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-                >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
-                    <span className="material-symbols-outlined text-lg">{icon}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                    <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
-                  </div>
-                  <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {exporting === format ? 'check_circle' : 'download'}
+          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Include in download</p>
+            {[
+              {
+                available: hasLineNumbers,
+                checked: includeLineNumbers,
+                onChange: setIncludeLineNumbers,
+                title: 'Line numbers',
+                help: 'Left-column numbers (1 to 25). Turn off if your CAT software adds its own.',
+              },
+              {
+                available: hasPageNumbers,
+                checked: includePageNumbers,
+                onChange: setIncludePageNumbers,
+                title: 'Page numbers',
+                help: 'Centered page headers in the body. Turn off for Case CATalyst or Eclipse re-import.',
+              },
+            ].map(({ available, checked, onChange, title, help }) => (
+              <label
+                key={title}
+                className={`flex items-start gap-3 ${available ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
+              >
+                {available ? (
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => onChange(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 relative block w-4 h-4 shrink-0 rounded border border-outline-variant bg-surface-container-lowest"
+                  >
+                    <svg viewBox="0 0 16 16" className="absolute inset-0 w-full h-full text-on-surface-variant">
+                      <line x1="3.5" y1="12.5" x2="12.5" y2="3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                    </svg>
                   </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Without line numbers */}
-            <div className="flex flex-col gap-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Without Line<br className="sm:hidden" /> Numbers</p>
-              {[
-                { format: 'txt_clean', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
-                { format: 'rtf_clean', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
-              ].map(({ format, icon, color, ext, desc }) => (
-                <button
-                  key={format}
-                  onClick={() => handleExport(format)}
-                  disabled={!!exporting || exportBlocked}
-                  data-track-id={`export_${format}`}
-                  className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
-                >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
-                    <span className="material-symbols-outlined text-lg">{icon}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-headline font-bold text-on-surface text-sm">Transcript <span className="text-on-surface-variant font-normal">({ext})</span></p>
-                    <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
-                  </div>
-                  <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {exporting === format ? 'check_circle' : 'download'}
+                )}
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-on-surface">
+                    {title}
                   </span>
-                </button>
-              ))}
-            </div>
+                  <span className="block text-xs text-on-surface-variant leading-relaxed mt-0.5">
+                    {available ? help : 'Unavailable for this transcript.'}
+                  </span>
+                </span>
+              </label>
+            ))}
           </div>
 
-          <div className="relative group/tip w-fit mx-auto mt-3">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
+              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
+            ].map(({ format, icon, color, ext, desc }) => (
+              <button
+                key={format}
+                type="button"
+                onClick={() => handleExport(format)}
+                disabled={!!exporting || exportBlocked}
+                data-track-id={`export_${format}_L${includeLineNumbers ? 1 : 0}_P${includePageNumbers ? 1 : 0}`}
+                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
+                  <span className="material-symbols-outlined text-lg">{icon}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-headline font-bold text-on-surface text-sm">
+                    Download <span className="text-on-surface-variant font-normal">({ext})</span>
+                  </p>
+                  <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
+                </div>
+                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {exporting === format ? 'check_circle' : 'download'}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="relative group/tip w-fit mx-auto mt-1">
             <button
               type="button"
               className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors"
             >
               <span className="material-symbols-outlined text-sm">help_outline</span>
-              Not sure which version to use?
+              Not sure which options to use?
             </button>
             <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(22rem,calc(100vw-2rem))] opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl editorial-shadow p-3 space-y-2">
                 <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">With line numbers</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">Case CATalyst</p>
                   <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Use if your software imports the file as-is.
+                    Line numbers on, page numbers off.
                   </p>
-                  <p className="text-[10px] text-outline mt-1">e.g. Case CATalyst</p>
                 </div>
                 <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-1">Without line numbers</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-1">Eclipse</p>
                   <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Use if your software adds its own numbers on import.
+                    Line numbers off, page numbers off.
                   </p>
-                  <p className="text-[10px] text-outline mt-1">e.g. Eclipse</p>
+                </div>
+                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Keep as filed</p>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                    Both on (default).
+                  </p>
                 </div>
                 <p className="text-[10px] text-outline px-1 pt-0.5 leading-relaxed">
                   When in doubt, check your software&apos;s import settings.
