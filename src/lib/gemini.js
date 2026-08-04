@@ -177,6 +177,12 @@ export function lineParticipatesInNeedle(lineContent, needle) {
   if (!lineContent || !needle) return false
   if (!/\S/.test(lineContent)) return false
   if (isPageNumberOnlyLine(lineContent)) return false
+  // Prefer the real needle (keeps internal punctuation). Stripping "Ms.Jackoboice"
+  // down to "MsJackoboice" false-negatives the line and skips underline paint.
+  if (flexFind(lineContent, String(needle).replace(/\s*\[sic\]\s*$/i, '').trim())) {
+    return true
+  }
+  // Cross-line needles: this line may only hold some words of the phrase.
   const words = String(needle)
     .replace(/\s*\[sic\]\s*$/i, '')
     .split(/\s+/)

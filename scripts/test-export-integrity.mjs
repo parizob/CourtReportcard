@@ -1072,6 +1072,15 @@ console.log('\n=== Export integrity ===\n')
   )
   assert(lineParticipatesInNeedle('getting material to', 'to site'), 'to-line paints')
   assert(lineParticipatesInNeedle('site.', 'to site'), 'site-line paints')
+  // Glued honorifics (common RTF punctuation miss): must still paint.
+  assert(
+    lineParticipatesInNeedle('\t\tGo ahead, Ms.Jackoboice.  ', 'Ms.Jackoboice'),
+    'Ms.Jackoboice line paints (punct kept)'
+  )
+  assert(
+    lineParticipatesInNeedle('spoke with Ms.Medlock today.', 'Ms.Medlock'),
+    'Ms.Medlock line paints'
+  )
   assertEq(
     compactSpanText('to\n\n                              126\n\nsite'),
     'to site',

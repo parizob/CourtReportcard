@@ -23,6 +23,7 @@ let lastError = null
  *   entries: unknown[],
  *   annotations: unknown[],
  *   originalText: string | null,
+ *   wasRtf?: boolean,
  * }} */
 let pending = null
 
@@ -71,6 +72,7 @@ export function publishCaseReviewPending(snapshot) {
     entries: snapshot.entries || [],
     annotations: snapshot.annotations || [],
     originalText: snapshot.originalText ?? null,
+    wasRtf: snapshot.wasRtf === true,
   }
 }
 
@@ -149,6 +151,7 @@ async function writePendingToStorage(snap) {
     annotations: snap.annotations,
   }
   if (snap.originalText) payload.originalText = snap.originalText
+  if (snap.wasRtf === true) payload.wasRtf = true
 
   const expected = annotationStatusCounts(snap.annotations)
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })

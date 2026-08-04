@@ -10,6 +10,7 @@ import {
   enqueueCaseReviewSave,
   syncMetricsFromAnnotations,
 } from '../../lib/casePersist'
+import { shouldSoftWrapTranscript } from '../../lib/transcriptDisplay'
 import Tooltip from '../../components/Tooltip'
 
 export default function DashboardEditor() {
@@ -36,6 +37,8 @@ export default function DashboardEditor() {
   // (overlap) or the highlight span is missing. Refilled each originalText render.
   const jumpLineByAnnIdRef = useRef({})
   const [originalText, setOriginalText] = useState(null)
+  // Persist RTF origin; soft-wrap only when wasRtf + text looks unnumbered.
+  const [wasRtf, setWasRtf] = useState(false)
   const [customTexts, setCustomTexts] = useState({})
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
   const [legendOpen, setLegendOpen] = useState(false)
@@ -44,7 +47,12 @@ export default function DashboardEditor() {
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
   const originalTextRef = useRef(originalText)
+  const wasRtfRef = useRef(false)
   const titleRef = useRef(title)
+  const softWrapTranscript = useMemo(
+    () => shouldSoftWrapTranscript(wasRtf, originalText),
+    [wasRtf, originalText]
+  )
   const extractedFilePathRef = useRef(extractedFilePath)
   const caseIdRef = useRef(caseId)
   const syncTimerRef = useRef(null)
@@ -301,18 +309,24 @@ export default function DashboardEditor() {
         )
         if (gen !== loadGenRef.current) return
 
+        const transcriptMeta = caseRow.case_files?.find((f) => f.file_type === 'transcript')
+        const loadedWasRtf =
+          parsed.wasRtf === true || /\.rtf$/i.test(transcriptMeta?.file_name || '')
         setTitle(parsed.title || '')
         titleRef.current = parsed.title || ''
         setEntries(dedupedEntries)
         setAnnotations(fixedAnnotations)
         setOriginalText(parsed.originalText || null)
+        setWasRtf(loadedWasRtf)
         entriesRef.current = dedupedEntries
         annotationsRef.current = fixedAnnotations
         originalTextRef.current = parsed.originalText || null
+        wasRtfRef.current = loadedWasRtf
         setOriginalSnapshot(JSON.stringify({
           entries: dedupedEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
+          wasRtf: loadedWasRtf,
         }))
         publishCaseReviewPending({
           caseId,
@@ -321,6 +335,7 @@ export default function DashboardEditor() {
           entries: dedupedEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
+          wasRtf: loadedWasRtf,
         })
         canPersistRef.current = true
         // Drop sticky persist failures from a prior session/HMR so Export is not
@@ -357,6 +372,7 @@ export default function DashboardEditor() {
         entries: next,
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
+        wasRtf: wasRtfRef.current,
       })
     }
   }, [])
@@ -374,6 +390,7 @@ export default function DashboardEditor() {
         entries: next,
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
+        wasRtf: wasRtfRef.current,
       })
     }
   }, [])
@@ -390,6 +407,7 @@ export default function DashboardEditor() {
       entries: entriesRef.current,
       annotations: annotationsRef.current,
       originalText: originalTextRef.current,
+      wasRtf: wasRtfRef.current,
     })
     return true
   }, [])
@@ -408,6 +426,7 @@ export default function DashboardEditor() {
         entries: entriesRef.current,
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
+        wasRtf: wasRtfRef.current,
       }))
       return result
     })
@@ -2236,6 +2255,9 @@ export default function DashboardEditor() {
               }
             }
 
+            // Naked RTF only: allow wrapping. Numbered RTF/TXT keep hard lines.
+            const wsClass = softWrapTranscript ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+
             const renderOriginalLine = (pl, lineKey) => {
               const { prefix, content, fullLine, cleanStart, cleanEnd } = pl
 
@@ -2245,7 +2267,7 @@ export default function DashboardEditor() {
               if (isPageBreakLine) {
                 return (
                   <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
-                    <span className="whitespace-pre">{fullLine}</span>
+                    <span className={wsClass}>{fullLine}</span>
                   </div>
                 )
               }
@@ -2271,7 +2293,7 @@ export default function DashboardEditor() {
               if (lineHighlights.length === 0) {
                 return (
                   <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
-                    <span className="whitespace-pre">{fullLine}</span>
+                    <span className={wsClass}>{fullLine}</span>
                   </div>
                 )
               }
@@ -2279,7 +2301,7 @@ export default function DashboardEditor() {
               // Render prefix (line number) as plain text, content with highlights
               const parts = []
               if (prefix) {
-                parts.push(<span key="pfx" className="whitespace-pre">{prefix}</span>)
+                parts.push(<span key="pfx" className={wsClass}>{prefix}</span>)
               }
 
               lineHighlights.sort((a, b) => a.localStart - b.localStart)
@@ -2287,13 +2309,13 @@ export default function DashboardEditor() {
 
               for (const h of lineHighlights) {
                 if (cursor < h.localStart) {
-                  parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor, h.localStart)}</span>)
+                  parts.push(<span key={`t-${cursor}`} className={wsClass}>{content.substring(cursor, h.localStart)}</span>)
                 }
 
                 // No font-semibold in the mono transcript: bold synthesizes wider
                 // glyphs and makes green spans look offset (black letters mid-word,
                 // fake "extra spaces") even when the underlying text is fine.
-                let cls = 'inline whitespace-pre '
+                let cls = `inline ${wsClass} `
                 if (h.status === 'accepted') {
                   cls += isReviewOnlyAnnotation(h)
                     ? 'text-sky-700 cursor-pointer'
@@ -2345,7 +2367,7 @@ export default function DashboardEditor() {
               }
 
               if (cursor < content.length) {
-                parts.push(<span key={`t-${cursor}`} className="whitespace-pre">{content.substring(cursor)}</span>)
+                parts.push(<span key={`t-${cursor}`} className={wsClass}>{content.substring(cursor)}</span>)
               }
 
               return (
@@ -2362,7 +2384,7 @@ export default function DashboardEditor() {
                     <div className="px-8 pt-4 pb-1">
                       <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">{caseData?.name}</span>
                     </div>
-                    <div className="px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface overflow-x-auto">
+                    <div className={`px-8 pb-6 pt-1 font-mono text-[13px] leading-[1.5rem] text-on-surface ${softWrapTranscript ? 'overflow-x-hidden' : 'overflow-x-auto'}`}>
                       {page.map((pl) => renderOriginalLine(pl, `${pageIdx}-${pl.lineIdx}`))}
                     </div>
                     {pageIdx < pages.length - 1 && (

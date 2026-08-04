@@ -1116,6 +1116,10 @@ function stripRtf(rtf: string): string {
   s = s.replace(/\\\\/g, '\u0001')
   s = s.replace(/\\\{/g, '\u0002')
   s = s.replace(/\\\}/g, '\u0003')
+  // Mirror src/lib/rtf.js — StenoCAT \~ = nbsp; \_ = hyphen in compounds.
+  s = s.replace(/\\~/g, ' ')
+  s = s.replace(/\\_/g, '-')
+  s = s.replace(/\\-/g, '-')
   s = s.replace(/\\[a-zA-Z]+-?\d* ?/g, '')
   s = s.replace(/\\[^a-zA-Z]/g, '')
   s = s.replace(/[{}]/g, '')
@@ -1789,6 +1793,8 @@ async function refillProofreadWaveOrMerge(opts: {
   caseRow: any
   fileIndex: number
   jsonBaseName: string
+  /** Original transcript file_name (may still end in .rtf after browser strip). */
+  sourceFileName?: string
   extractingDir: string
   extractedDir: string
   entriesPath: string
@@ -1802,7 +1808,7 @@ async function refillProofreadWaveOrMerge(opts: {
 }): Promise<'merged' | 'dispatched' | 'waiting' | 'busy_merge'> {
   const {
     admin, SUPABASE_URL, SERVICE_ROLE_KEY, caseId, caseRow, fileIndex,
-    jsonBaseName, extractingDir, extractedDir, entriesPath, finalPath, finalName,
+    jsonBaseName, sourceFileName, extractingDir, extractedDir, entriesPath, finalPath, finalName,
     title, entries, originalText, numBatches, attempt,
   } = opts
 
@@ -1884,6 +1890,8 @@ async function refillProofreadWaveOrMerge(opts: {
         dropped_annotations_count: droppedAnnotationsCount,
       }
       if (originalText !== undefined) finalJson.originalText = originalText
+      // Original upload name kept .rtf even after browser strip → plain storage.
+      if (/\.rtf$/i.test(sourceFileName || '')) finalJson.wasRtf = true
 
       const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
       await admin.storage.from('case-files').upload(finalPath, finalBytes, { upsert: true, contentType: 'application/json' })
@@ -2185,6 +2193,7 @@ Deno.serve(async (req: Request) => {
           caseRow,
           fileIndex,
           jsonBaseName,
+          sourceFileName: dbFile.file_name,
           extractingDir,
           extractedDir,
           entriesPath,
@@ -2543,6 +2552,7 @@ Deno.serve(async (req: Request) => {
     caseRow,
     fileIndex,
     jsonBaseName,
+    sourceFileName: dbFile.file_name,
     extractingDir,
     extractedDir,
     entriesPath,

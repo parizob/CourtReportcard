@@ -86,6 +86,15 @@ export function stripRtf(rtf) {
   s = s.replace(/\\\{/g, '\u0002')
   s = s.replace(/\\\}/g, '\u0003')
 
+  // Significant control symbols — must become real characters, not get deleted.
+  // StenoCAT uses \~ (nbsp) between "Ms." and surnames; deleting it forged
+  // "Ms.Jackoboice" and false punctuation suggestions.
+  // StenoCAT also writes compound hyphens as \_ (RTF escaped underscore), e.g.
+  // long\_distance / Guillian\_Barre — those display as dashes in CAT, not _.
+  s = s.replace(/\\~/g, ' ')
+  s = s.replace(/\\_/g, '-')
+  s = s.replace(/\\-/g, '-') // optional hyphen
+
   // Strip remaining control words: \word, \word123, \word-123, optional trailing space.
   s = s.replace(/\\[a-zA-Z]+-?\d* ?/g, '')
 

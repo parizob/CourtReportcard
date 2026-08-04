@@ -2,8 +2,13 @@
  * Unit tests for the RTF upload fix + stuck-case resume decisions.
  *   node scripts/test-rtf-upload-path.mjs
  */
+import { readFileSync } from 'fs'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { prepareTranscriptUpload } from '../src/lib/prepareTranscriptUpload.js'
 import { decideStuckAction } from '../src/lib/stuckCaseResume.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 let passed = 0
 let failed = 0
@@ -69,6 +74,39 @@ console.log('prepareTranscriptUpload')
   assert(prep.wasRtf === true, 'content-based RTF detection')
   assert(prep.uploadFileName === 'odd.txt', 'non-.rtf name kept when only content is RTF')
   assert(!prep.plainText.includes('\\par'), 'still strips RTF content')
+}
+
+{
+  // StenoCAT nbsp (\~) + hyphen-as-\_ for compounds.
+  const rtf =
+    '{\\rtf1\\ansi Go ahead, Ms.\\~Jackoboice.\\par Guillian\\_Barre\\par long\\_distance\\par}'
+  const prep = prepareTranscriptUpload('stenocat.rtf', rtf)
+  assert(prep.plainText.includes('Ms. Jackoboice'), 'nbsp \\~ becomes space (not Ms.Jackoboice)')
+  assert(!prep.plainText.includes('Ms.Jackoboice'), 'does not glue Ms. to surname')
+  assert(prep.plainText.includes('Guillian-Barre'), 'StenoCAT \\_ becomes hyphen')
+  assert(prep.plainText.includes('long-distance'), 'compound \\_ becomes hyphen')
+  assert(!prep.plainText.includes('Guillian_Barre'), 'does not leave literal underscore')
+}
+
+{
+  // Real Wells fixture: testimony sites use Ms.\\~Name
+  const wells = readFileSync(join(__dirname, '.repro/WellsDR042926.rtf'), 'utf8')
+  const prep = prepareTranscriptUpload('WellsDR042926.rtf', wells)
+  assert(prep.plainText.includes('Ms. Jackoboice'), 'Wells keeps space after Ms.')
+  assert(
+    (prep.plainText.match(/Ms\.Jackoboice/g) || []).length === 0,
+    'Wells has no glued Ms.Jackoboice after strip',
+  )
+  assert(
+    (prep.plainText.match(/Ms\.Medlock/g) || []).length === 0,
+    'Wells has no glued Ms.Medlock after strip',
+  )
+  assert(prep.plainText.includes('long-distance'), 'Wells long-distance uses hyphen')
+  assert(prep.plainText.includes('three-week'), 'Wells three-week uses hyphen')
+  assert(
+    !prep.plainText.includes('long_distance') && !prep.plainText.includes('Guillian_Barre'),
+    'Wells has no StenoCAT underscore leftovers',
+  )
 }
 
 console.log('decideStuckAction')

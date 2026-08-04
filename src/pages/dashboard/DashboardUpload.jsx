@@ -264,8 +264,9 @@ export default function DashboardUpload() {
           .insert({
             case_id: caseRow.id,
             file_type: 'transcript',
-            // .rtf uploads become .txt after strip; storage_path is sanitized.
-            file_name: prepared.uploadFileName,
+            // Keep original .rtf in file_name so the editor can soft-wrap; storage
+            // still holds stripped plain text under uploadFileName.
+            file_name: prepared.displayName,
             file_size: blob.size,
             storage_path: storagePath,
             mime_type: prepared.mimeType,
@@ -398,7 +399,9 @@ export default function DashboardUpload() {
         {/* Header */}
         <div className="shrink-0">
           <h1 className="font-headline text-2xl font-extrabold text-on-surface tracking-tight">Upload New Case</h1>
-          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">Name your case and upload an English transcript (.txt or .rtf) to get started.</p>
+          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+            Name your case and upload an English transcript (.txt or .rtf). Plain .txt from your CAT software is preferred. It usually keeps line numbers clearer than .rtf.
+          </p>
         </div>
 
         {/* Retry block — same file contents failed twice already */}
@@ -480,7 +483,7 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-xl">upload_file</span>
                 </div>
                 <p className="text-sm font-semibold text-on-surface">Drop file here or click to browse</p>
-                <p className="text-xs text-on-surface-variant/60 mt-1">.txt or .rtf · English only</p>
+                <p className="text-xs text-on-surface-variant/60 mt-1">.txt preferred · .rtf also works · English only</p>
                 <input
                   type="file"
                   className="hidden"

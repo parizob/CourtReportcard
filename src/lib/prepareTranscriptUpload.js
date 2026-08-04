@@ -27,7 +27,9 @@ export function prepareTranscriptUpload(fileName, text) {
   const extIsRtf = base.toLowerCase().endsWith('.rtf')
   const contentIsRtf = isRtf(text)
   const wasRtf = extIsRtf || contentIsRtf
-  const plainText = wasRtf ? stripRtf(text) : text
+  const stripped = wasRtf ? stripRtf(text) : text
+  // Normalize newlines so editor line maps / highlights aren't split by leftover CRs.
+  const plainText = stripped.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   const uploadFileName = wasRtf ? base.replace(/\.rtf$/i, '.txt') : base
 
   return {
