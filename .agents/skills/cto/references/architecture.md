@@ -50,7 +50,7 @@
    - **Dedup** (`deduplicateTranscript`): removes duplicate entries Gemini
      sometimes emits across chunk boundaries, remaps annotation `entry_id`s.
    - **Pass 2 — proofread** (`PROOFREAD_ONLY_PROMPT`, `gemini-2.5-pro`):
-     testimony entries only (CAPTION/INDEX/CERTIFICATE/EXHIBITS/HEADING are
+     testimony plus CAPTION/CERTIFICATE/HEADING (INDEX/EXHIBITS/APPEARANCES are
      skipped) are proofread in batches of `ENTRIES_PER_PROOFREAD_BATCH` (250),
      with `CONTEXT_ENTRIES` (8) carried from the previous batch (from the
      already-merged entries — does not require the previous batch's Gemini

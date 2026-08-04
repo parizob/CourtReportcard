@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: 'What does Court Reportcard check?',
-    a: 'Court Reportcard reviews every line of testimony for spelling issues, homophone substitutions (e.g., "counsel" vs. "council"), punctuation mistakes, incorrect legal terminology, capitalization errors, and other context-sensitive mistakes. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Party information such as addresses and case numbers should always be manually verified against the original filing.',
+    a: 'Court Reportcard reviews testimony plus caption, certificate, and heading pages for spelling issues, homophone substitutions (e.g., "counsel" vs. "council"), punctuation mistakes, incorrect legal terminology, capitalization errors, and other context-sensitive mistakes. It also cross-references attorney and party names from the appearances page against the transcript body to flag inconsistent spellings. Index and exhibit-list pages are not reviewed. Tokens still charge 1 per page for the full file you upload, so you can leave index or exhibit-list pages out if you prefer not to spend tokens on them. Party information such as addresses and case numbers should always be manually verified against the original filing.',
   },
   {
     q: 'How long does a review take?',

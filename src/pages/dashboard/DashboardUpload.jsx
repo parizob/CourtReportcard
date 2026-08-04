@@ -548,26 +548,34 @@ export default function DashboardUpload() {
         </div>
 
         {/* Action bar */}
-        <div className="shrink-0 flex items-center justify-between bg-surface-container-lowest rounded-xl editorial-shadow px-5 py-3.5">
-          <div className="text-sm">
-            {uploading ? (
-              <span className="flex items-center gap-2 font-semibold text-primary">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {uploadPhase}
-              </span>
-            ) : transcriptFiles.length === 0 ? (
-              <span className="text-on-surface-variant/50">No file selected</span>
-            ) : (
-              <span className="font-semibold text-on-surface">Ready to analyze</span>
-            )}
+        <div className="shrink-0 flex items-center justify-between gap-4 bg-surface-container-lowest rounded-xl editorial-shadow px-5 py-3.5">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm">
+              {uploading ? (
+                <span className="flex items-center gap-2 font-semibold text-primary">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {uploadPhase}
+                </span>
+              ) : transcriptFiles.length === 0 ? (
+                <span className="text-on-surface-variant/50">No file selected</span>
+              ) : (
+                <span className="font-semibold text-on-surface">Ready to analyze</span>
+              )}
+            </div>
+            <p className="text-[10px] text-on-surface-variant/80 leading-relaxed mt-1 max-w-xl italic">
+              <span className="font-semibold not-italic tracking-wide text-on-surface-variant">NOTE:</span>{' '}
+              Index and exhibit lists are not reviewed.
+              <br />
+              Leave them out to save tokens.
+            </p>
           </div>
           <button
             disabled={!canUpload}
             onClick={handleUploadClick}
-            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-2.5 rounded-lg font-bold text-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
           >
             {uploading || counting ? (
               <>
@@ -624,10 +632,16 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-2xl">toll</span>
                 </div>
                 <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Confirm Upload</h3>
-                <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
+                <p className="text-sm text-on-surface-variant mb-3 leading-relaxed">
                   This transcript consists of <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} page{pendingPages !== 1 ? 's' : ''}</span> and
                   will cost <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} token{pendingPages !== 1 ? 's' : ''}</span>.
                   You currently have <span className="font-bold text-on-surface">{(tokenBalance ?? 0).toLocaleString()} token{tokenBalance !== 1 ? 's' : ''}</span>.
+                </p>
+                <p className="text-xs text-on-surface-variant mb-5 leading-relaxed italic">
+                  <span className="font-semibold not-italic tracking-wide">NOTE:</span>{' '}
+                  Index and exhibit lists are not reviewed.
+                  <br />
+                  Leave them out to save tokens.
                 </p>
                 <label className="flex items-start gap-3 cursor-pointer group mb-6 p-3 rounded-lg bg-error-container/20 border border-error/20">
                   <input

@@ -17,6 +17,25 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-08-04 — Proofread CAPTION / CERTIFICATE / HEADING — APPLIED
+
+**Source:** Tonie Thompson (Prod) — certificate line `___ da0y of _______`
+unflagged; caption `NEXT FRIEDN` unflagged. Prompt had been skipping those
+speakers entirely while still charging tokens for those pages.
+
+**Change:** Proofread `CAPTION`, `CERTIFICATE`, and `HEADING` like testimony.
+Guardrail: do not flag fill-in blanks (`___`) or invent blank fills; still
+flag clear typos in surrounding words. Keep skipping `INDEX` and `EXHIBITS`
+(TOC/exhibit-list noise). Keep existing `APPEARANCES` name-harvest-only rule.
+
+**Applied:** 2026-08-04 in `prompts.ts` + `src/lib/gemini.js`.
+
+**Follow-up 2026-08-04 — blank-line noise on cert soak:** Crofut CAPTION/CERTIFICATE/HEADING
+pass caught `da0y`/`FRIEDN` but also flagged `[]` / blank date slots / `00 HOURS`
+placeholders as missing words. Tightened the same bullet to name underscores,
+empty brackets, placeholder times, and "do not invent DIRECT/dates/names";
+still require catching surrounding typos. Re-applied same day in both prompt files.
+
 ### Rule: 2026-07-31 — Don't stop after the first error on a line/sentence — PROPOSED
 
 **Not from the standard harness 3× loop — from Dev soak of

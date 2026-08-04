@@ -30,6 +30,7 @@ possible false positives.
 
 1. Copy the format of `sample_transcript.txt` (page headers, line numbers,
    caption / appearances / index / testimony).
-2. Plant errors in the **testimony** only (the prompt skips CAPTION/INDEX/etc.).
+2. Plant errors mainly in **testimony**; CAPTION/CERTIFICATE/HEADING are also
+   proofread (INDEX/EXHIBITS still skipped).
 3. Write a matching `transcript_NN.manifest.json` with the exact `original`
    substring for each error so the scorer can locate it.
