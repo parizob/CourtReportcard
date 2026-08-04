@@ -565,12 +565,14 @@ export default function DashboardUpload() {
                 <span className="font-semibold text-on-surface">Ready to analyze</span>
               )}
             </div>
-            <p className="text-[10px] text-on-surface-variant/80 leading-relaxed mt-1 max-w-xl italic">
-              <span className="font-semibold not-italic tracking-wide text-on-surface-variant">NOTE:</span>{' '}
-              Index and exhibit lists are not reviewed.
-              <br />
-              Leave them out to save tokens.
-            </p>
+            <div className="flex items-start gap-1.5 mt-1 max-w-xl text-[9px] leading-snug text-on-surface-variant/70">
+              <span className="font-semibold tracking-wide shrink-0">NOTE:</span>
+              <p className="italic min-w-0">
+                Index and exhibit lists are not reviewed. Leave them out
+                <br />
+                of the upload if you want to save tokens.
+              </p>
+            </div>
           </div>
           <button
             disabled={!canUpload}
@@ -639,9 +641,9 @@ export default function DashboardUpload() {
                 </p>
                 <p className="text-xs text-on-surface-variant mb-5 leading-relaxed italic">
                   <span className="font-semibold not-italic tracking-wide">NOTE:</span>{' '}
-                  Index and exhibit lists are not reviewed.
+                  Index and exhibit lists are not reviewed. Leave them out
                   <br />
-                  Leave them out to save tokens.
+                  of the upload if you want to save tokens.
                 </p>
                 <label className="flex items-start gap-3 cursor-pointer group mb-6 p-3 rounded-lg bg-error-container/20 border border-error/20">
                   <input
