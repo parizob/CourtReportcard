@@ -565,14 +565,6 @@ export default function DashboardUpload() {
                 <span className="font-semibold text-on-surface">Ready to analyze</span>
               )}
             </div>
-            <div className="flex items-start gap-1.5 mt-1 max-w-xl text-[9px] leading-snug text-on-surface-variant/70">
-              <span className="font-semibold tracking-wide shrink-0">NOTE:</span>
-              <p className="italic min-w-0">
-                Index and exhibit lists are not reviewed. Leave them out
-                <br />
-                of the upload if you want to save tokens.
-              </p>
-            </div>
           </div>
           <button
             disabled={!canUpload}
@@ -634,16 +626,10 @@ export default function DashboardUpload() {
                   <span className="material-symbols-outlined text-primary text-2xl">toll</span>
                 </div>
                 <h3 className="font-headline text-lg font-bold text-on-surface mb-2">Confirm Upload</h3>
-                <p className="text-sm text-on-surface-variant mb-3 leading-relaxed">
+                <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
                   This transcript consists of <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} page{pendingPages !== 1 ? 's' : ''}</span> and
                   will cost <span className="font-bold text-on-surface">{pendingPages.toLocaleString()} token{pendingPages !== 1 ? 's' : ''}</span>.
                   You currently have <span className="font-bold text-on-surface">{(tokenBalance ?? 0).toLocaleString()} token{tokenBalance !== 1 ? 's' : ''}</span>.
-                </p>
-                <p className="text-xs text-on-surface-variant mb-5 leading-relaxed italic">
-                  <span className="font-semibold not-italic tracking-wide">NOTE:</span>{' '}
-                  Index and exhibit lists are not reviewed. Leave them out
-                  <br />
-                  of the upload if you want to save tokens.
                 </p>
                 <label className="flex items-start gap-3 cursor-pointer group mb-6 p-3 rounded-lg bg-error-container/20 border border-error/20">
                   <input
