@@ -699,6 +699,78 @@ function matchTranscriptLineGutterPrefix(line: string): string {
   return ''
 }
 
+/** Mirrored in src/lib/gemini.js — strip wrap-line CAT gutters from entry.text. */
+function stripEntryTextLineNumberGutters(text: string, opts?: { speaker?: string }): string {
+  if (!text) return text
+  const sp = String(opts?.speaker || '').toUpperCase()
+  if (sp === 'INDEX' || sp === 'EXHIBITS') return text
+
+  return text
+    .split('\n')
+    .map((line) => {
+      const prefix = matchTranscriptLineGutterPrefix(line)
+      if (!prefix) return line
+      const plain = prefix.match(/^\s*(\d{1,4})\s{2,}$/)
+      if (plain) {
+        const n = parseInt(plain[1], 10)
+        // Typical pages are 1–25; some CAT layouts go higher (26–29 seen in prod).
+        if (n >= 1 && n <= 40) return line.slice(prefix.length)
+        return line
+      }
+      if (/\d{1,2}:\d{2}/.test(prefix)) return line.slice(prefix.length)
+      return line
+    })
+    .join('\n')
+}
+
+function stripEntriesLineNumberGutters(entries: any[]): any[] {
+  if (!Array.isArray(entries)) return entries
+  return entries.map((entry) => {
+    const text = entry?.text || ''
+    const next = stripEntryTextLineNumberGutters(text, { speaker: entry?.speaker })
+    if (next === text) return entry
+    return { ...entry, text: next }
+  })
+}
+
+function normalizeAnnotationCompare(s: string): string {
+  return String(s || '').replace(/\s+/g, ' ').trim()
+}
+
+function isLineNumberOnlyAnnotation(ann: any): boolean {
+  if (!ann || ann.status === 'accepted' || ann.status === 'ignored') return false
+  const original = ann.original || ''
+  if (!original) return false
+  const suggestion = ann.suggestion ?? ''
+  const cleanedOriginal = stripEntryTextLineNumberGutters(original)
+  const cleanedSuggestion = stripEntryTextLineNumberGutters(suggestion)
+  if (cleanedOriginal !== original) {
+    return (
+      cleanedOriginal === suggestion ||
+      normalizeAnnotationCompare(cleanedOriginal) === normalizeAnnotationCompare(cleanedSuggestion)
+    )
+  }
+
+  const expl = String(ann.explanation || '')
+  const explainsGutterLeak =
+    /line number/i.test(expl) && /erroneously included/i.test(expl)
+  if (!explainsGutterLeak) return false
+
+  const o = normalizeAnnotationCompare(original)
+  const s = normalizeAnnotationCompare(suggestion)
+  if (o === s) return true
+  return (
+    normalizeAnnotationCompare(original.replace(/\n/g, ' ')) === s ||
+    o === normalizeAnnotationCompare(suggestion.replace(/\n/g, ' '))
+  )
+}
+
+function dropLineNumberOnlyAnnotations(annotations: any[]): any[] {
+  if (!Array.isArray(annotations) || annotations.length === 0) return annotations
+  const kept = annotations.filter((a) => !isLineNumberOnlyAnnotation(a))
+  return kept.length === annotations.length ? annotations : kept
+}
+
 function classifyTranscriptParagraphKind(lineContent: string): 'Q' | 'A' | 'COLLOQUY' | 'CONT' | null {
   if (/^\s{10,}\d{1,4}\s*$/.test(lineContent || '')) return null
   const t = (lineContent || '').replace(/\r/g, '').trim()
@@ -1205,7 +1277,8 @@ async function extractContent(
   }))
 
   const { entries: cleanEntries } = deduplicateTranscript(entries, [])
-  entries = cleanEntries
+  // Strip wrap-line CAT gutters before proofread so they are not flagged.
+  entries = stripEntriesLineNumberGutters(cleanEntries)
 
   return {
     title: extractionResult.title || '',
@@ -1245,6 +1318,9 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     status: 'open',
   }))
 
+  // Drop LN-only before sanitize — sanitize strips gutter digits from
+  // Found/Suggest and would hide the LN-only pattern.
+  annots = dropLineNumberOnlyAnnotations(annots)
   annots = sanitizeAnnotationsLeakedLineNumbers(entries, annots)
   const { annotations: repaired, droppedCount: unplaceableCount } = fixAnnotationPositions(entries, annots)
   const { annotations: real, droppedCount: phantomCount } = filterPhantomFixes(entries, repaired)
@@ -1300,7 +1376,8 @@ async function mergeExtractionChunks(
     allEntries.push(...chunkResult.entries)
   }
   allEntries.forEach((e, i) => { e.id = i + 1 })
-  const { entries } = deduplicateTranscript(allEntries, [])
+  const { entries: deduped } = deduplicateTranscript(allEntries, [])
+  const entries = stripEntriesLineNumberGutters(deduped)
   return { title, entries, originalText: plainText, chunkPaths }
 }
 

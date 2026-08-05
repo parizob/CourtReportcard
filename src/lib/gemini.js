@@ -243,6 +243,99 @@ export function matchTranscriptLineGutterPrefix(line) {
   return ''
 }
 
+/**
+ * Strip CAT line-number / timestamp gutters from extracted entry text.
+ * Extraction sometimes leaves wrap-line numbers ("\\n10  depending") in
+ * entry.text; proofread then flags them as extra_word. originalText is
+ * untouched (export still has real line numbers).
+ *
+ * Skip INDEX/EXHIBITS — their "1      Complaint" lines are exhibit/TOC
+ * numbers, not page gutters.
+ */
+export function stripEntryTextLineNumberGutters(text, { speaker } = {}) {
+  if (!text) return text
+  const sp = String(speaker || '').toUpperCase()
+  if (sp === 'INDEX' || sp === 'EXHIBITS') return text
+
+  return text
+    .split('\n')
+    .map((line) => {
+      const prefix = matchTranscriptLineGutterPrefix(line)
+      if (!prefix) return line
+      const plain = prefix.match(/^\s*(\d{1,4})\s{2,}$/)
+      if (plain) {
+        const n = parseInt(plain[1], 10)
+        // Typical pages are 1–25; some CAT layouts go a bit higher (26–29
+        // seen on Bourque). Cap below TOC/page-ref magnitudes.
+        if (n >= 1 && n <= 40) return line.slice(prefix.length)
+        return line
+      }
+      // Timestamp (+ optional line) gutters — never spoken content.
+      if (/\d{1,2}:\d{2}/.test(prefix)) return line.slice(prefix.length)
+      return line
+    })
+    .join('\n')
+}
+
+export function stripEntriesLineNumberGutters(entries) {
+  if (!Array.isArray(entries)) return entries
+  return entries.map((entry) => {
+    const text = entry?.text || ''
+    const next = stripEntryTextLineNumberGutters(text, { speaker: entry?.speaker })
+    if (next === text) return entry
+    return { ...entry, text: next }
+  })
+}
+
+function normalizeAnnotationCompare(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * True when the only edit is removing CAT line-number gutters from original
+ * (Natalie Bourque: "was \\n12  when" → "was \\nwhen").
+ *
+ * Also catches post-sanitize residue: a prior load may have stripped "17"
+ * from Found (→ "weeks in") and autosaved, so the gutter is no longer in
+ * original — but the explanation still says the line number was included,
+ * and Accept is a whitespace no-op.
+ */
+export function isLineNumberOnlyAnnotation(ann) {
+  if (!ann || ann.status === 'accepted' || ann.status === 'ignored') return false
+  const original = ann.original || ''
+  if (!original) return false
+  const suggestion = ann.suggestion ?? ''
+  const cleanedOriginal = stripEntryTextLineNumberGutters(original)
+  const cleanedSuggestion = stripEntryTextLineNumberGutters(suggestion)
+  if (cleanedOriginal !== original) {
+    return (
+      cleanedOriginal === suggestion ||
+      normalizeAnnotationCompare(cleanedOriginal) === normalizeAnnotationCompare(cleanedSuggestion)
+    )
+  }
+
+  const expl = String(ann.explanation || '')
+  const explainsGutterLeak =
+    /line number/i.test(expl) && /erroneously included/i.test(expl)
+  if (!explainsGutterLeak) return false
+
+  const o = normalizeAnnotationCompare(original)
+  const s = normalizeAnnotationCompare(suggestion)
+  if (o === s) return true
+  // "weeks in" vs "weeks \nin"
+  return (
+    normalizeAnnotationCompare(original.replace(/\n/g, ' ')) === s ||
+    o === normalizeAnnotationCompare(suggestion.replace(/\n/g, ' '))
+  )
+}
+
+/** Drop open annotations that only delete leaked line-number gutters. */
+export function dropLineNumberOnlyAnnotations(annotations) {
+  if (!Array.isArray(annotations) || annotations.length === 0) return annotations
+  const kept = annotations.filter((a) => !isLineNumberOnlyAnnotation(a))
+  return kept.length === annotations.length ? annotations : kept
+}
+
 export function buildCleanContentMap(text) {
   const rawLines = text.split('\n')
   const parsedLines = []
@@ -2946,7 +3039,8 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
 
   // Deduplicate entries from pass 1
   const { entries: cleanEntries } = deduplicateTranscript(entries, [])
-  entries = cleanEntries
+  // Strip wrap-line CAT gutters before proofread so they are not flagged.
+  entries = stripEntriesLineNumberGutters(cleanEntries)
 
   console.log(`Pass 1 complete: ${entries.length} unique entries extracted.`)
 
@@ -2973,6 +3067,9 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     status: 'open',
   }))
 
+  // Drop LN-only flags before sanitize (sanitize removes the gutter digits
+  // from Found/Suggest and would hide the LN-only pattern).
+  annots = dropLineNumberOnlyAnnotations(annots)
   // Strip leaked line numbers before place/phantom — otherwise "as 16
   // identified" is unplaceable in flat entry text.
   annots = sanitizeAnnotationsLeakedLineNumbers(entries, annots)

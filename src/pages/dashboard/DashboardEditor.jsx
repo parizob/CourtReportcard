@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, stripEntriesLineNumberGutters, dropLineNumberOnlyAnnotations, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -255,18 +255,24 @@ export default function DashboardEditor() {
         const { entries: dedupedEntries, annotations: dedupedAnnotations } =
           deduplicateTranscript(parsed.entries || [], parsed.annotations || [])
 
+        // Strip wrap-line CAT gutters from entry.text (Natalie Bourque).
+        // Drop LN-only flags BEFORE sanitize — sanitize strips "17" from
+        // Found/Suggest first, which would hide the LN-only pattern.
+        const gutterCleanEntries = stripEntriesLineNumberGutters(dedupedEntries)
+        const withoutLnOnly = dropLineNumberOnlyAnnotations(dedupedAnnotations)
+
         // Strip leaked transcript line numbers from Found/Suggest ("as 16
         // identified") BEFORE position repair — otherwise unplaceable drops.
         const sanitizedAnnotations = sanitizeAnnotationsLeakedLineNumbers(
-          dedupedEntries,
-          dedupedAnnotations
+          gutterCleanEntries,
+          withoutLnOnly
         )
 
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
         const positioned = filterPhantomFixes(
-          dedupedEntries,
-          fixAnnotationPositions(dedupedEntries, sanitizedAnnotations)
+          gutterCleanEntries,
+          fixAnnotationPositions(gutterCleanEntries, sanitizedAnnotations)
         )
         // Context anchors disambiguate twin words; widen until unique in
         // cleanContent. Repair cleans legacy _cleanStart drift from older saves.
@@ -274,13 +280,13 @@ export default function DashboardEditor() {
           ? buildCleanContentMap(parsed.originalText).cleanContent
           : null
         const anchored = ensureAnnotationAnchors(
-          dedupedEntries,
+          gutterCleanEntries,
           positioned,
           loadClean
         )
         const repaired = repairAcceptedCleanSpans(
           parsed.originalText || null,
-          dedupedEntries,
+          gutterCleanEntries,
           anchored
         )
         // Drop open flags whose Found text still cannot be placed in the
@@ -288,7 +294,7 @@ export default function DashboardEditor() {
         const { annotations: placeableAnnotations, droppedCount: transcriptDropCount } =
           dropTranscriptUnplaceableAnnotations(
             parsed.originalText || null,
-            dedupedEntries,
+            gutterCleanEntries,
             repaired
           )
         if (transcriptDropCount > 0) {
@@ -300,7 +306,7 @@ export default function DashboardEditor() {
         // Force critical severity so older saved warning flags paint correctly.
         const fixedAnnotations = mergeStructuralReviewAnnotations(
           parsed.originalText || null,
-          dedupedEntries,
+          gutterCleanEntries,
           placeableAnnotations
         ).map((a) =>
           isReviewOnlyAnnotation(a) && a.status === 'open'
@@ -314,16 +320,16 @@ export default function DashboardEditor() {
           parsed.wasRtf === true || /\.rtf$/i.test(transcriptMeta?.file_name || '')
         setTitle(parsed.title || '')
         titleRef.current = parsed.title || ''
-        setEntries(dedupedEntries)
+        setEntries(gutterCleanEntries)
         setAnnotations(fixedAnnotations)
         setOriginalText(parsed.originalText || null)
         setWasRtf(loadedWasRtf)
-        entriesRef.current = dedupedEntries
+        entriesRef.current = gutterCleanEntries
         annotationsRef.current = fixedAnnotations
         originalTextRef.current = parsed.originalText || null
         wasRtfRef.current = loadedWasRtf
         setOriginalSnapshot(JSON.stringify({
-          entries: dedupedEntries,
+          entries: gutterCleanEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
           wasRtf: loadedWasRtf,
@@ -332,7 +338,7 @@ export default function DashboardEditor() {
           caseId,
           storagePath: extractedFile.storage_path,
           title: parsed.title || '',
-          entries: dedupedEntries,
+          entries: gutterCleanEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
           wasRtf: loadedWasRtf,
@@ -343,7 +349,7 @@ export default function DashboardEditor() {
         clearCasePersistError()
 
         // Sync metrics from the annotation file so the dashboard matches storage.
-        syncMetricsFromAnnotations(caseId, dedupedEntries, fixedAnnotations).catch((error) => {
+        syncMetricsFromAnnotations(caseId, gutterCleanEntries, fixedAnnotations).catch((error) => {
           if (gen !== loadGenRef.current) return
           console.error('case_metrics sync failed (editor load):', error.message || error)
         })
