@@ -771,6 +771,102 @@ function dropLineNumberOnlyAnnotations(annotations: any[]): any[] {
   return kept.length === annotations.length ? annotations : kept
 }
 
+const EXACT_REPEAT_EXPAND_TYPES = new Set(['capitalization', 'spelling'])
+
+function isSafeExactRepeatExpandSeed(ann: any): boolean {
+  if (!ann || !EXACT_REPEAT_EXPAND_TYPES.has(ann.type)) return false
+  if (ann.status === 'accepted' || ann.status === 'ignored') return false
+  if (ann.type === 'repeated_paragraph' || ann.review_only === true) return false
+  const original = ann.original || ''
+  const suggestion = ann.suggestion ?? ''
+  if (!original || !suggestion || original === suggestion) return false
+  const words = original.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 2 && original.trim().length < 4) return false
+  if (ann.type === 'capitalization') {
+    return original.toLowerCase() === suggestion.toLowerCase()
+  }
+  const suggWords = suggestion.trim().split(/\s+/).filter(Boolean)
+  return words.length === suggWords.length
+}
+
+function findAllExactPhraseStarts(text: string, phrase: string): number[] {
+  if (!text || !phrase) return []
+  const hits: number[] = []
+  let from = 0
+  while (from < text.length) {
+    const i = text.indexOf(phrase, from)
+    if (i === -1) break
+    hits.push(i)
+    from = i + Math.max(1, phrase.length)
+  }
+  return hits
+}
+
+/** Mirrored in src/lib/gemini.js — expand exact same-entry capitalization/spelling repeats. */
+function expandExactRepeatAnnotations(entries: any[], annotations: any[]): any[] {
+  if (!Array.isArray(annotations) || annotations.length === 0) return annotations
+  if (!Array.isArray(entries) || entries.length === 0) return annotations
+
+  const byEntry = new Map(entries.map((e) => [e.id, e]))
+  const out = annotations.map((a) => ({ ...a }))
+  let added = 0
+  const seenSeeds = new Set<string>()
+
+  for (const ann of annotations) {
+    if (!isSafeExactRepeatExpandSeed(ann)) continue
+    const seedKey = `${ann.entry_id}\0${ann.original}\0${ann.type}`
+    if (seenSeeds.has(seedKey)) continue
+    seenSeeds.add(seedKey)
+
+    const entry = byEntry.get(ann.entry_id)
+    if (!entry?.text) continue
+    const phrase = ann.original
+    const hits = findAllExactPhraseStarts(entry.text, phrase)
+    if (hits.length <= 1) continue
+
+    const covered = new Set<number>()
+    for (const a of out) {
+      if (a.entry_id !== ann.entry_id || a.original !== phrase || a.type !== ann.type) continue
+      if (a.status === 'ignored') continue
+      if (Number.isFinite(a.start) && hits.includes(a.start)) {
+        covered.add(a.start)
+        continue
+      }
+      const unassigned = hits.find((h) => !covered.has(h))
+      if (unassigned != null) covered.add(unassigned)
+    }
+
+    for (const start of hits) {
+      if (covered.has(start)) continue
+      const end = start + phrase.length
+      // Editor load re-runs ensureAnnotationAnchors for uniqueness; seed with
+      // simple before/after so Accept has something immediately.
+      const anchor = buildContextAnchorSimple(entry.text, start, end, 2)
+      out.push({
+        ...ann,
+        id: annotations.length + added + 1,
+        start,
+        end,
+        status: 'open',
+        _anchorBefore: anchor?.before ?? '',
+        _anchorAfter: anchor?.after ?? '',
+        _appliedAt: undefined,
+        _appliedEnd: undefined,
+        _appliedEntryId: undefined,
+        _cleanStart: undefined,
+        _cleanEnd: undefined,
+        matchedText: undefined,
+      })
+      covered.add(start)
+      added++
+    }
+  }
+
+  if (added === 0) return annotations
+  out.forEach((a, i) => { a.id = i + 1 })
+  return out
+}
+
 function classifyTranscriptParagraphKind(lineContent: string): 'Q' | 'A' | 'COLLOQUY' | 'CONT' | null {
   if (/^\s{10,}\d{1,4}\s*$/.test(lineContent || '')) return null
   const t = (lineContent || '').replace(/\r/g, '').trim()
@@ -1342,6 +1438,8 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     seenAnnotations.add(key)
     return true
   })
+  // After original-dedupe: clone capitalization/spelling for other exact hits.
+  annots = expandExactRepeatAnnotations(entries, annots)
   annots.forEach((a: any, i: number) => { a.id = i + 1 })
 
   return { annotations: annots, droppedCount }

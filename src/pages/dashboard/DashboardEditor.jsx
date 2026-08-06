@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, stripEntriesLineNumberGutters, dropLineNumberOnlyAnnotations, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, stripEntriesLineNumberGutters, dropLineNumberOnlyAnnotations, expandExactRepeatAnnotations, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -270,9 +270,12 @@ export default function DashboardEditor() {
 
         // Filtered at load time too (not just at analysis time) so cases
         // processed before this fix existed also get cleaned up on open.
-        const positioned = filterPhantomFixes(
+        const positioned = expandExactRepeatAnnotations(
           gutterCleanEntries,
-          fixAnnotationPositions(gutterCleanEntries, sanitizedAnnotations)
+          filterPhantomFixes(
+            gutterCleanEntries,
+            fixAnnotationPositions(gutterCleanEntries, sanitizedAnnotations)
+          )
         )
         // Context anchors disambiguate twin words; widen until unique in
         // cleanContent. Repair cleans legacy _cleanStart drift from older saves.

@@ -336,6 +336,112 @@ export function dropLineNumberOnlyAnnotations(annotations) {
   return kept.length === annotations.length ? annotations : kept
 }
 
+const EXACT_REPEAT_EXPAND_TYPES = new Set(['capitalization', 'spelling'])
+
+function isSafeExactRepeatExpandSeed(ann) {
+  if (!ann || !EXACT_REPEAT_EXPAND_TYPES.has(ann.type)) return false
+  if (ann.status === 'accepted' || ann.status === 'ignored') return false
+  if (typeof isReviewOnlyAnnotation === 'function' && isReviewOnlyAnnotation(ann)) return false
+  const original = ann.original || ''
+  const suggestion = ann.suggestion ?? ''
+  if (!original || !suggestion || original === suggestion) return false
+  const words = original.trim().split(/\s+/).filter(Boolean)
+  // Avoid expanding short high-collision tokens (the/to/a).
+  if (words.length < 2 && original.trim().length < 4) return false
+  if (ann.type === 'capitalization') {
+    return original.toLowerCase() === suggestion.toLowerCase()
+  }
+  // spelling: same word count (token fix, not a phrase rewrite)
+  const suggWords = suggestion.trim().split(/\s+/).filter(Boolean)
+  return words.length === suggWords.length
+}
+
+function findAllExactPhraseStarts(text, phrase) {
+  if (!text || !phrase) return []
+  const hits = []
+  let from = 0
+  while (from < text.length) {
+    const i = text.indexOf(phrase, from)
+    if (i === -1) break
+    hits.push(i)
+    from = i + Math.max(1, phrase.length)
+  }
+  return hits
+}
+
+/**
+ * If proofread flagged an exact capitalization/spelling fix once but the same
+ * original string appears again in that entry, clone the annotation for each
+ * uncovered hit with its own start/end + unique context anchors.
+ *
+ * Run AFTER same-entry original dedupe (that step would otherwise collapse clones).
+ */
+export function expandExactRepeatAnnotations(entries, annotations) {
+  if (!Array.isArray(annotations) || annotations.length === 0) return annotations
+  if (!Array.isArray(entries) || entries.length === 0) return annotations
+
+  const byEntry = new Map(entries.map((e) => [e.id, e]))
+  const out = annotations.map((a) => ({ ...a }))
+  let added = 0
+
+  // One seed per entry_id+original+type (first open expandable ann).
+  const seenSeeds = new Set()
+  for (const ann of annotations) {
+    if (!isSafeExactRepeatExpandSeed(ann)) continue
+    const seedKey = `${ann.entry_id}\0${ann.original}\0${ann.type}`
+    if (seenSeeds.has(seedKey)) continue
+    seenSeeds.add(seedKey)
+
+    const entry = byEntry.get(ann.entry_id)
+    if (!entry?.text) continue
+    const phrase = ann.original
+    const hits = findAllExactPhraseStarts(entry.text, phrase)
+    if (hits.length <= 1) continue
+
+    const covered = new Set()
+    for (const a of out) {
+      if (a.entry_id !== ann.entry_id || a.original !== phrase || a.type !== ann.type) continue
+      if (a.status === 'ignored') continue
+      if (Number.isFinite(a.start) && hits.includes(a.start)) {
+        covered.add(a.start)
+        continue
+      }
+      const unassigned = hits.find((h) => !covered.has(h))
+      if (unassigned != null) covered.add(unassigned)
+    }
+
+    for (const start of hits) {
+      if (covered.has(start)) continue
+      const end = start + phrase.length
+      const anchor = buildUniqueContextAnchor(entry.text, start, end, {
+        needle: phrase,
+        uniqueIn: entry.text,
+      })
+      out.push({
+        ...ann,
+        id: annotations.length + added + 1,
+        start,
+        end,
+        status: 'open',
+        _anchorBefore: anchor?.before ?? '',
+        _anchorAfter: anchor?.after ?? '',
+        _appliedAt: undefined,
+        _appliedEnd: undefined,
+        _appliedEntryId: undefined,
+        _cleanStart: undefined,
+        _cleanEnd: undefined,
+        matchedText: undefined,
+      })
+      covered.add(start)
+      added++
+    }
+  }
+
+  if (added === 0) return annotations
+  out.forEach((a, i) => { a.id = i + 1 })
+  return out
+}
+
 export function buildCleanContentMap(text) {
   const rawLines = text.split('\n')
   const parsedLines = []
@@ -3089,6 +3195,9 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     seenAnnotations.add(key)
     return true
   })
+  // After original-dedupe: clone capitalization/spelling flags for other
+  // exact same-entry hits (Page 3 … Page 3). Must run after dedupe.
+  annots = expandExactRepeatAnnotations(entries, annots)
   annots.forEach((a, i) => { a.id = i + 1 })
 
   console.log(`Pass 2 complete: ${annots.length} issues found.`)
