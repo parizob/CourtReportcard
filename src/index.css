@@ -115,6 +115,36 @@
   animation-delay: 1.4s;
 }
 
+@keyframes blogFlowCar {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(-3px); opacity: 0.92; }
+}
+
+@keyframes blogLaneDash {
+  0% { transform: translateY(0); opacity: 0.95; }
+  100% { transform: translateY(6px); opacity: 0.55; }
+}
+
+.blog-flow-car {
+  animation: blogFlowCar 2.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.blog-flow-car-delay {
+  animation-delay: 0.4s;
+}
+
+.blog-flow-car-delay-2 {
+  animation-delay: 0.85s;
+}
+
+.blog-lane-dash {
+  animation: blogLaneDash 1.8s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 /* Landing page: soft scroll reveals + one hero attention cue */
 .landing-reveal {
   opacity: 0;

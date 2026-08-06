@@ -5,6 +5,7 @@ import BlogTag from '../components/BlogTag'
 import BlogLaunchHero from '../components/BlogLaunchHero'
 import BlogTipsHero from '../components/BlogTipsHero'
 import BlogIndustryHero from '../components/BlogIndustryHero'
+import BlogBackboneHero from '../components/BlogBackboneHero'
 import { useAuth } from '../context/AuthContext'
 import { getPostBySlug } from '../data/blogPosts'
 
@@ -165,6 +166,7 @@ export default function BlogPost() {
         {post.hero === 'launch' && <BlogLaunchHero />}
         {post.hero === 'tips' && <BlogTipsHero />}
         {post.hero === 'industry' && <BlogIndustryHero />}
+        {post.hero === 'backbone' && <BlogBackboneHero />}
 
         <article>
           {post.content.map((block, i) => (

@@ -2,7 +2,7 @@
 // Content blocks: { type: 'p' | 'h2' | 'pairs' | 'callout' | 'cta', ... }
 // Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
 // CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
-// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry'
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -25,6 +25,85 @@ export const BLOG_TAGS = {
 }
 
 export const blogPosts = [
+  {
+    slug: 'faster-transcripts-stronger-backbone',
+    title: 'Faster Transcripts, Stronger Backbone',
+    excerpt:
+      'Court reporters keep the legal system moving. When turnaround gets smoother, the effect ripples outward. A short note on friction, traffic jams, and doing our part.',
+    date: '2026-08-06',
+    dateLabel: 'August 6, 2026',
+    dateLabelShort: '8/6/26',
+    readMinutes: 4,
+    tags: ['industry'],
+    hero: 'backbone',
+    metaDescription:
+      'How faster court transcript turnaround strengthens the legal system. Court reporters are the backbone. Court Reportcard helps remove proofreading friction so the whole process keeps moving.',
+    content: [
+      {
+        type: 'p',
+        text: 'You already know who keeps this whole machine honest. It is not the loudest brief. It is not the software demo. It is the reporter in the chair, then at the desk, turning spoken hours into a record people can trust.',
+      },
+      {
+        type: 'p',
+        text: 'Court reporters are the backbone. When the backbone is strong, the system stands up straighter. When the backbone is tired, overloaded, or stuck waiting on a last pass that should not take all night, everything downstream feels it.',
+      },
+
+      { type: 'h2', text: 'Turnaround is not a vanity metric' },
+      {
+        type: 'p',
+        text: 'A transcript that gets out the door cleaner and sooner does more than clear your queue. Counsel can prepare. Motions move. Hearings do not stall because someone is still waiting on pages. Appeals do not sit in a holding pattern while the record catches up.',
+      },
+      {
+        type: 'p',
+        text: 'That is not abstract policy talk. That is a Tuesday. One job delayed becomes a lawyer waiting. A lawyer waiting becomes a client waiting. A client waiting becomes a calendar that will not budge. The system does not announce the backup. It just gets quieter, slower, and more expensive for everyone in it.',
+      },
+
+      { type: 'h2', text: 'The traffic jam nobody schedules' },
+      {
+        type: 'p',
+        text: 'Think about a freeway. One car hits the brakes. The next car brakes harder. Three cars later you have a wall of red lights for a reason that already ended half a mile ahead. Nobody meant to create a jam. Friction stacked up.',
+      },
+      {
+        type: 'p',
+        text: 'Transcript work has the same shape. A hard proofread at midnight. A second look because a homophone will not leave you alone. A redo because export formatting fought your CAT software. None of that is laziness. It is the cost of caring. But every extra hour of avoidable friction is a brake light in a system that needs people to keep moving.',
+      },
+      {
+        type: 'callout',
+        text: 'Keep the work moving. Remove what you can of the pileup. That is how a backbone stays strong.',
+      },
+
+      { type: 'h2', text: 'Doing our part' },
+      {
+        type: 'p',
+        text: 'Court Reportcard will not sit in the room for you. It will not certify the record. It will not replace the judgment that has your name on the last page. What it can do is take some of the drag out of the final stretch: the tired-eye pass, the homophone hunt, the second set of eyes when a scopist is booked and the deadline is not.',
+      },
+      {
+        type: 'p',
+        text: 'You upload a transcript you already made. We flag likely slips. You accept, ignore, or fix. Nothing changes until you say so. Then you export and keep moving. Faster turnaround here is not about racing past quality. It is about protecting quality without making the whole chain wait behind a jam that did not need to form.',
+      },
+      {
+        type: 'p',
+        text: 'If reporters are the backbone, then tools that respect the craft should make that backbone stronger, not thinner. Stronger means you clear the job sooner with work you still trust. Stronger means attorneys and courts get a record when they need it. Stronger means the system has one less place to seize up.',
+      },
+      {
+        type: 'p',
+        text: 'We cannot fix every bottleneck in the law. We can do our part on the stretch we know: the pages between "done writing" and "ready to send." That stretch matters more than it gets credit for. Keep it clear, and a lot of other traffic gets to move.',
+      },
+      {
+        type: 'callout',
+        text: 'Your work holds the line. We are here to help you hold it with less friction.',
+      },
+      {
+        type: 'cta',
+        headline: 'Keep the record moving.',
+        text: 'Court Reportcard is a second set of eyes for court reporters. Catch slips sooner. Ship work you still own.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_backbone_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'tools-can-help-court-reporters-but-the-last-pass-is-always-yours',
     title: 'Tools Can Help Court Reporters, but the Last Pass Is Always Yours',
