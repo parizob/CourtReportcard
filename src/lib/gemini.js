@@ -1,7 +1,7 @@
 // Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD —
 // extraction uses the lighter/cheaper model (structured parsing, not reasoning),
 // proofreading uses full-quality Pro. Keep these in sync with index.ts.
-import { parseGeminiJsonResponse, isGeminiJsonParseError } from './parseGeminiJson.js'
+import { parseGeminiJsonResponse, isGeminiJsonParseError, normalizeProofreadGeminiResult } from './parseGeminiJson.js'
 
 const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
 const MODEL_PROOFREAD = 'gemini-2.5-pro'
@@ -3159,7 +3159,14 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     undefined, // no budget cap — Pro gets full thinking for quality
   )
 
-  let annots = (proofreadResult.annotations || []).map((a, i) => ({
+  const { annotations: rawAnnots, shape: proofreadShape } = normalizeProofreadGeminiResult(proofreadResult)
+  if (proofreadShape === 'array') {
+    console.warn(`proofread: Gemini returned a bare annotations array (${rawAnnots.length}); normalizing`)
+  } else if (proofreadShape === 'other') {
+    console.warn('proofread: unexpected Gemini JSON shape (no annotations array)', typeof proofreadResult)
+  }
+
+  let annots = rawAnnots.map((a, i) => ({
     id: a.id || i + 1,
     entry_id: a.entry_id,
     type: a.type || 'spelling',

@@ -392,6 +392,22 @@ function parseGeminiJsonText(cleaned: string): any {
   }
 }
 
+// Mirrored from src/lib/parseGeminiJson.js → normalizeProofreadGeminiResult.
+// Prod 2026-08-09 (Johnston / Alecia): batch 0 returned a bare annotation
+// array; reading `.annotations` made us accept empty and drop ~50 real flags.
+function normalizeProofreadGeminiResult(result: unknown): { annotations: any[]; shape: 'object' | 'array' | 'empty' | 'other' } {
+  if (Array.isArray(result)) {
+    return { annotations: result, shape: 'array' }
+  }
+  if (result && typeof result === 'object' && Array.isArray((result as { annotations?: unknown }).annotations)) {
+    return { annotations: (result as { annotations: any[] }).annotations, shape: 'object' }
+  }
+  if (result == null) {
+    return { annotations: [], shape: 'empty' }
+  }
+  return { annotations: [], shape: 'other' }
+}
+
 const EXTRACT_JSON_RECOVERY_SUFFIX =
   '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
   'Respond with ONLY a single valid JSON object matching the required schema. ' +
@@ -1400,7 +1416,14 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     MODEL_PROOFREAD,
   )
 
-  let annots = (proofreadResult.annotations || []).map((a: any, i: number) => ({
+  const { annotations: rawAnnots, shape: proofreadShape } = normalizeProofreadGeminiResult(proofreadResult)
+  if (proofreadShape === 'array') {
+    console.warn(`proofread: Gemini returned a bare annotations array (${rawAnnots.length}); normalizing`)
+  } else if (proofreadShape === 'other') {
+    console.warn('proofread: unexpected Gemini JSON shape (no annotations array)', typeof proofreadResult)
+  }
+
+  let annots = rawAnnots.map((a: any, i: number) => ({
     id: a.id || i + 1,
     entry_id: a.entry_id,
     type: a.type || 'spelling',

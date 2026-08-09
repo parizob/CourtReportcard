@@ -121,3 +121,25 @@ export function parseGeminiJsonResponse(rawText) {
     return JSON.parse(escapeRawControlCharsInJsonStrings(extracted))
   }
 }
+
+/**
+ * Proofread prompts ask for `{ "annotations": [...] }`, but gemini-2.5-pro
+ * sometimes returns a bare annotation array instead (Prod 2026-08-09 Johnston
+ * batch 0). Reading `.annotations` on an array yields undefined → [] and we
+ * soft-fail / accept empty while throwing away real flags.
+ *
+ * @param {unknown} result - parsed Gemini JSON
+ * @returns {{ annotations: any[], shape: 'object' | 'array' | 'empty' | 'other' }}
+ */
+export function normalizeProofreadGeminiResult(result) {
+  if (Array.isArray(result)) {
+    return { annotations: result, shape: 'array' }
+  }
+  if (result && typeof result === 'object' && Array.isArray(result.annotations)) {
+    return { annotations: result.annotations, shape: 'object' }
+  }
+  if (result == null) {
+    return { annotations: [], shape: 'empty' }
+  }
+  return { annotations: [], shape: 'other' }
+}

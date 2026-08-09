@@ -8,9 +8,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Revisit sales tax nexus once revenue crosses ~$5k — FL doesn't tax SaaS, other states do at $100k+/year nexus. Not close yet; check with a CPA before it matters. Note: sales tax is a trust-fund tax, LLC protection doesn't fully shield personal exposure if owed and unremitted
 - [ ] File U.S. Copyright Office registration for the codebase — needed to preserve statutory damages/attorney's fees eligibility. Grace window (3 months from 2026-07-24 launch) runs to ~late Oct 2026. ~$45-65. Use the confidential-portions redaction option so the prompts (`src/lib/gemini.js`) don't become public record
 - [ ] Parallelize **extract** chunks the same way as proofread (capped waves + race-safe merge) — proofread parallelization shipped first; extract still serial
-- [x] Parallelize proofread batches (capped waves of 3, claim files + merge lock) — see `src/lib/proofreadParallel.js` + `analyze-case` proofread pass
 - [ ] Phase 2 glossary support (extraction emits terms, proofread batches get them as context) — deferred until Phase 1 chunking is proven solid in production
-- [ ] Move Supabase, Vercel, and the domain registrar off personal email/card onto Parizo Labs LLC's business email and Mercury checking — currently all billed under Brandon's personal Gmail; avoids commingling and single-inbox recovery risk
+- [ ] Move Supabase, Vercel, and the domain registrar off Brandon's personal Gmail onto Parizo Labs LLC's business email — payment method already switched to Mercury checking; avoids single-inbox recovery risk
 
 ### Marketing / Growth (CMO review, 2026-07-11)
 
@@ -28,9 +27,11 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Survey popup after a key action (e.g. after download) — not worth building yet, personal outreach already produces richer signal at this scale
 - [ ] Identify addresses in documents and verify they're correct
 - [ ] Let stenographers upload their own dictionaries as a per-user glossary — suppresses false-positive spelling flags on real terms and catches real inconsistent spelling of them; will need filtering down to "interesting" entries, not the whole file
+- [ ] Per-reporter preferences to permanently opt out of a suggestion type across all transcripts — e.g. don't flag ordinal dates ("6th" vs "6"), since verbatim record means what was said stands over the grammar rule — requested by Tonie Thompson
 
 ## Done
 
+- [x] Parallelize proofread batches (capped waves of 3, claim files + merge lock) — see `src/lib/proofreadParallel.js` + `analyze-case` proofread pass
 - [x] Connect Stripe and turn on payments — `create-checkout-session` + `stripe-webhook` edge functions deployed (ACTIVE), `DashboardBilling.jsx` wired to `TOKEN_PACKS` with purchase history
 - [x] Set up a separate Supabase branch (Pro plan) for dev/testing, isolated from production data
 - [x] Fixed "Jump to in transcript" silently failing on long transcripts (real customer report, ~200 pages) — root cause was a separate, more fragile text-matching pass just for the transcript-pane highlight. Now falls back exact highlight → entry → transcript line, logging each tier, never silent. Also closed a related risk: `acceptAnnotation` now fails closed if either the entry or export-text apply fails, so an annotation can never show "accepted" while the correction is silently missing from the export

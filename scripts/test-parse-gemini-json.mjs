@@ -10,6 +10,7 @@ import {
   isControlCharParseError,
   isStructuralJsonParseError,
   isGeminiJsonParseError,
+  normalizeProofreadGeminiResult,
 } from '../src/lib/parseGeminiJson.js'
 
 let passed = 0
@@ -113,6 +114,25 @@ console.log('parseGeminiJson')
   const structMsg = new Error("Expected ',' or '}' after property value in JSON at position 42")
   assert(isStructuralJsonParseError(structMsg), 'Expected comma/brace classifier')
   assert(isGeminiJsonParseError(structMsg), 'Expected comma/brace is recovery-eligible')
+}
+
+console.log('\nnormalizeProofreadGeminiResult')
+{
+  const bare = [{ id: 1, entry_id: 10, original: 'A A lot.', suggestion: 'A lot.' }]
+  const n = normalizeProofreadGeminiResult(bare)
+  assert(n.shape === 'array', 'bare array → shape array')
+  assert(n.annotations.length === 1 && n.annotations[0].entry_id === 10, 'bare array → annotations preserved')
+}
+{
+  const wrapped = { annotations: [{ id: 1, entry_id: 2, original: 'x', suggestion: 'y' }] }
+  const n = normalizeProofreadGeminiResult(wrapped)
+  assert(n.shape === 'object', 'object wrapper → shape object')
+  assert(n.annotations.length === 1, 'object wrapper → annotations')
+}
+{
+  assert(normalizeProofreadGeminiResult({}).shape === 'other', 'empty object → other')
+  assert(normalizeProofreadGeminiResult(null).shape === 'empty', 'null → empty')
+  assert(normalizeProofreadGeminiResult({ annotations: [] }).annotations.length === 0, 'explicit empty array ok')
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
