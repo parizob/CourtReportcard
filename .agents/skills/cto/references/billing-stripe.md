@@ -13,7 +13,7 @@ One-time token purchases via Stripe Checkout. Subscriptions are not built —
 | Checkout session creation | `supabase/functions/create-checkout-session/index.ts` | `verify_jwt: true`. Takes `{ pack_id, origin }` from the client, looks up price server-side (client never sends an amount), builds the session with **inline `price_data`** — see "No Stripe catalog" below. |
 | Fulfillment | `supabase/functions/stripe-webhook/index.ts` | `verify_jwt: false` (Stripe has no Supabase JWT — its own signature is the only auth). Listens for `checkout.session.completed` / `checkout.session.async_payment_succeeded`; on `payment_status === 'paid'`, calls the `credit_tokens` RPC. |
 | Idempotent credit | `credit_tokens` RPC (`supabase/migrations/20260721230000_add_stripe_token_credits.sql`, fixed in `20260722010000_fix_credit_tokens_on_conflict.sql`, price added in `20260722030000_add_token_ledger_price_cents.sql`) | `security definer`, `service_role`-only. Keyed on `token_ledger.stripe_checkout_session_id` (partial unique index) so a webhook retry/duplicate delivery can never double-credit. Writes `token_ledger.price_cents` from Stripe `amount_total` (nullable on legacy/non-purchase rows). Purchase History UI shows tokens + amount (`price_cents / 100`). |
-| Fulfillment failure alerting | `supabase/functions/stripe-webhook/index.ts` (`sendFulfillmentAlert`) | Emails `courtreportcard@gmail.com` via Resend whenever a paid session doesn't end in a credit — see "Fulfillment failure alerts" below. |
+| Fulfillment failure alerting | `supabase/functions/stripe-webhook/index.ts` (`sendFulfillmentAlert`) | Emails `brandon@courtreportcard.com` via Resend whenever a paid session doesn't end in a credit — see "Fulfillment failure alerts" below. |
 | Purchase UI | `src/pages/dashboard/DashboardBilling.jsx` | Gated by `canPurchase` — see "Beta gating" below. |
 | Promo codes | `promo_codes` + `promo_redemptions` + `redeem_promo` RPC (`supabase/migrations/20260723010000_add_promo_codes.sql`, multi-redeem fix `20260723020000_…`) | Authenticated users redeem from Billing. Caps via `max_per_user` (default 1) and optional `max_redemptions` (global). Credits `user_profiles.balance` and inserts `token_ledger` type `promo`. No Edge Function. Create codes in SQL (service role / dashboard); clients cannot list `promo_codes` (RLS). |
 | Case refunds | `refund_case_tokens(p_case_id)` (`supabase/migrations/20260724190000_secure_refund_case_tokens.sql`) | Client upload-failure refunds. Credits only `cases.tokens_charged` for a case the caller owns, then zeros the charge (idempotent). Old open-mint `refund_tokens(amount)` is disabled. Analysis failures still refund inside `analyze-case` `handleFailure` (service role). |
@@ -100,7 +100,7 @@ Stripe's own retry backoff (~3 days) covers *transient* fulfillment failures,
 but there was no signal at all if retries ever exhausted — a customer could
 be charged with tokens never credited and nobody would know without manually
 checking logs. `stripe-webhook`'s `fulfill()` now emails
-`courtreportcard@gmail.com` (via the Resend HTTP API, same account/domain as
+`brandon@courtreportcard.com` (via the Resend HTTP API, same account/domain as
 `api/contact.js`) the moment either failure path happens — it does not wait
 for retries to exhaust, so the same incident can generate more than one email
 if Stripe redelivers before it's fixed:

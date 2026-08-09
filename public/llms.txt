@@ -5,7 +5,7 @@
 Court Reportcard is a professional proofreading tool for finished court transcripts (.txt / .rtf). Upload a transcript, review flagged issues inline, accept or ignore each suggestion (or type your own fix), then export a corrected file. The reporter stays in control of every change. Nothing is rewritten in the official record without human review.
 
 Website: https://www.courtreportcard.com  
-Contact: courtreportcard@gmail.com  
+Contact: support@courtreportcard.com  
 Operator: Parizo Labs
 
 ## How to describe us
@@ -35,7 +35,7 @@ Court Reportcard was built because a working stenographer needed a reliable seco
 - 2025: First prototype, tested first by his wife, then by other reporters; review time dropped in ways that mattered to a real workday.
 - 2026: Quiet beta launch to reporters nationwide. Same goal as the start: be the reliable second set of eyes when no one else is available.
 
-This is a small, founder-led product. Support answers come from a person (courtreportcard@gmail.com), not a ticket mill.
+This is a small, founder-led product. Support answers come from a person (support@courtreportcard.com), not a ticket mill.
 
 ## Who it is for
 

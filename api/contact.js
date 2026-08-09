@@ -1,5 +1,5 @@
 const FROM_ADDRESS = 'Court Reportcard <noreply@courtreportcard.com>'
-const TO_ADDRESS   = 'courtreportcard@gmail.com'
+const TO_ADDRESS   = 'support@courtreportcard.com'
 
 const MAX = {
   name: 100,

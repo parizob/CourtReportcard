@@ -93,7 +93,7 @@ const MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY = 40
 // Founder alert when a case finalizes with 0 suggestions at/above this
 // page-token size. Short test uploads stay quiet.
 const ZERO_ISSUE_ALERT_MIN_TOKENS = 40
-const FOUNDER_ALERT_EMAIL = 'courtreportcard@gmail.com'
+const FOUNDER_ALERT_EMAIL = 'brandon@courtreportcard.com'
 
 /** Mirrors src/lib/pageCount.js's countPages. */
 function countPages(text: string): number {
@@ -1585,7 +1585,7 @@ function failureEmailHtml(caseName: string, refunded: number, repeatFailure = fa
   const supportUrl = `${SITE_URL}/support`
   const safeName = escapeHtml(caseName)
   const nextStep = repeatFailure
-    ? `This is the second time this specific file has run into a problem. Sometimes that's something about the file, sometimes it's on our end, we're not sure yet without a closer look. Instead of trying again, email us at <a href="mailto:courtreportcard@gmail.com" style="color: #001939; font-weight: 700; text-decoration: underline;">courtreportcard@gmail.com</a> or use <a href="${supportUrl}" style="color: #001939; font-weight: 700; text-decoration: underline;">Contact Support</a> so we can check what's actually going on.`
+    ? `This is the second time this specific file has run into a problem. Sometimes that's something about the file, sometimes it's on our end, we're not sure yet without a closer look. Instead of trying again, email us at <a href="mailto:support@courtreportcard.com" style="color: #001939; font-weight: 700; text-decoration: underline;">support@courtreportcard.com</a> or use <a href="${supportUrl}" style="color: #001939; font-weight: 700; text-decoration: underline;">Contact Support</a> so we can check what's actually going on.`
     : `This is usually a temporary issue. Please try uploading again. If it happens a second time, reach out and we'll take a look. Don't keep retrying the same file over and over.`
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">

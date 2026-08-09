@@ -88,7 +88,11 @@ const publicNavClass = ({ isActive }) =>
 
 
 const LOW_TOKEN_THRESHOLD = 10
-const ADMIN_ALWAYS_SHOW = 'parizob1@gmail.com'
+const ADMIN_ALWAYS_SHOW = new Set([
+  'brandon@courtreportcard.com',
+  'courtreportcard@gmail.com',
+  'parizob1@gmail.com',
+])
 
 // Dropdown: full-bleed inset on narrow viewports (avoids left-edge clip when
 // the bell sits mid-header); desktop keeps the classic right-anchored card.
@@ -153,7 +157,7 @@ export default function SiteHeader() {
     if (!isAuthenticated || tokenBalance === null || !user) return
     if (lowTokenShownRef.current) return // already shown this session
 
-    const isAdmin = user.email === ADMIN_ALWAYS_SHOW
+    const isAdmin = ADMIN_ALWAYS_SHOW.has(user.email)
     const isLow = tokenBalance < LOW_TOKEN_THRESHOLD
     if (!isLow && !isAdmin) return
 

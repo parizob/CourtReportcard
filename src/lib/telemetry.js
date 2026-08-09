@@ -3,7 +3,12 @@ import { supabase } from './supabase'
 const ANON_KEY = 'crc_anon_id'
 const SESSION_KEY = 'crc_session_id'
 
-const ADMIN_EMAILS = ['courtreportcard@gmail.com', 'parizob1@gmail.com']
+// brandon@ is primary; keep legacy Gmail aliases while Google Workspace migration settles.
+const ADMIN_EMAILS = [
+  'brandon@courtreportcard.com',
+  'courtreportcard@gmail.com',
+  'parizob1@gmail.com',
+]
 
 let currentUserId = null
 

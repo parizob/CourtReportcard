@@ -233,7 +233,11 @@ CREATE OR REPLACE FUNCTION public.is_telemetry_admin()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(auth.jwt() ->> 'email', '') in ('courtreportcard@gmail.com', 'parizob1@gmail.com');
+  select coalesce(auth.jwt() ->> 'email', '') in (
+    'brandon@courtreportcard.com',
+    'courtreportcard@gmail.com',
+    'parizob1@gmail.com'
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.record_case_export(p_case_id uuid, p_format text DEFAULT NULL)

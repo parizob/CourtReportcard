@@ -21,7 +21,7 @@ const corsHeaders = {
 }
 
 const ALERT_FROM = 'Court Reportcard Alerts <noreply@courtreportcard.com>'
-const ALERT_TO = 'courtreportcard@gmail.com'
+const ALERT_TO = 'brandon@courtreportcard.com'
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // Best-effort email to courtreportcard@gmail.com whenever a paid checkout
+  // Best-effort email to brandon@courtreportcard.com whenever a paid checkout
   // session doesn't end in tokens landing in the customer's balance — this is
   // the one gap automatic Stripe retries don't cover (see billing-stripe.md).
   // Never throws: a broken alert must not affect the webhook's own response.

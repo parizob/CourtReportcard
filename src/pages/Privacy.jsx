@@ -52,7 +52,7 @@ const sections = [
   {
     num: '8.',
     title: 'Contact',
-    body: `For questions about this policy, data deletion requests, or to report a security concern, contact us at courtreportcard@gmail.com.`,
+    body: `For questions about this policy, data deletion requests, or to report a security concern, contact us at support@courtreportcard.com.`,
   },
 ]
 
@@ -114,8 +114,8 @@ export default function Privacy() {
         <div className="mt-12 p-6 bg-surface-container-low rounded-xl border border-outline-variant/15">
           <p className="text-xs text-on-surface-variant leading-relaxed">
             Questions, deletion requests, or security concerns? Contact us at{' '}
-            <a href="mailto:courtreportcard@gmail.com" className="text-primary hover:underline font-semibold">
-              courtreportcard@gmail.com
+            <a href="mailto:support@courtreportcard.com" className="text-primary hover:underline font-semibold">
+              support@courtreportcard.com
             </a>
           </p>
         </div>

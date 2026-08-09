@@ -83,7 +83,7 @@ const sections = [
   {
     num: '10.',
     title: 'Assistance with Data Subject Requests',
-    body: `Because Customer Content is uploaded and controlled by you, you are primarily responsible for responding to requests from individuals about personal data in that content. Taking into account the nature of processing, we will provide reasonable assistance (for example, helping you delete Customer Content from the Service) so you can meet applicable obligations. Requests about your own account data may be directed to courtreportcard@gmail.com.`,
+    body: `Because Customer Content is uploaded and controlled by you, you are primarily responsible for responding to requests from individuals about personal data in that content. Taking into account the nature of processing, we will provide reasonable assistance (for example, helping you delete Customer Content from the Service) so you can meet applicable obligations. Requests about your own account data may be directed to support@courtreportcard.com.`,
   },
   {
     num: '11.',
@@ -93,7 +93,7 @@ const sections = [
   {
     num: '12.',
     title: 'International Transfers',
-    body: `The Service is operated using cloud infrastructure that may process data in the United States. By using the Service, you instruct and authorize such processing as needed to provide the Service. If additional transfer mechanisms become required for your use case, contact us at courtreportcard@gmail.com.`,
+    body: `The Service is operated using cloud infrastructure that may process data in the United States. By using the Service, you instruct and authorize such processing as needed to provide the Service. If additional transfer mechanisms become required for your use case, contact us at support@courtreportcard.com.`,
   },
   {
     num: '13.',
@@ -179,8 +179,8 @@ export default function DataProcessingAgreement() {
         <div className="mt-12 p-6 bg-surface-container-low rounded-xl border border-outline-variant/15">
           <p className="text-xs text-on-surface-variant leading-relaxed">
             Questions about this DPA? Contact us at{' '}
-            <a href="mailto:courtreportcard@gmail.com" className="text-primary hover:underline font-semibold">
-              courtreportcard@gmail.com
+            <a href="mailto:support@courtreportcard.com" className="text-primary hover:underline font-semibold">
+              support@courtreportcard.com
             </a>
           </p>
         </div>

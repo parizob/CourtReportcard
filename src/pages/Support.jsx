@@ -53,8 +53,8 @@ const faqs = [
           Tokens &amp; Billing
         </a>
         {' '}in your dashboard (1 token = 1 page). If something goes wrong with a purchase, submit a support ticket above or email{' '}
-        <a href="mailto:courtreportcard@gmail.com" className="italic text-primary underline transition-colors">
-          courtreportcard@gmail.com
+        <a href="mailto:support@courtreportcard.com" className="italic text-primary underline transition-colors">
+          support@courtreportcard.com
         </a>
         .
       </>
@@ -242,8 +242,8 @@ export default function Support() {
                   <span className="flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm">mail</span>
                     Or email us directly at{' '}
-                    <a href="mailto:courtreportcard@gmail.com" className="text-primary/70 hover:text-primary hover:underline transition-colors">
-                      courtreportcard@gmail.com
+                    <a href="mailto:support@courtreportcard.com" className="text-primary/70 hover:text-primary hover:underline transition-colors">
+                      support@courtreportcard.com
                     </a>
                   </span>
                   <span className="hidden sm:inline mx-1">·</span>

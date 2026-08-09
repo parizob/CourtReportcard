@@ -88,7 +88,7 @@ const sections = [
   {
     num: '10.',
     title: 'Account Security',
-    body: `You are responsible for maintaining the confidentiality of your login credentials. Because the Service handles sensitive legal texts, you must notify us immediately at courtreportcard@gmail.com of any unauthorized use of your account. You agree not to share your account access with third parties.`,
+    body: `You are responsible for maintaining the confidentiality of your login credentials. Because the Service handles sensitive legal texts, you must notify us immediately at support@courtreportcard.com of any unauthorized use of your account. You agree not to share your account access with third parties.`,
   },
   {
     num: '11.',
@@ -98,7 +98,7 @@ const sections = [
   {
     num: '12.',
     title: 'Dispute Resolution',
-    body: `Before filing any formal legal claim, you agree to contact us at courtreportcard@gmail.com and give us thirty (30) days to attempt to resolve the dispute informally. Any claim not resolved informally shall be resolved through binding individual arbitration rather than in court, except that either party may bring an individual claim in small claims court if it qualifies. You waive any right to participate in a class action lawsuit or class-wide arbitration.`,
+    body: `Before filing any formal legal claim, you agree to contact us at support@courtreportcard.com and give us thirty (30) days to attempt to resolve the dispute informally. Any claim not resolved informally shall be resolved through binding individual arbitration rather than in court, except that either party may bring an individual claim in small claims court if it qualifies. You waive any right to participate in a class action lawsuit or class-wide arbitration.`,
   },
   {
     num: '13.',
@@ -164,8 +164,8 @@ export default function TermsOfService() {
         <div className="mt-12 p-6 bg-surface-container-low rounded-xl border border-outline-variant/15">
           <p className="text-xs text-on-surface-variant leading-relaxed">
             Questions about these Terms? Contact us at{' '}
-            <a href="mailto:courtreportcard@gmail.com" className="text-primary hover:underline font-semibold">
-              courtreportcard@gmail.com
+            <a href="mailto:support@courtreportcard.com" className="text-primary hover:underline font-semibold">
+              support@courtreportcard.com
             </a>
           </p>
         </div>
