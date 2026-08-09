@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS public.cases (
   tokens_charged integer,
   last_error text,
   analysis_restart_count integer NOT NULL DEFAULT 0,
+  last_exported_at timestamp with time zone,
+  export_count integer NOT NULL DEFAULT 0,
   CONSTRAINT cases_pkey PRIMARY KEY (id),
   CONSTRAINT cases_status_check CHECK ((status = ANY (ARRAY['uploaded'::text, 'processing'::text, 'analyzed'::text, 'reviewed'::text, 'exported'::text, 'purged'::text, 'deleted'::text]))),
   CONSTRAINT cases_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -232,6 +234,36 @@ CREATE OR REPLACE FUNCTION public.is_telemetry_admin()
  SET search_path TO 'public'
 AS $function$
   select coalesce(auth.jwt() ->> 'email', '') in ('courtreportcard@gmail.com', 'parizob1@gmail.com');
+$function$;
+
+CREATE OR REPLACE FUNCTION public.record_case_export(p_case_id uuid, p_format text DEFAULT NULL)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  update public.cases
+  set
+    last_exported_at = now(),
+    export_count = coalesce(export_count, 0) + 1,
+    status = case
+      when status in ('analyzed', 'reviewed', 'exported') then 'exported'
+      else status
+    end,
+    updated_at = now()
+  where id = p_case_id
+    and user_id = auth.uid()
+    and deleted_at is null;
+
+  if not found then
+    raise exception 'Case not found or not owned by caller';
+  end if;
+end;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.spend_tokens(p_amount integer)
@@ -778,3 +810,6 @@ GRANT EXECUTE ON FUNCTION public.redeem_promo(text) TO authenticated, service_ro
 
 REVOKE ALL ON FUNCTION public.is_telemetry_admin() FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.is_telemetry_admin() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.record_case_export(uuid, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.record_case_export(uuid, text) TO authenticated, service_role;

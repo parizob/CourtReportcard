@@ -90,6 +90,18 @@ select
 from case_metrics;
 ```
 
+**Upload vs download (completion)**
+Cases that reached a successful Export download (`record_case_export` from the Export page).
+Only populated after that tracking shipped (2026-08-09); older cases stay at `export_count = 0`.
+```sql
+select
+  count(*) filter (where deleted_at is null) as cases_uploaded,
+  count(*) filter (where deleted_at is null and export_count > 0) as cases_downloaded,
+  count(distinct user_id) filter (where deleted_at is null) as users_uploaded,
+  count(distinct user_id) filter (where deleted_at is null and export_count > 0) as users_downloaded
+from cases;
+```
+
 ## Red Flags to Watch For
 
 - **Activation rate drops below 20%** — onboarding or token messaging broken

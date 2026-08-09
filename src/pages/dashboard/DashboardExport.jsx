@@ -5,6 +5,7 @@ import { encodeRtf } from '../../lib/rtf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
 import { detectExportNumbering, formatExportText } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
+import { trackEvent } from '../../lib/telemetry'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -236,6 +237,23 @@ export default function DashboardExport() {
       } else if (format === 'rtf') {
         triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
       }
+      // Best-effort completion signal — never block the download the user already got.
+      try {
+        const { error: exportTrackErr } = await supabase.rpc('record_case_export', {
+          p_case_id: caseId,
+          p_format: format,
+        })
+        if (exportTrackErr) console.warn('record_case_export failed:', exportTrackErr.message)
+      } catch (trackErr) {
+        console.warn('record_case_export failed:', trackErr)
+      }
+      trackEvent({
+        type: 'export',
+        name: 'case_download',
+        trackId: 'export_download',
+        elementType: 'button',
+        metadata: { case_id: caseId, format },
+      })
       try {
         sessionStorage.removeItem(`exportVerifyFailed:${caseId}`)
       } catch {

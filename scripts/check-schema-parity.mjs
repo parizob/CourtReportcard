@@ -28,6 +28,8 @@ const CHECKS = [
   { kind: 'column', table: 'cases', column: 'last_error' },
   { kind: 'column', table: 'cases', column: 'analysis_restart_count' },
   { kind: 'column', table: 'cases', column: 'analysis_stage' },
+  { kind: 'column', table: 'cases', column: 'last_exported_at' },
+  { kind: 'column', table: 'cases', column: 'export_count' },
   { kind: 'column', table: 'case_metrics', column: 'dropped_annotations_count' },
   { kind: 'column', table: 'case_metrics', column: 'custom_changed' },
   { kind: 'column', table: 'token_ledger', column: 'stripe_checkout_session_id' },
