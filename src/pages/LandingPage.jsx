@@ -11,6 +11,7 @@ const HERO_TIPS = {
     original: 'council',
     suggestion: 'counsel',
     suggestionClass: 'text-on-surface',
+    showActions: true,
     explanation:
       'Homophone: in this setting the witness likely means their attorney (counsel), not a governing body.',
   },
@@ -20,7 +21,7 @@ const HERO_TIPS = {
     original: 'incidant',
     suggestion: 'incident',
     suggestionClass: 'text-green-600',
-    explanation: 'Misspelling of "incident." Correction accepted and applied.',
+    explanation: 'Misspelling of "incident." Correction accepted by user and applied.',
   },
   ignored: {
     label: 'Ignored',
@@ -29,7 +30,7 @@ const HERO_TIPS = {
     suggestion: 'left as-is',
     suggestionClass: 'text-on-surface',
     strikeOriginal: false,
-    explanation: 'British spelling suggested. American "color" is correct here. Ignored.',
+    explanation: 'British spelling suggested. American "color" is correct here. Ignored by user.',
   },
 }
 
@@ -181,9 +182,21 @@ export default function LandingPage() {
                     <div className="relative w-full h-[5.75rem] sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
                       {tip ? (
                         <div className="absolute inset-0 flex flex-col justify-center px-3 py-2.5 sm:px-4 sm:py-3">
-                          <span className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${tip.labelClass}`}>
-                            {tip.label}
-                          </span>
+                          <div className={`relative mb-0.5 ${tip.showActions ? 'pr-[7.5rem]' : ''}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${tip.labelClass}`}>
+                              {tip.label}
+                            </span>
+                            {tip.showActions && (
+                              <div className="absolute -top-0.5 right-0 flex items-center gap-1.5" aria-hidden="true">
+                                <span className="text-[11px] font-bold px-2.5 py-1 rounded border border-transparent bg-surface-container text-on-surface">
+                                  Accept
+                                </span>
+                                <span className="text-[11px] font-bold px-2.5 py-1 rounded border border-outline-variant/25 text-on-surface-variant">
+                                  Ignore
+                                </span>
+                              </div>
+                            )}
+                          </div>
                           <p className="text-[12px] sm:text-[13px] text-on-surface leading-snug">
                             <span className={`text-on-surface-variant ${tip.strikeOriginal === false ? '' : 'line-through'}`}>
                               {tip.original}
