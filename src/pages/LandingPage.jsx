@@ -21,7 +21,7 @@ const HERO_TIPS = {
     original: 'incidant',
     suggestion: 'incident',
     suggestionClass: 'text-green-600',
-    explanation: 'Misspelling of "incident." Correction accepted by user and applied.',
+    explanation: 'Misspelling of "incident." Accepted by user and applied.',
   },
   ignored: {
     label: 'Ignored',
@@ -30,7 +30,7 @@ const HERO_TIPS = {
     suggestion: 'left as-is',
     suggestionClass: 'text-on-surface',
     strikeOriginal: false,
-    explanation: 'British spelling suggested. American "color" is correct here. Ignored by user.',
+    explanation: 'American "color" is correct here. Ignored by user.',
   },
 }
 
@@ -74,49 +74,61 @@ export default function LandingPage() {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-8 sm:px-12 max-w-[1440px] mx-auto">
-          <div className="grid lg:grid-cols-12 gap-12 items-center">
-            <div className="lg:col-span-6 z-10 page-rise">
-              <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-7 sm:mb-8 tracking-tight">
-                Your Second Set
-                <br />
-                of Eyes on
-                <br />
-                <span className="text-primary italic">Every Transcript</span>
-              </h1>
-              <p className="text-base sm:text-xl text-on-surface-variant mb-9 sm:mb-10 max-w-xl leading-relaxed">
-                Precision proofreading for court reporters. Catch spelling,
-                <br />
-                punctuation, homophones, and other context-sensitive
-                <br />
-                mistakes before a single page leaves your desk.
-              </p>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                <button
-                  onClick={() => openModal('signup')}
-                  data-track-id="landing_hero_try_now"
-                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 sm:px-8 py-3 rounded-lg font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
-                >
-                  Get started
-                </button>
-                <Link
-                  to="/ourplatform"
-                  data-track-id="landing_hero_platform_demo"
-                  className="group inline-flex items-center gap-1 text-primary font-bold text-base sm:text-lg no-underline hover:no-underline transition-colors"
-                >
-                  See how it works
-                  <span
-                    className="material-symbols-outlined text-lg transition-transform duration-200 ease-out group-hover:translate-x-1"
-                    aria-hidden="true"
-                  >
-                    arrow_forward
+        <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-5 sm:px-12 max-w-[1440px] mx-auto">
+          {/* Mobile: headline → mock → copy/CTAs. Desktop: left stack | mock */}
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 lg:items-center">
+            <div className="lg:col-span-6 z-10 order-1 page-rise text-center lg:text-left">
+              <h1 className="font-headline font-extrabold text-[2rem] leading-[1.15] sm:text-5xl lg:text-7xl lg:leading-[1.1] text-on-surface tracking-tight mb-3 lg:mb-8">
+                <span className="lg:hidden">
+                  <span className="block">Your Second Set of Eyes</span>
+                  <span className="block">
+                    on <span className="text-primary italic">Every Transcript</span>
                   </span>
-                </Link>
+                </span>
+                <span className="hidden lg:block">
+                  <span className="block">Your Second Set</span>
+                  <span className="block">of Eyes on</span>
+                  <span className="block text-primary italic">Every Transcript</span>
+                </span>
+              </h1>
+              <p className="lg:hidden text-base text-on-surface-variant leading-relaxed mb-0">
+                Precision proofreading for court reporters.
+              </p>
+              <div className="hidden lg:block">
+                <p className="text-xl text-on-surface-variant mb-10 max-w-xl leading-relaxed">
+                  Precision proofreading for court reporters. Catch spelling,
+                  <br />
+                  punctuation, homophones, and other context-sensitive
+                  <br />
+                  mistakes before a single page leaves your desk.
+                </p>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  <button
+                    onClick={() => openModal('signup')}
+                    data-track-id="landing_hero_try_now"
+                    className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-3 rounded-lg font-bold text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
+                  >
+                    Get started
+                  </button>
+                  <Link
+                    to="/ourplatform"
+                    data-track-id="landing_hero_platform_demo"
+                    className="group inline-flex items-center gap-1 text-primary font-bold text-lg no-underline hover:no-underline transition-colors"
+                  >
+                    See how it works
+                    <span
+                      className="material-symbols-outlined text-lg transition-transform duration-200 ease-out group-hover:translate-x-1"
+                      aria-hidden="true"
+                    >
+                      arrow_forward
+                    </span>
+                  </Link>
+                </div>
               </div>
             </div>
 
             {/* Visual Representation of Transcript */}
-            <div className="lg:col-span-6 relative page-rise-delay">
+            <div className="lg:col-span-6 relative order-2 page-rise-delay">
               {/* Soft “screen light” wash — navy/steel, not neon */}
               <div
                 aria-hidden="true"
@@ -179,15 +191,27 @@ export default function LandingPage() {
                   </div>
                   {/* Suggestion / scorecard panel — fixed height so hover never shifts the hero */}
                   <div className="hero-mock-line hero-mock-line-delay-4 mt-6 pt-4 border-t border-outline-variant/15">
-                    <div className="relative w-full h-[5.75rem] sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
+                    <div className="relative w-full min-h-[5.75rem] sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
                       {tip ? (
-                        <div className="absolute inset-0 flex flex-col justify-center px-3 py-2.5 sm:px-4 sm:py-3">
-                          <div className={`relative mb-0.5 ${tip.showActions ? 'pr-[7.5rem]' : ''}`}>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${tip.labelClass}`}>
-                              {tip.label}
-                            </span>
+                        <div className="flex flex-col justify-center px-3 py-2.5 sm:absolute sm:inset-0 sm:px-4 sm:py-3">
+                          <div className={`relative mb-0.5 ${tip.showActions ? 'sm:pr-[7.5rem]' : ''}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${tip.labelClass}`}>
+                                {tip.label}
+                              </span>
+                              {tip.showActions && (
+                                <div className="flex items-center gap-1.5 sm:hidden" aria-hidden="true">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-transparent bg-surface-container text-on-surface">
+                                    Accept
+                                  </span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-outline-variant/25 text-on-surface-variant">
+                                    Ignore
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                             {tip.showActions && (
-                              <div className="absolute -top-0.5 right-0 flex items-center gap-1.5" aria-hidden="true">
+                              <div className="absolute -top-0.5 right-0 hidden sm:flex items-center gap-1.5" aria-hidden="true">
                                 <span className="text-[11px] font-bold px-2.5 py-1 rounded border border-transparent bg-surface-container text-on-surface">
                                   Accept
                                 </span>
@@ -204,12 +228,12 @@ export default function LandingPage() {
                             {' → '}
                             <span className={`font-bold ${tip.suggestionClass}`}>{tip.suggestion}</span>
                           </p>
-                          <p className="mt-1.5 text-[10px] sm:text-[11px] text-on-surface-variant leading-relaxed line-clamp-2">
+                          <p className="mt-1.5 text-[10px] sm:text-[11px] text-on-surface-variant leading-relaxed">
                             {tip.explanation}
                           </p>
                         </div>
                       ) : (
-                        <div className="absolute inset-0 flex flex-col justify-center px-3 py-2.5 sm:px-4 sm:py-3">
+                        <div className="flex flex-col justify-center px-3 py-2.5 sm:absolute sm:inset-0 sm:px-4 sm:py-3">
                           <div className="grid grid-cols-5 gap-1 mb-3">
                             {[
                               { value: 3, label: 'Flagged', color: 'text-on-surface' },
@@ -241,6 +265,31 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+              </div>
+            </div>
+
+            <div className="z-10 order-3 page-rise text-center lg:hidden">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+                <button
+                  onClick={() => openModal('signup')}
+                  data-track-id="landing_hero_try_now"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-3 rounded-lg font-bold text-base editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
+                >
+                  Get started
+                </button>
+                <Link
+                  to="/ourplatform"
+                  data-track-id="landing_hero_platform_demo"
+                  className="group inline-flex items-center gap-1 text-primary font-bold text-base no-underline hover:no-underline transition-colors"
+                >
+                  See how it works
+                  <span
+                    className="material-symbols-outlined text-lg transition-transform duration-200 ease-out group-hover:translate-x-1"
+                    aria-hidden="true"
+                  >
+                    arrow_forward
+                  </span>
+                </Link>
               </div>
             </div>
           </div>
