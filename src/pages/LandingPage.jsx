@@ -1,12 +1,43 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../context/AuthContext'
 import SiteFooter from '../components/SiteFooter'
 
+const HERO_TIPS = {
+  context: {
+    label: 'Context Suggestion',
+    labelClass: 'text-error',
+    original: 'council',
+    suggestion: 'counsel',
+    suggestionClass: 'text-on-surface',
+    explanation:
+      'Homophone: in this setting the witness likely means their attorney (counsel), not a governing body.',
+  },
+  accepted: {
+    label: 'Accepted',
+    labelClass: 'text-green-600',
+    original: 'incidant',
+    suggestion: 'incident',
+    suggestionClass: 'text-green-600',
+    explanation: 'Misspelling of "incident." Correction accepted and applied.',
+  },
+  ignored: {
+    label: 'Ignored',
+    labelClass: 'text-on-surface-variant',
+    original: '"color"',
+    suggestion: 'left as-is',
+    suggestionClass: 'text-on-surface',
+    strikeOriginal: false,
+    explanation: 'British spelling suggested. American "color" is correct here. Ignored.',
+  },
+}
+
 export default function LandingPage() {
   const { openModal } = useAuth()
   const revealRefs = useRef([])
+  const [heroTip, setHeroTip] = useState(null)
+  const tip = heroTip ? HERO_TIPS[heroTip] : null
 
   useEffect(() => {
     const items = revealRefs.current.filter(Boolean)
@@ -42,39 +73,62 @@ export default function LandingPage() {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-6 sm:px-8 max-w-[1440px] mx-auto">
+        <section className="relative pt-10 sm:pt-14 pb-16 sm:pb-32 overflow-hidden px-8 sm:px-12 max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 z-10 page-rise">
-              <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-6 tracking-tight">
+              <h1 className="font-headline font-extrabold text-5xl sm:text-6xl lg:text-7xl text-on-surface leading-[1.1] mb-7 sm:mb-8 tracking-tight">
                 Your Second Set
                 <br />
                 of Eyes on
                 <br />
                 <span className="text-primary italic">Every Transcript</span>
               </h1>
-              <p className="text-base sm:text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-                Precision proofreading for court reporters. Catch spelling, punctuation, homophones, and other context-sensitive mistakes before a single page leaves your desk.
+              <p className="text-base sm:text-xl text-on-surface-variant mb-9 sm:mb-10 max-w-xl leading-relaxed">
+                Precision proofreading for court reporters. Catch spelling,
+                <br />
+                punctuation, homophones, and other context-sensitive
+                <br />
+                mistakes before a single page leaves your desk.
               </p>
-              <div className="flex flex-wrap gap-3 sm:gap-4">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <button
                   onClick={() => openModal('signup')}
                   data-track-id="landing_hero_try_now"
-                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
+                  className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 sm:px-8 py-3 rounded-lg font-bold text-base sm:text-lg editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95"
                 >
                   Get started
                 </button>
-                <Link to="/ourplatform" data-track-id="landing_hero_platform_demo" className="border-2 border-primary/30 text-primary px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all hover:bg-primary/10 hover:border-primary/10 hover:translate-y-[-1px]">
+                <Link
+                  to="/ourplatform"
+                  data-track-id="landing_hero_platform_demo"
+                  className="group inline-flex items-center gap-1 text-primary font-bold text-base sm:text-lg no-underline hover:no-underline transition-colors"
+                >
                   See how it works
+                  <span
+                    className="material-symbols-outlined text-lg transition-transform duration-200 ease-out group-hover:translate-x-1"
+                    aria-hidden="true"
+                  >
+                    arrow_forward
+                  </span>
                 </Link>
               </div>
             </div>
 
             {/* Visual Representation of Transcript */}
             <div className="lg:col-span-6 relative page-rise-delay">
-              <div className="bg-surface-container-lowest editorial-shadow rounded-xl p-5 sm:p-8 border border-outline-variant/15 relative overflow-hidden">
+              {/* Soft “screen light” wash — navy/steel, not neon */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -inset-3 sm:-inset-5 hero-screen-glow"
+              >
+                <div className="absolute inset-0 rounded-3xl bg-primary/10 blur-2xl" />
+                <div className="absolute inset-[12%] rounded-3xl bg-secondary-container/50 blur-xl" />
+              </div>
+              <div className="relative">
+              <div className="hero-mock-in bg-surface-container-lowest editorial-shadow rounded-xl p-5 sm:p-8 border border-outline-variant/15 relative overflow-hidden">
                 {/* Editor Mockup */}
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-surface-container pb-4">
+                  <div className="hero-mock-line flex items-center justify-between border-b border-surface-container pb-4">
                     <div className="flex gap-2">
                       <span className="w-3 h-3 rounded-full bg-error/20"></span>
                       <span className="w-3 h-3 rounded-full bg-tertiary-fixed-dim"></span>
@@ -84,71 +138,96 @@ export default function LandingPage() {
                   </div>
                   {/* Transcript Content */}
                   <div className="space-y-8 font-body text-on-surface text-sm leading-relaxed">
-                    <div>
+                    <div className="hero-mock-line hero-mock-line-delay-1">
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
-                      <p>Could you please state your name for the record and tell the Court where you were on the night of the <span className="relative inline-block group cursor-pointer">
-                        <span className="text-green-600 font-semibold">incident</span>
-                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
-                          <span className="block text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">Accepted Fix</span>
-                          <span className="block text-[11px] text-on-surface">
-                            <span className="line-through text-on-surface-variant">incidant</span>
-                            {' → '}
-                            <span className="font-semibold text-green-600">incident</span>
-                          </span>
-                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 97%</span>
+                      <p>Who did you speak with after the{' '}
+                        <span
+                          className="relative inline cursor-pointer"
+                          onMouseEnter={() => setHeroTip('accepted')}
+                          onMouseLeave={() => setHeroTip(null)}
+                        >
+                          <span className="text-green-600 font-semibold">incident</span>
                         </span>
-                      </span>?</p>
+                        ?</p>
                     </div>
-                    <div className="pl-8 border-l-2 border-surface-container-low">
+                    <div className="hero-mock-line hero-mock-line-delay-2 pl-8 border-l-2 border-surface-container-low">
                       <div className="inline-block px-3 py-1 bg-surface-container-highest text-on-surface-variant rounded-full text-xs font-bold mb-2">A. THE WITNESS</div>
-                      <p>My name is Julian Vane. I was at the <span className="relative inline-block group cursor-pointer">
-                        <span className="text-error border border-error rounded-sm px-1 italic hero-error-pulse">residance</span>
-                        <span className="hidden sm:block absolute -top-5 left-0 bg-error text-white text-[10px] px-1 rounded">SP?</span>
-                        {/* Hover tooltip */}
-                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
-                          <span className="block text-[10px] font-bold text-error uppercase tracking-wider mb-1">Spelling Error</span>
-                          <span className="block text-[11px] text-on-surface">
-                            <span className="line-through text-on-surface-variant">residance</span>
-                            {' → '}
-                            <span className="font-semibold text-green-600">residence</span>
-                          </span>
-                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 99%</span>
+                      <p>First thing I did was call my{' '}
+                        <span
+                          className="relative inline-block cursor-pointer pt-5 -mt-5"
+                          onMouseEnter={() => setHeroTip('context')}
+                          onMouseLeave={() => setHeroTip(null)}
+                        >
+                          <span className="text-error border border-error rounded-sm px-1 leading-none hero-error-pulse">council</span>
+                          <span className="hero-badge-pop hidden sm:block absolute top-0 left-0 bg-error text-white text-[10px] px-1 rounded">CTX?</span>
                         </span>
-                      </span> on Oak Street. I arrived at approximately 10:15 p.m., according to my watch.</p>
+                        {' '} as soon as I got back to my house.</p>
                     </div>
-                    <div>
+                    <div className="hero-mock-line hero-mock-line-delay-3">
                       <div className="inline-block px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold mb-2">Q. MR. HARPER</div>
-                      <p>And did you see the vehicle? We have a conflicting report about the <span className="relative inline-block group cursor-pointer">
-                        <span className="border-b-2 border-dotted border-on-surface-variant/50 italic">color</span>
-                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
-                          <span className="block text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-wider mb-1">Ignored</span>
-                          <span className="block text-[11px] text-on-surface">
-                            <span className="text-on-surface-variant">&ldquo;color&rdquo;</span>
-                            {' → '}
-                            <span className="font-semibold text-on-surface-variant">left as-is</span>
-                          </span>
-                          <span className="block text-[9px] text-on-surface-variant mt-1">Confidence: 72%</span>
+                      <p>And when you looked outside, what{' '}
+                        <span
+                          className="relative inline cursor-pointer"
+                          onMouseEnter={() => setHeroTip('ignored')}
+                          onMouseLeave={() => setHeroTip(null)}
+                        >
+                          <span className="border-b-2 border-dotted border-on-surface-variant/50 italic">color</span>
                         </span>
-                      </span>.</p>
+                        {' '}was the vehicle?</p>
                     </div>
                   </div>
-                  {/* Status Bar */}
-                  <div className="mt-6 pt-4 border-t border-outline-variant/15 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
-                      <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-normal">Transcript Analyzed</span>
-                    </div>
-                    <div className="flex items-center gap-3 ml-auto shrink-0">
-                      <div className="flex flex-col items-end">
-                        <span className="hidden sm:block text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Ready to review</span>
-                        <span className="text-lg font-headline font-black text-primary leading-none">12 issues</span>
-                      </div>
-                      <button type="button" className="bg-primary text-on-primary p-2 rounded-lg transition-transform hover:scale-105 active:scale-95" aria-hidden="true" tabIndex={-1}>
-                        <span className="material-symbols-outlined text-lg">auto_fix_high</span>
-                      </button>
+                  {/* Suggestion / scorecard panel — fixed height so hover never shifts the hero */}
+                  <div className="hero-mock-line hero-mock-line-delay-4 mt-6 pt-4 border-t border-outline-variant/15">
+                    <div className="relative w-full h-[5.75rem] sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
+                      {tip ? (
+                        <div className="absolute inset-0 flex flex-col justify-center px-3 py-2.5 sm:px-4 sm:py-3">
+                          <span className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${tip.labelClass}`}>
+                            {tip.label}
+                          </span>
+                          <p className="text-[12px] sm:text-[13px] text-on-surface leading-snug">
+                            <span className={`text-on-surface-variant ${tip.strikeOriginal === false ? '' : 'line-through'}`}>
+                              {tip.original}
+                            </span>
+                            {' → '}
+                            <span className={`font-bold ${tip.suggestionClass}`}>{tip.suggestion}</span>
+                          </p>
+                          <p className="mt-1.5 text-[10px] sm:text-[11px] text-on-surface-variant leading-relaxed line-clamp-2">
+                            {tip.explanation}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col justify-center px-3 py-2.5 sm:px-4 sm:py-3">
+                          <div className="grid grid-cols-5 gap-1 mb-3">
+                            {[
+                              { value: 3, label: 'Flagged', color: 'text-on-surface' },
+                              { value: 1, label: 'Accepted', color: 'text-green-600' },
+                              { value: 0, label: 'Changed', color: 'text-green-600' },
+                              { value: 1, label: 'Ignored', color: 'text-on-surface-variant' },
+                              { value: 1, label: 'Remaining', color: 'text-error' },
+                            ].map((s) => (
+                              <div key={s.label} className="text-center">
+                                <p className={`text-lg sm:text-xl font-extrabold leading-none ${s.color}`}>{s.value}</p>
+                                <p className="text-[8px] sm:text-[9px] uppercase tracking-wide text-on-surface-variant mt-0.5">
+                                  {s.label}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                              <div className="h-full bg-green-500 rounded-full" style={{ width: '67%' }} />
+                            </div>
+                            <span className="shrink-0 inline-flex items-baseline gap-1">
+                              <span className="text-[11px] font-extrabold tabular-nums leading-none text-on-surface">67%</span>
+                              <span className="text-[8px] font-bold uppercase tracking-wider text-on-surface-variant">resolved</span>
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
