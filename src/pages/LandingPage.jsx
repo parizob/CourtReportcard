@@ -79,17 +79,9 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 lg:items-center">
             <div className="lg:col-span-6 z-10 order-1 page-rise text-center lg:text-left">
               <h1 className="font-headline font-extrabold text-[2rem] leading-[1.15] sm:text-5xl lg:text-7xl lg:leading-[1.1] text-on-surface tracking-tight mb-3 lg:mb-8">
-                <span className="lg:hidden">
-                  <span className="block">Your Second Set of Eyes</span>
-                  <span className="block">
-                    on <span className="text-primary italic">Every Transcript</span>
-                  </span>
-                </span>
-                <span className="hidden lg:block">
-                  <span className="block">Your Second Set</span>
-                  <span className="block">of Eyes on</span>
-                  <span className="block text-primary italic">Every Transcript</span>
-                </span>
+                <span className="block">Your Second Set</span>
+                <span className="block">of Eyes on</span>
+                <span className="block text-primary italic">Every Transcript</span>
               </h1>
               <p className="lg:hidden text-base text-on-surface-variant leading-relaxed mb-0">
                 Precision proofreading for court reporters.
@@ -191,7 +183,7 @@ export default function LandingPage() {
                   </div>
                   {/* Suggestion / scorecard panel — fixed height so hover never shifts the hero */}
                   <div className="hero-mock-line hero-mock-line-delay-4 mt-6 pt-4 border-t border-outline-variant/15">
-                    <div className="relative w-full min-h-[5.75rem] sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
+                    <div className="relative w-full sm:h-[6.25rem] rounded-lg bg-surface-container-low/80 border border-outline-variant/15 overflow-hidden">
                       {tip ? (
                         <div className="flex flex-col justify-center px-3 py-2.5 sm:absolute sm:inset-0 sm:px-4 sm:py-3">
                           <div className={`relative mb-0.5 ${tip.showActions ? 'sm:pr-[7.5rem]' : ''}`}>
@@ -234,7 +226,7 @@ export default function LandingPage() {
                         </div>
                       ) : (
                         <div className="flex flex-col justify-center px-3 py-2.5 sm:absolute sm:inset-0 sm:px-4 sm:py-3">
-                          <div className="grid grid-cols-5 gap-1 mb-3">
+                          <div className="grid grid-cols-5 gap-1 mb-2 sm:mb-3">
                             {[
                               { value: 3, label: 'Flagged', color: 'text-on-surface' },
                               { value: 1, label: 'Accepted', color: 'text-green-600' },
