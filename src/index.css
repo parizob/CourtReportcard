@@ -205,17 +205,8 @@
   animation: heroMockIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
 }
 
-@keyframes heroScreenGlow {
-  0%, 100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
 .hero-screen-glow {
-  animation: heroScreenGlow 5.5s ease-in-out 0.8s infinite;
+  opacity: 0.9;
 }
 
 @keyframes heroMockLineIn {
@@ -269,7 +260,6 @@
   .page-rise-delay,
   .hero-error-pulse,
   .hero-mock-in,
-  .hero-screen-glow,
   .hero-mock-line,
   .hero-badge-pop {
     animation: none !important;
