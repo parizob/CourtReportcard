@@ -1,0 +1,53 @@
+{
+  "title": "Exact Repeat Propagate Seed",
+  "extracted_at": "2026-08-10T23:00:00.000Z",
+  "source_note": "Manual seed: one Louis Hospital → Louise Hospital flag; expandExactRepeatAnnotations should clone onto every other exact hit across entries. Seed script applies expand before upload so the Editor opens with all cards.",
+  "entries": [
+    {
+      "id": 1,
+      "speaker": "MR. HARPER",
+      "text": "Q. Where were you treated after the incident?"
+    },
+    {
+      "id": 2,
+      "speaker": "THE WITNESS",
+      "text": "A. I was treated at Louis Hospital in May."
+    },
+    {
+      "id": 3,
+      "speaker": "MR. HARPER",
+      "text": "Q. And did you return to Louis Hospital for follow-up?"
+    },
+    {
+      "id": 4,
+      "speaker": "THE WITNESS",
+      "text": "A. Yes. Records from Louis Hospital arrived late."
+    },
+    {
+      "id": 5,
+      "speaker": "MR. HARPER",
+      "text": "Q. Any further visits to Louis Hospital after that?"
+    },
+    {
+      "id": 6,
+      "speaker": "THE WITNESS",
+      "text": "A. No further visits to Louis Hospital after that."
+    }
+  ],
+  "annotations": [
+    {
+      "status": "open",
+      "id": 1,
+      "entry_id": 2,
+      "type": "spelling",
+      "severity": "critical",
+      "original": "Louis Hospital",
+      "suggestion": "Louise Hospital",
+      "explanation": "Hospital name is Louise, not Louis. Seeded once — propagate should surface every other exact match.",
+      "start": 20,
+      "end": 34,
+      "confidence": 0.95
+    }
+  ],
+  "originalText": "     1                  Q.  Where were you treated after the\r\n\r\n     2           incident?\r\n\r\n     3                  A.  I was treated at Louis Hospital in\r\n\r\n     4           May.\r\n\r\n     5                  Q.  And did you return to Louis Hospital\r\n\r\n     6           for follow-up?\r\n\r\n     7                  A.  Yes. Records from Louis Hospital\r\n\r\n     8           arrived late.\r\n\r\n     9                  Q.  Any further visits to Louis Hospital\r\n\r\n    10           after that?\r\n\r\n    11                  A.  No further visits to Louis Hospital\r\n\r\n    12           after that.\r\n"
+}

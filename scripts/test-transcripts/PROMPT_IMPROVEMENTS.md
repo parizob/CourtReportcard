@@ -17,6 +17,69 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-08-10 — Do not flag years/dates as "future/impossible" — APPLIED
+
+**Source:** User email (beta). Model flagged `"later searched in 2026"` with
+explanation that 2026 is in the future / impossible for a search that already
+occurred — pure calendar fact-checking, not reporter error detection. Same
+class of FP would also hit loan maturity dates and other legitimate future
+references.
+
+**Change:** Add a RULES / Do NOT flag bullet: never flag a year/date/time
+because it is "in the future," "hasn't happened yet," or conflicts with the
+model's idea of today's calendar. Still allow flags when the written form is
+malformed or the same entry clearly contradicts itself on that date
+(e.g. `"Febuary 30"`, `"20223"`, two incompatible dates for one event in
+that entry). Do **not** inject "current year" into the prompt (would sharpen
+new FPs and still can't judge past-hearing vs loan-maturity cases safely).
+
+**Exact text added** (under RULES, after the `"if I was [verb-ing]"` bullet):
+
+```
+- Do NOT flag a year, date, or time as an error because it is "in the future," "has not happened yet," "impossible given today's date," or conflicts with your knowledge of the current calendar. You have no reliable notion of "today," and transcripts routinely contain recent and upcoming years (including loan maturity dates and planned events). Only flag a date or year when the written form itself is malformed or the same entry clearly contradicts itself on that date (e.g., "Febuary 30," "March 4, 20223," or two incompatible dates for the same event inside that entry).
+```
+
+**Applied:** 2026-08-10 in `supabase/functions/analyze-case/prompts.ts` +
+`src/lib/gemini.js`.
+
+**Harness after (3× full set, 2026-08-10):**
+| Run | Recall | Possible FPs |
+|-----|--------|--------------|
+| 1 | 172/192 (90%) | 43 |
+| 2 | 172/192 (90%) | 23 |
+| 3 | 173/192 (90%) | 22 |
+
+Recall in line with prior ~90–91% full-set baselines. FP count is noisy
+run-to-run (non-determinism); no recall regression signal from this guardrail.
+No before-loop in this session (change already applied when harness ran).
+
+**Targeted soak (same day, first wording):** snippet with
+`I later searched in 2026...` + loan maturity `2035`. 2/3 runs still flagged
+`2026` via tense-vs-year "logical contradiction" (once as `[sic]`, once as
+invented `2016`). 2035 clean.
+
+**Tighten (same day):** ban tense/year "logical contradiction" and inventing
+alternate years (`2026` → `2016`). Keep only malformed dates / two incompatible
+dates for the same event in one entry.
+
+**Targeted soak after tighten:** 0/3 runs flagged (2026 and 2035 both clean).
+
+**Follow-up 2026-08-10 — runtime reference date + narrow exception:** Inject
+`buildProofreadReferenceDateBlock()` (America/New_York, YYYY-MM-DD) at each
+proofread call in `analyze-case/index.ts` and `gemini.js`. Prompt keeps the
+default ban on calendar freelancing; adds exception: completed past action +
+year strictly after reference year + not plan/maturity language → warning
+`"<year> [sic]"`, never invent a replacement year.
+
+**Matrix soak (ref date 2026-08-10, 3× each):**
+| Case | Expect | Result |
+|------|--------|--------|
+| searched in 2026 | no | 0/3 |
+| went to Chicago in 2027 | yes `[sic]` | 3/3 |
+| loan matures 2035 | no | 0/3 |
+| will retire in 2027 | no | 0/3 |
+| searched in 2019 | no | 0/3 |
+
 ### Rule: 2026-08-04 — Proofread CAPTION / CERTIFICATE / HEADING — APPLIED
 
 **Source:** Tonie Thompson (Prod) — certificate line `___ da0y of _______`

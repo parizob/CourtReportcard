@@ -14,7 +14,7 @@
 // update both sides if you change the splitting/boundary logic.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
-import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum } from './prompts.ts'
+import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum, buildProofreadReferenceDateBlock } from './prompts.ts'
 import {
   PROOFREAD_PARALLEL_CONCURRENCY,
   PROOFREAD_CLAIM_STALE_MS,
@@ -818,42 +818,48 @@ function findAllExactPhraseStarts(text: string, phrase: string): number[] {
   return hits
 }
 
-/** Mirrored in src/lib/gemini.js — expand exact same-entry capitalization/spelling repeats. */
+/** Mirrored in src/lib/gemini.js — expand exact capitalization/spelling repeats across the document. */
 function expandExactRepeatAnnotations(entries: any[], annotations: any[]): any[] {
   if (!Array.isArray(annotations) || annotations.length === 0) return annotations
   if (!Array.isArray(entries) || entries.length === 0) return annotations
 
-  const byEntry = new Map(entries.map((e) => [e.id, e]))
   const out = annotations.map((a) => ({ ...a }))
   let added = 0
   const seenSeeds = new Set<string>()
 
   for (const ann of annotations) {
     if (!isSafeExactRepeatExpandSeed(ann)) continue
-    const seedKey = `${ann.entry_id}\0${ann.original}\0${ann.type}`
+    const phrase = ann.original
+    const seedKey = `${phrase}\0${ann.suggestion}\0${ann.type}`
     if (seenSeeds.has(seedKey)) continue
     seenSeeds.add(seedKey)
 
-    const entry = byEntry.get(ann.entry_id)
-    if (!entry?.text) continue
-    const phrase = ann.original
-    const hits = findAllExactPhraseStarts(entry.text, phrase)
+    const hits: { entry: any; start: number }[] = []
+    for (const entry of entries) {
+      if (!entry?.text) continue
+      for (const start of findAllExactPhraseStarts(entry.text, phrase)) {
+        hits.push({ entry, start })
+      }
+    }
     if (hits.length <= 1) continue
 
-    const covered = new Set<number>()
+    const covered = new Set<string>()
     for (const a of out) {
-      if (a.entry_id !== ann.entry_id || a.original !== phrase || a.type !== ann.type) continue
+      if (a.original !== phrase || a.type !== ann.type || a.suggestion !== ann.suggestion) continue
       if (a.status === 'ignored') continue
-      if (Number.isFinite(a.start) && hits.includes(a.start)) {
-        covered.add(a.start)
+      const entryHits = hits.filter((h) => h.entry.id === a.entry_id).map((h) => h.start)
+      if (entryHits.length === 0) continue
+      if (Number.isFinite(a.start) && entryHits.includes(a.start)) {
+        covered.add(`${a.entry_id}\0${a.start}`)
         continue
       }
-      const unassigned = hits.find((h) => !covered.has(h))
-      if (unassigned != null) covered.add(unassigned)
+      const unassigned = entryHits.find((h) => !covered.has(`${a.entry_id}\0${h}`))
+      if (unassigned != null) covered.add(`${a.entry_id}\0${unassigned}`)
     }
 
-    for (const start of hits) {
-      if (covered.has(start)) continue
+    for (const { entry, start } of hits) {
+      const coverKey = `${entry.id}\0${start}`
+      if (covered.has(coverKey)) continue
       const end = start + phrase.length
       // Editor load re-runs ensureAnnotationAnchors for uniqueness; seed with
       // simple before/after so Accept has something immediately.
@@ -861,6 +867,7 @@ function expandExactRepeatAnnotations(entries: any[], annotations: any[]): any[]
       out.push({
         ...ann,
         id: annotations.length + added + 1,
+        entry_id: entry.id,
         start,
         end,
         status: 'open',
@@ -873,7 +880,7 @@ function expandExactRepeatAnnotations(entries: any[], annotations: any[]): any[]
         _cleanEnd: undefined,
         matchedText: undefined,
       })
-      covered.add(start)
+      covered.add(coverKey)
       added++
     }
   }
@@ -1409,7 +1416,7 @@ async function extractContent(
 // isn't guaranteed.
 async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?: { min: number; max: number }): Promise<{ annotations: any[]; droppedCount: number }> {
   const proofreadResult = await callGemini(
-    `${PROOFREAD_ONLY_PROMPT}\n\n${JSON.stringify(entries, null, 2)}`,
+    `${PROOFREAD_ONLY_PROMPT}\n\n${buildProofreadReferenceDateBlock()}\n\n${JSON.stringify(entries, null, 2)}`,
     null,
     deadlineAt,
     undefined, // no budget cap — Pro gets full thinking for quality

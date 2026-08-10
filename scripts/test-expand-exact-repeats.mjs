@@ -89,7 +89,7 @@ console.log('no expand when only one occurrence')
   assert(out === anns || out[0].start === anns[0].start, 'same or equivalent')
 }
 
-console.log('two entries each with Page 4 — no cross-entry merge/expand needed')
+console.log('two entries each already flagged — no duplicate clones')
 {
   const entries = [
     { id: 1, text: 'Can you look at Page 4, according to the page' },
@@ -118,7 +118,38 @@ console.log('two entries each with Page 4 — no cross-entry merge/expand needed
     },
   ]
   const out = expandExactRepeatAnnotations(entries, anns)
-  assert(out.length === 2, 'still two anns (one per entry)')
+  assert(out.length === 2, 'still two anns (one per entry, already covered)')
+}
+
+console.log('document-wide: one Louis Hospital seed → clone on later entry')
+{
+  const entries = [
+    { id: 10, text: 'I was treated at Louis Hospital in May.' },
+    { id: 20, text: 'Records from Louis Hospital arrived late.' },
+    { id: 30, text: 'No further visits to Louis Hospital after that.' },
+  ]
+  const anns = [
+    {
+      id: 1,
+      entry_id: 10,
+      type: 'spelling',
+      original: 'Louis Hospital',
+      suggestion: 'Louise Hospital',
+      status: 'open',
+      start: entries[0].text.indexOf('Louis Hospital'),
+      end: entries[0].text.indexOf('Louis Hospital') + 'Louis Hospital'.length,
+      explanation: 'Hospital name is Louise, not Louis.',
+    },
+  ]
+  const out = expandExactRepeatAnnotations(entries, anns)
+  assert(out.length === 3, `expands across entries (got ${out.length})`)
+  const byEntry = new Map(out.map((a) => [a.entry_id, a]))
+  assert(byEntry.has(10) && byEntry.has(20) && byEntry.has(30), 'one card per entry')
+  assert(
+    out.every((a) => a.original === 'Louis Hospital' && a.suggestion === 'Louise Hospital' && a.status === 'open'),
+    'same fix, all open',
+  )
+  assert(new Set(out.map((a) => a.id)).size === 3, 'distinct ids')
 }
 
 console.log('guards')
