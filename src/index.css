@@ -187,7 +187,7 @@
 }
 
 .hero-error-pulse {
-  animation: heroErrorPulse 2.8s ease-in-out 3.3s 3;
+  animation: heroErrorPulse 2.8s ease-in-out 3.2s 3;
 }
 
 @keyframes heroMockIn {
@@ -230,13 +230,13 @@
 }
 
 .hero-mock-line {
-  animation: heroMockLineIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both;
+  animation: heroMockLineIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
 }
 
-.hero-mock-line-delay-1 { animation-delay: 0.5s; }
-.hero-mock-line-delay-2 { animation-delay: 0.9s; }
-.hero-mock-line-delay-3 { animation-delay: 1.3s; }
-.hero-mock-line-delay-4 { animation-delay: 1.85s; }
+.hero-mock-line-delay-1 { animation-delay: 0.55s; }
+.hero-mock-line-delay-2 { animation-delay: 1.05s; }
+.hero-mock-line-delay-3 { animation-delay: 1.55s; }
+.hero-mock-line-delay-4 { animation-delay: 2.05s; }
 
 @keyframes heroBadgePop {
   0% {
@@ -253,9 +253,9 @@
   }
 }
 
-/* After scorecard pop-in completes (1.85s + 0.65s = 2.5s) */
+/* After scorecard pop-in completes (2.05s + 0.8s = 2.85s) */
 .hero-badge-pop {
-  animation: heroBadgePop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 2.6s both;
+  animation: heroBadgePop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 2.9s both;
 }
 
 @media (prefers-reduced-motion: reduce) {
