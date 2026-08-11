@@ -1,7 +1,13 @@
 // Mirrors supabase/functions/analyze-case/index.ts's MODEL_EXTRACT/MODEL_PROOFREAD —
 // extraction uses the lighter/cheaper model (structured parsing, not reasoning),
 // proofreading uses full-quality Pro. Keep these in sync with index.ts.
-import { parseGeminiJsonResponse, isGeminiJsonParseError, normalizeProofreadGeminiResult } from './parseGeminiJson.js'
+import {
+  parseGeminiJsonResponse,
+  isGeminiJsonParseError,
+  normalizeProofreadGeminiResult,
+  extractGeminiResponseText,
+  parseExtractJsonWithRepairs,
+} from './parseGeminiJson.js'
 
 const MODEL_EXTRACT = 'gemini-3.1-flash-lite'
 const MODEL_PROOFREAD = 'gemini-2.5-pro'
@@ -47,15 +53,19 @@ async function callGemini(prompt, filePart, model, thinkingConfig, timeoutMs = 3
   }
 
   const data = await response.json()
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  const { rawText, diag } = extractGeminiResponseText(data)
 
-  if (!rawText) throw new Error('Gemini returned no content.')
-
-  // Logged (not returned, to avoid changing this function's contract) so
-  // real duration/token usage is visible in the console during test runs —
-  // used to calibrate chunk sizing against actual Gemini behavior.
+  // Log usage even on empty responses so failed calls leave a trail.
   if (data.usageMetadata) {
     console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, data.usageMetadata)
+  }
+
+  if (!rawText) {
+    console.warn(`Gemini returned no content (${model}):`, JSON.stringify(diag))
+    throw new Error(
+      `Gemini returned no content. finishReason=${diag.finishReason || 'unknown'} ` +
+      `blockReason=${diag.blockReason || 'none'} parts=${diag.partCount}`,
+    )
   }
 
   // Trailing-junk trim + control-char repair — see parseGeminiJson.js
@@ -3132,13 +3142,29 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     extractionResult = await callGemini(prompt, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
   } catch (err) {
     if (!isGeminiJsonParseError(err)) throw err
-    console.warn(`Extract JSON parse failed (${err?.message || err}); one recovery re-call…`)
-    const recoverySuffix =
-      '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
-      'Respond with ONLY a single valid JSON object matching the required schema. ' +
-      'No markdown fences, no commentary, no trailing text. ' +
-      'Escape all quotes and control characters inside string values.'
-    extractionResult = await callGemini(`${prompt}${recoverySuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
+    const raw = err?.rawText
+    if (raw) {
+      try {
+        const repaired = parseExtractJsonWithRepairs(raw)
+        if (repaired.repairedCount > 0) {
+          console.warn(
+            `Extract JSON: repaired ${repaired.repairedCount} missing text key(s); skipping recovery re-call`,
+          )
+          extractionResult = repaired.value
+        }
+      } catch {
+        /* fall through to recovery re-call */
+      }
+    }
+    if (!extractionResult) {
+      console.warn(`Extract JSON parse failed (${err?.message || err}); one recovery re-call…`)
+      const recoverySuffix =
+        '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
+        'Respond with ONLY a single valid JSON object matching the required schema. ' +
+        'No markdown fences, no commentary, no trailing text. ' +
+        'Escape all quotes and control characters inside string values.'
+      extractionResult = await callGemini(`${prompt}${recoverySuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
+    }
   }
 
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {

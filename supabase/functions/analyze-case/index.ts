@@ -251,14 +251,23 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   }
 
   const data = await response.json()
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!rawText) throw new Error('Gemini returned no content.')
+  // Join all text parts — see extractGeminiResponseText (mirrored from
+  // src/lib/parseGeminiJson.js). parts[0]-only misses later-part JSON.
+  const { rawText, diag } = extractGeminiResponseText(data)
 
   // Real per-call timing + token usage, visible in Supabase function logs —
   // used to calibrate chunk sizing and to monitor cost/latency once chunking
-  // is live in production.
+  // is live in production. Log even when empty so failed calls leave a trail.
   if (data.usageMetadata) {
     console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, JSON.stringify(data.usageMetadata))
+  }
+
+  if (!rawText) {
+    console.warn(`Gemini returned no content (${model}):`, JSON.stringify(diag))
+    throw new Error(
+      `Gemini returned no content. finishReason=${diag.finishReason || 'unknown'} ` +
+      `blockReason=${diag.blockReason || 'none'} parts=${diag.partCount}`,
+    )
   }
 
   const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -270,6 +279,50 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
     const wrapped = err instanceof Error ? err : new Error(String(err))
     ;(wrapped as Error & { rawText?: string }).rawText = cleaned
     throw wrapped
+  }
+}
+
+/** Mirrored from src/lib/parseGeminiJson.js → extractGeminiResponseText. */
+function extractGeminiResponseText(data: any): { rawText: string; diag: Record<string, unknown> } {
+  const candidate = data?.candidates?.[0]
+  const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
+  const texts: string[] = []
+  const partSummaries: Array<Record<string, unknown>> = []
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
+    const text = typeof p?.text === 'string' ? p.text : ''
+    const thought = p?.thought === true
+    // Never join thought summaries into the parseable body — that would
+    // corrupt JSON when includeThoughts is on or a later model starts
+    // returning thought text alongside the answer.
+    if (text && !thought) texts.push(text)
+    partSummaries.push({
+      i,
+      keys: p && typeof p === 'object' ? Object.keys(p) : [typeof p],
+      textLen: text.length,
+      thought,
+    })
+  }
+  const safety = Array.isArray(candidate?.safetyRatings)
+    ? candidate.safetyRatings.map((r: any) => ({
+      category: r?.category,
+      probability: r?.probability,
+      blocked: r?.blocked,
+    }))
+    : null
+  return {
+    rawText: texts.join(''),
+    diag: {
+      finishReason: candidate?.finishReason ?? null,
+      finishMessage: candidate?.finishMessage ?? null,
+      blockReason: data?.promptFeedback?.blockReason ?? null,
+      blockReasonMessage: data?.promptFeedback?.blockReasonMessage ?? null,
+      candidateCount: Array.isArray(data?.candidates) ? data.candidates.length : 0,
+      partCount: parts.length,
+      partSummaries,
+      safetyRatings: safety,
+      usageMetadata: data?.usageMetadata ?? null,
+    },
   }
 }
 
@@ -389,6 +442,55 @@ function parseGeminiJsonText(cleaned: string): any {
     if (!isControlCharParseError(err)) throw err
     console.warn('Gemini JSON: repairing raw control characters in string literals')
     return JSON.parse(escapeRawControlCharsInJsonStrings(extracted))
+  }
+}
+
+/** Mirrored from src/lib/parseGeminiJson.js → repairMissingEntryTextKeys. */
+function repairMissingEntryTextKeys(text: string): { text: string; repairedCount: number } {
+  let repairedCount = 0
+  const knownKeys = /^(text|id|speaker|timestamp|line_number)$/
+  const out = String(text || '').replace(
+    /("speaker"\s*:\s*"(?:\\.|[^"\\])*"\s*,\s*)"((?:\\.|[^"\\])*)"(\s*[,}])/g,
+    (match, prefix, bare, suffix) => {
+      let keyOrValue: string
+      try {
+        keyOrValue = JSON.parse(`"${bare}"`)
+      } catch {
+        return match
+      }
+      if (typeof keyOrValue !== 'string' || knownKeys.test(keyOrValue)) {
+        return match
+      }
+      let value = keyOrValue
+      if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1)
+      }
+      repairedCount++
+      return `${prefix}"text": ${JSON.stringify(value)}${suffix}`
+    },
+  )
+  return { text: out, repairedCount }
+}
+
+/** Mirrored from src/lib/parseGeminiJson.js → parseExtractJsonWithRepairs. */
+function parseExtractJsonWithRepairs(rawText: string): { value: any; repairedCount: number } {
+  try {
+    return { value: parseGeminiJsonText(
+      String(rawText || '').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim(),
+    ), repairedCount: 0 }
+  } catch (err) {
+    if (!isGeminiJsonParseError(err)) throw err
+    const cleaned = String(rawText || '')
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    const { text, repairedCount } = repairMissingEntryTextKeys(cleaned)
+    if (repairedCount === 0) throw err
+    try {
+      return { value: parseGeminiJsonText(text), repairedCount }
+    } catch {
+      throw err
+    }
   }
 }
 
@@ -1358,29 +1460,45 @@ async function extractContent(
   try {
     extractionResult = await callGemini(prompt, filePart, deadlineAt, { thinkingLevel: 'minimal' }, MODEL_EXTRACT)
   } catch (err) {
-    // One recovery re-call on JSON parse failure (Alison McConville class).
-    // Do not surgically rewrite broken JSON — that can invent transcript text.
+    // Narrow missing-`"text":` repair (Childress) before a recovery re-call.
+    // Do not broadly rewrite broken JSON — that can invent transcript text.
     if (!isGeminiJsonParseError(err)) throw err
-    console.warn(
-      `Extract JSON parse failed (${String((err as Error)?.message || err)}); one recovery re-call…`,
-    )
-    try {
-      extractionResult = await callGemini(
-        `${prompt}${EXTRACT_JSON_RECOVERY_SUFFIX}`,
-        filePart,
-        deadlineAt,
-        { thinkingLevel: 'minimal' },
-        MODEL_EXTRACT,
-      )
-    } catch (err2) {
-      const raw =
-        (err2 as Error & { rawText?: string })?.rawText ||
-        (err as Error & { rawText?: string })?.rawText
-      const rawFailPath = await persistExtractJsonFail(persistCtx, raw)
-      if (rawFailPath) {
-        ;(err2 as Error & { rawFailPath?: string }).rawFailPath = rawFailPath
+    const rawFirst = (err as Error & { rawText?: string })?.rawText
+    if (rawFirst) {
+      try {
+        const repaired = parseExtractJsonWithRepairs(rawFirst)
+        if (repaired.repairedCount > 0) {
+          console.warn(
+            `Extract JSON: repaired ${repaired.repairedCount} missing text key(s); skipping recovery re-call`,
+          )
+          extractionResult = repaired.value
+        }
+      } catch {
+        /* fall through to recovery re-call */
       }
-      throw err2
+    }
+    if (!extractionResult) {
+      console.warn(
+        `Extract JSON parse failed (${String((err as Error)?.message || err)}); one recovery re-call…`,
+      )
+      try {
+        extractionResult = await callGemini(
+          `${prompt}${EXTRACT_JSON_RECOVERY_SUFFIX}`,
+          filePart,
+          deadlineAt,
+          { thinkingLevel: 'minimal' },
+          MODEL_EXTRACT,
+        )
+      } catch (err2) {
+        const raw =
+          (err2 as Error & { rawText?: string })?.rawText ||
+          (err as Error & { rawText?: string })?.rawText
+        const rawFailPath = await persistExtractJsonFail(persistCtx, raw)
+        if (rawFailPath) {
+          ;(err2 as Error & { rawFailPath?: string }).rawFailPath = rawFailPath
+        }
+        throw err2
+      }
     }
   }
   if (!extractionResult.entries || !Array.isArray(extractionResult.entries)) {

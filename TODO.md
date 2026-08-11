@@ -11,6 +11,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Phase 2 glossary support (extraction emits terms, proofread batches get them as context) — deferred until Phase 1 chunking is proven solid in production
 - [ ] Move Supabase, Vercel, and the domain registrar off Brandon's personal Gmail onto Parizo Labs LLC's business email — payment method already switched to Mercury checking; avoids single-inbox recovery risk
 - [ ] Watch Prod `analyze-case` logs for `bare annotations` (normalize already keeps those flags). If it stays noisy for a week+ of normal uploads, trial Gemini `responseSchema` on proofread — don't build that until the log tripwire says it's worth it
+- [ ] After next Prod `Gemini returned no content` failure: read the new warn log (`finishReason` / `blockReason` / part summaries) and `last_error` — empty-response diag live on Prod 2026-08-11
 
 ### Marketing / Growth (CMO review, 2026-07-11)
 
@@ -19,6 +20,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Backlog
 
+- [ ] **Bulk Accept all / Ignore all (whole transcript)** — customer asked; parked on purpose. Too easy to rubber-stamp contextual flags and break the “human owns every change” promise. Do not build unless several users hit the same wall *after* same-error tools land
+- [ ] **Bulk action for the same exact error only** (Accept/Ignore every open card with identical original→suggestion) — safer than Accept-all; revisit after document-wide exact-repeat propagate has real usage. Propagate already surfaces the clones as open cards
 - [ ] Move outbound transactional email off `noreply@courtreportcard.com` to a dedicated subdomain (e.g. `mail.courtreportcard.com`) — isolates sending reputation/DKIM/SPF from the root domain
 - [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages):
     - Higher priority: memoize the pagination/highlight computation (~line 1120) — currently recomputes on every render, and large docs mean more accept/ignore clicks, each retriggering it
@@ -28,7 +31,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Survey popup after a key action (e.g. after download) — not worth building yet, personal outreach already produces richer signal at this scale
 - [ ] Identify addresses in documents and verify they're correct
 - [ ] Let stenographers upload their own dictionaries as a per-user glossary — suppresses false-positive spelling flags on real terms and catches real inconsistent spelling of them; will need filtering down to "interesting" entries, not the whole file
-- [ ] Per-reporter preferences to permanently opt out of a suggestion type across all transcripts — e.g. don't flag ordinal dates ("6th" vs "6"), since verbatim record means what was said stands over the grammar rule — requested by Tonie Thompson
+- [ ] Per-reporter preferences to permanently opt out of a suggestion type across all transcripts — e.g. don't flag ordinal dates ("6th" vs "6"), since verbatim record means what was said stands over the grammar rule — requested by Tonie Thompson and Alison. Good idea, confirmed by 2 users, but incremental UX vs core accuracy/export trust — keep backlog until FP noise is a louder, repeated complaint across more reporters
 
 ## Done
 
@@ -56,6 +59,8 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [x] Extended the "no AI wording" policy to hidden schema/meta content (JSON-LD), not just visible copy — `<meta name="keywords">` is exempt
 - [x] Applied the AI-wording fix across `index.html`'s JSON-LD (Organization/SoftwareApplication/WebSite descriptions, featureList, FAQ answers)
 - [x] Validated chunking end-to-end on a real 212-page production upload
+- [x] Document-wide exact-repeat propagate — if spelling/caps is flagged once, clone open cards for every other exact `original` hit (not auto-accept)
+- [x] Calendar / year freelancing ban + runtime reference date on proofread (stops “2026 is in the future” style FPs)
 - [x] Switched extraction (Pass 1) to `gemini-3.1-flash-lite` — ~51% faster, ~48% cheaper, same accuracy. Proofread batch size stays at 300 entries (600+ risks blowing the 135s deadline)
 - [x] Chunking: `analyze-case` now supports 200+ page transcripts instead of failing on the 135s deadline — ~15-page chunks at speaker-turn boundaries, self-fetch chaining with retries, merged/deduped back into the same file format the editor already expects. Real cost ~$0.70/50 pages, ~$2.50-3.50/200 pages. "Re-analyze" button removed (re-upload instead) rather than chunked
 - [x] Background processing: Gemini calls moved to async background function, dashboard polls for completion

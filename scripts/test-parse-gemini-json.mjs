@@ -11,6 +11,9 @@ import {
   isStructuralJsonParseError,
   isGeminiJsonParseError,
   normalizeProofreadGeminiResult,
+  extractGeminiResponseText,
+  repairMissingEntryTextKeys,
+  parseExtractJsonWithRepairs,
 } from '../src/lib/parseGeminiJson.js'
 
 let passed = 0
@@ -133,6 +136,93 @@ console.log('\nnormalizeProofreadGeminiResult')
   assert(normalizeProofreadGeminiResult({}).shape === 'other', 'empty object → other')
   assert(normalizeProofreadGeminiResult(null).shape === 'empty', 'null → empty')
   assert(normalizeProofreadGeminiResult({ annotations: [] }).annotations.length === 0, 'explicit empty array ok')
+}
+
+console.log('\nextractGeminiResponseText')
+{
+  const multi = {
+    candidates: [{
+      finishReason: 'STOP',
+      content: {
+        parts: [
+          { thought: true, text: '' },
+          { text: '{"entries":[{"id":1}]}' },
+        ],
+      },
+    }],
+    usageMetadata: { totalTokenCount: 9 },
+  }
+  const { rawText, diag } = extractGeminiResponseText(multi)
+  assert(rawText === '{"entries":[{"id":1}]}', 'joins later-part text when parts[0] empty')
+  assert(diag.finishReason === 'STOP', 'diag finishReason')
+  assert(diag.partCount === 2, 'diag partCount')
+}
+{
+  const withThoughtText = {
+    candidates: [{
+      finishReason: 'STOP',
+      content: {
+        parts: [
+          { thought: true, text: 'reasoning dump' },
+          { text: '{"ok":true}' },
+        ],
+      },
+    }],
+  }
+  const { rawText } = extractGeminiResponseText(withThoughtText)
+  assert(rawText === '{"ok":true}', 'skips thought-part text when joining')
+}
+{
+  const empty = {
+    candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ thought: true }] } }],
+    promptFeedback: { blockReason: null },
+  }
+  const { rawText, diag } = extractGeminiResponseText(empty)
+  assert(rawText === '', 'empty when no text parts')
+  assert(diag.finishReason === 'MAX_TOKENS', 'empty diag keeps finishReason')
+  assert(diag.partSummaries?.[0]?.thought === true, 'part summary notes thought')
+}
+
+console.log('\nrepairMissingEntryTextKeys / parseExtractJsonWithRepairs')
+{
+  // Prod Childress 2026-08-11 shape (escaped quotes inside bare token)
+  const broken = `{
+  "title": "Sora Childress",
+  "entries": [
+    { "id": 75, "speaker": "Q", "text": "And what was his response to that?" },
+    { "id": 76, "speaker": "A", "\\"Talk to Josh about it.\\"" },
+    { "id": 77, "speaker": "Q", "text": "Was there anything else said?" }
+  ]
+}`
+  const { text, repairedCount } = repairMissingEntryTextKeys(broken)
+  assert(repairedCount === 1, 'Childress shape: one repair')
+  const parsed = JSON.parse(text)
+  assert(parsed.entries[1].text === 'Talk to Josh about it.', 'Childress shape: text restored')
+  assert(parsed.entries[0].text.startsWith('And what'), 'Childress shape: neighbors unchanged')
+}
+{
+  const bare = `{ "entries": [ { "id": 1, "speaker": "A", "Hello there." } ] }`
+  const { value, repairedCount } = parseExtractJsonWithRepairs(bare)
+  assert(repairedCount === 1, 'bare spoken line: repairedCount 1')
+  assert(value.entries[0].text === 'Hello there.', 'bare spoken line: text key inserted')
+}
+{
+  const valid = `{ "entries": [ { "id": 1, "speaker": "A", "text": "Already fine." } ] }`
+  const { text, repairedCount } = repairMissingEntryTextKeys(valid)
+  assert(repairedCount === 0, 'valid entry: no repair')
+  assert(text === valid, 'valid entry: text unchanged')
+  const parsed = parseExtractJsonWithRepairs(valid)
+  assert(parsed.repairedCount === 0 && parsed.value.entries[0].text === 'Already fine.', 'valid parses without repair')
+}
+{
+  const unrelated = `{ "entries": [ { "id": 1, "speaker": "A", "text": "oops" ` // truncated
+  let threw = false
+  try {
+    parseExtractJsonWithRepairs(unrelated)
+  } catch {
+    threw = true
+  }
+  assert(threw, 'unrelated broken JSON still throws')
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
