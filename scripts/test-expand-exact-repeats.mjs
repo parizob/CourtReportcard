@@ -244,5 +244,70 @@ console.log('bourque-shaped Page 3 fixture')
   )
 }
 
+console.log('merge-time: seed in late batch → clone early entry (Jackie / focussed class)')
+{
+  // Simulate proofread batches of ~250: seed only on entry 300, hit on entry 10.
+  const entries = [
+    { id: 10, text: 'I was focussed on the eyeglasses.' },
+    { id: 300, text: 'People there are focussed on building that business.' },
+  ]
+  const anns = [
+    {
+      id: 1,
+      entry_id: 300,
+      type: 'spelling',
+      original: 'focussed',
+      suggestion: 'focused',
+      status: 'open',
+      start: entries[1].text.indexOf('focussed'),
+      end: entries[1].text.indexOf('focussed') + 'focussed'.length,
+    },
+  ]
+  // Coarse merge dedupe (entry_id:original:type) — same as analyze-case merge.
+  const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const seen = new Set()
+  let merged = anns.filter((a) => {
+    const key = `${a.entry_id}:${normalize(a.original)}:${a.type}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  merged = expandExactRepeatAnnotations(entries, merged)
+  assert(merged.length === 2, `merge expand adds early hit (got ${merged.length})`)
+  assert(merged.some((a) => a.entry_id === 10), 'card on entry 10')
+  assert(merged.some((a) => a.entry_id === 300), 'seed on entry 300 kept')
+}
+
+console.log('same-entry multi-hit: one seed → four focussed cards')
+{
+  const entries = [
+    {
+      id: 558,
+      text:
+        "area you're focussed on and not worry. we're focussed on. We're focussed on the face. I'm focussed on what",
+    },
+  ]
+  const first = entries[0].text.indexOf('focussed')
+  const anns = [
+    {
+      id: 1,
+      entry_id: 558,
+      type: 'spelling',
+      original: 'focussed',
+      suggestion: 'focused',
+      status: 'open',
+      start: first,
+      end: first + 'focussed'.length,
+    },
+  ]
+  const out = expandExactRepeatAnnotations(entries, anns)
+  assert(out.length === 4, `four focussed hits (got ${out.length})`)
+  const starts = [...entries[0].text.matchAll(/focussed/g)].map((m) => m.index)
+  assert(
+    out.map((a) => a.start).sort((a, b) => a - b).join(',') === starts.join(','),
+    'covers all four offsets',
+  )
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)

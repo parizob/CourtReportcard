@@ -920,7 +920,11 @@ function findAllExactPhraseStarts(text: string, phrase: string): number[] {
   return hits
 }
 
-/** Mirrored in src/lib/gemini.js — expand exact capitalization/spelling repeats across the document. */
+/**
+ * Expand exact capitalization/spelling repeats across the document.
+ * Edge call site: proofread merge only (full entries). Mirrored in src/lib/gemini.js
+ * for the single-pass harness (no batch merge there).
+ */
 function expandExactRepeatAnnotations(entries: any[], annotations: any[]): any[] {
   if (!Array.isArray(annotations) || annotations.length === 0) return annotations
   if (!Array.isArray(entries) || entries.length === 0) return annotations
@@ -1586,8 +1590,8 @@ async function proofreadContent(entries: any[], deadlineAt: number, ownIdRange?:
     seenAnnotations.add(key)
     return true
   })
-  // After original-dedupe: clone capitalization/spelling for other exact hits.
-  annots = expandExactRepeatAnnotations(entries, annots)
+  // Exact-repeat expand runs once at proofread merge on the full entry list
+  // (not here — batch-scoped expand missed cross-batch hits; see Jackie KLINE).
   annots.forEach((a: any, i: number) => { a.id = i + 1 })
 
   return { annotations: annots, droppedCount }
@@ -2202,6 +2206,19 @@ async function refillProofreadWaveOrMerge(opts: {
         seen.add(key)
         return true
       })
+      // Sole edge expand site: full entry list after all batches merge so a
+      // spelling/caps seed in batch N also opens cards for earlier batches
+      // (Prod 2026-08-11 Jackie KLINE: focussed). Do NOT re-apply the coarse
+      // entry_id:original:type dedupe after this — that would collapse
+      // same-entry multi-hit clones expand just added.
+      const beforeExpand = allAnnotations.length
+      allAnnotations = expandExactRepeatAnnotations(entries, allAnnotations)
+      if (allAnnotations.length > beforeExpand) {
+        console.warn(
+          `expandExactRepeat (merge): added ${allAnnotations.length - beforeExpand} ` +
+          `clone(s) across full entry list for ${jsonBaseName}`,
+        )
+      }
       allAnnotations.forEach((a, i) => { a.id = i + 1 })
       allAnnotations = mergeStructuralReviewAnnotations(originalText, entries, allAnnotations)
 
