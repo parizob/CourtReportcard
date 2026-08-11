@@ -444,7 +444,7 @@ export default function DashboardExport() {
         {/* Options + download */}
         <div className="shrink-0 flex flex-col gap-3">
           <p className="text-xs text-on-surface-variant leading-relaxed text-center">
-            Choose what to include, then download. It is encouraged to review the file before submission.
+            Choose what to include, then download. Always review before you submit.
           </p>
 
           <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 space-y-3">
