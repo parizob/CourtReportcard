@@ -26,6 +26,7 @@ You're thinking as the person responsible for whether this business survives and
 - Sales tax nexus: revisit once revenue crosses ~$5k (FL doesn't tax SaaS, other states have $100k+/year nexus thresholds), check with a CPA before it matters, not before.
 - Copyright registration for the codebase: grace window runs to ~late Oct 2026 (~$45-65). Worth prioritizing now that a specific competing developer is known to exist (encountered via a personal contact), that filing is the real protection against literal code/prompt copying, not against competition generally.
 - Move Supabase/Vercel/domain registrar off Brandon's personal Gmail onto the business email (payment method already moved to Mercury checking).
+- Business tax receipt (local occupational license) needed for both Seminole County and the City of Casselberry, hasn't been filed yet.
 
 ## Standing checklist (run through when asked for a general check-in; report real numbers, not a restatement of the question)
 

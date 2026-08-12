@@ -10,6 +10,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Parallelize **extract** chunks the same way as proofread (capped waves + race-safe merge) — proofread parallelization shipped first; extract still serial
 - [ ] Phase 2 glossary support (extraction emits terms, proofread batches get them as context) — deferred until Phase 1 chunking is proven solid in production
 - [ ] Move Supabase, Vercel, and the domain registrar off Brandon's personal Gmail onto Parizo Labs LLC's business email — payment method already switched to Mercury checking; avoids single-inbox recovery risk
+- [ ] File local business tax receipt (occupational license) for both Seminole County and the City of Casselberry
 - [ ] Watch Prod `analyze-case` logs for `bare annotations` (normalize already keeps those flags). If it stays noisy for a week+ of normal uploads, trial Gemini `responseSchema` on proofread — don't build that until the log tripwire says it's worth it
 - [ ] After next Prod `Gemini returned no content` failure: read the new warn log (`finishReason` / `blockReason` / part summaries) and `last_error` — empty-response diag live on Prod 2026-08-11
 
