@@ -115,6 +115,7 @@ Canonical page: https://www.courtreportcard.com/pricing
 ## Optional
 
 - [Blog](https://www.courtreportcard.com/blog): Notes for court reporters
+- [Steno, Voice, and Digital: Three Paths to the Same Record](https://www.courtreportcard.com/blog/stenographer-voice-writer-digital-reporter): Stenographer vs voice writer vs digital court reporter: how each captures proceedings, what they share, and why the transcript still depends on a human who owns the record.
 - [Faster Transcripts, Stronger Backbone](https://www.courtreportcard.com/blog/faster-transcripts-stronger-backbone): How faster court transcript turnaround strengthens the legal system. Court reporters are the backbone. Court Reportcard helps remove proofreading friction so the whole process keeps moving.
 - [Tools Can Help Court Reporters, but the Last Pass Is Always Yours](https://www.courtreportcard.com/blog/tools-can-help-court-reporters-but-the-last-pass-is-always-yours): Court transcript proofreading for court reporters: what a recent Indiana appeals opinion means for tools, ownership, and catching mistakes before a job leaves your desk.
 - [We Turned the Lights On](https://www.courtreportcard.com/blog/court-reportcard-out-of-beta): Court Reportcard is out of beta and accepting payments. A proofreading tool built for court reporters: small, dedicated, and designed to help you use technology on your terms.

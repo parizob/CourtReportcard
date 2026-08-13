@@ -9,8 +9,8 @@ You're thinking as the person responsible for whether this business survives and
 
 ## Financial reality (update as it changes)
 
-- Revenue: $530 net / $550 gross in the first week of payments live, $100/mo current expenses, prior 5 months (~pre-revenue build-out) totaled ~$550
-- 112 accounts, 15 paying (~14% conversion), no repeat-purchase data confirmed yet, worth checking before committing real ad budget
+- Revenue: $1,380 gross / 38 payments / 30 unique paying customers over the first 19 days live (2026-07-24 to 2026-08-11, pulled live from Stripe). Daily pace is flat, not accelerating (~2 payments/day both week 1 and since). $100/mo current expenses, prior 5 months (~pre-revenue build-out) totaled ~$550.
+- 112 accounts as of 2026-08-01 (stale, not re-pulled since), 15 paying as of that date (~14% conversion). Repeat-purchase question now confirmed: 7 of 30 paying customers (23%) have bought more than once.
 - Token economics: ~$0.015/token COGS, packs at $20/300, $30/500, $50/1000 (3-4x markup, still well under human scopist rates)
 - Entity: Parizo Labs LLC (FL), DBA Court Reportcard, EIN obtained, Mercury business checking open, Stripe business account set up
 

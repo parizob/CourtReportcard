@@ -6,6 +6,7 @@ import BlogLaunchHero from '../components/BlogLaunchHero'
 import BlogTipsHero from '../components/BlogTipsHero'
 import BlogIndustryHero from '../components/BlogIndustryHero'
 import BlogBackboneHero from '../components/BlogBackboneHero'
+import BlogMethodsHero from '../components/BlogMethodsHero'
 import { useAuth } from '../context/AuthContext'
 import { getPostBySlug } from '../data/blogPosts'
 
@@ -32,6 +33,9 @@ function RichText({ parts, text }) {
 function PostCta({ block }) {
   const { openModal, isAuthenticated } = useAuth()
 
+  const primaryClassName =
+    'inline-flex items-center justify-center bg-gradient-to-r from-primary to-primary-container text-on-primary px-7 py-3 rounded-lg font-bold text-base editorial-shadow transition-all hover:translate-y-[-2px] hover:scale-[1.02] active:scale-95'
+
   return (
     <div className="mt-10 mb-2 rounded-2xl border border-outline-variant/15 bg-surface-container-lowest editorial-shadow px-6 sm:px-8 py-7 sm:py-8">
       <p className="font-headline font-bold text-xl sm:text-2xl text-on-surface tracking-tight mb-2">
@@ -40,12 +44,12 @@ function PostCta({ block }) {
       <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed mb-6 max-w-xl">
         {block.text}
       </p>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         {isAuthenticated ? (
           <Link
             to="/dashboard"
             data-track-id={block.trackId}
-            className="inline-flex items-center justify-center bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+            className={primaryClassName}
           >
             {block.buttonLabel}
           </Link>
@@ -54,7 +58,7 @@ function PostCta({ block }) {
             type="button"
             onClick={() => openModal('signup')}
             data-track-id={block.trackId}
-            className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-3 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-all editorial-shadow"
+            className={primaryClassName}
           >
             {block.buttonLabel}
           </button>
@@ -63,9 +67,15 @@ function PostCta({ block }) {
           <Link
             to={block.secondaryTo}
             data-track-id={`${block.trackId}_secondary`}
-            className="inline-flex items-center justify-center border-2 border-primary/30 text-primary px-6 py-3 rounded-md font-bold text-sm hover:bg-primary/10 hover:border-primary/10 transition-all"
+            className="group inline-flex items-center gap-1 text-primary font-bold text-base no-underline hover:no-underline transition-colors"
           >
             {block.secondaryLabel}
+            <span
+              className="material-symbols-outlined text-lg transition-transform duration-200 ease-out group-hover:translate-x-1"
+              aria-hidden="true"
+            >
+              arrow_forward
+            </span>
           </Link>
         )}
       </div>
@@ -73,12 +83,58 @@ function PostCta({ block }) {
   )
 }
 
+function SectionArt({ kind }) {
+  const label =
+    kind === 'steno' ? 'Stenotype' : kind === 'voice' ? 'Voice writer' : kind === 'digital' ? 'Digital' : null
+  if (!label) return null
+
+  return (
+    <div className="mb-4 flex items-center gap-3" aria-hidden="true">
+      <div className="w-14 h-14 rounded-xl bg-secondary-container flex items-center justify-center shrink-0">
+        {kind === 'steno' && (
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="8" width="24" height="16" rx="3" fill="#001939" />
+            <rect x="7" y="12" width="5" height="4" rx="1" fill="#d6e3ff" />
+            <rect x="13.5" y="12" width="5" height="4" rx="1" fill="#d6e3ff" />
+            <rect x="20" y="12" width="5" height="4" rx="1" fill="#a9c7ff" />
+            <rect x="10" y="18" width="5" height="4" rx="1" fill="#a9c7ff" />
+            <rect x="17" y="18" width="5" height="4" rx="1" fill="#d6e3ff" />
+          </svg>
+        )}
+        {kind === 'voice' && (
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="16" cy="12" rx="5" ry="7" fill="#001939" />
+            <path d="M10 14c0 5 2.8 8 6 8s6-3 6-8" stroke="#4c5e84" strokeWidth="2" fill="none" strokeLinecap="round" />
+            <line x1="16" y1="22" x2="16" y2="25" stroke="#4c5e84" strokeWidth="2" strokeLinecap="round" />
+            <line x1="12" y1="25" x2="20" y2="25" stroke="#4c5e84" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        )}
+        {kind === 'digital' && (
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="7" width="24" height="18" rx="3" fill="#001939" />
+            <path
+              d="M9 18v-4 M12 20v-8 M15 19v-6 M18 21v-10 M21 18v-5 M24 20v-7"
+              stroke="#ffba38"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
+      </div>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{label}</span>
+    </div>
+  )
+}
+
 function PostBlock({ block }) {
   if (block.type === 'h2') {
     return (
-      <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface mt-10 mb-4">
-        {block.text}
-      </h2>
+      <div className="mt-10 mb-4">
+        {block.art && <SectionArt kind={block.art} />}
+        <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface">
+          {block.text}
+        </h2>
+      </div>
     )
   }
 
@@ -167,6 +223,7 @@ export default function BlogPost() {
         {post.hero === 'tips' && <BlogTipsHero />}
         {post.hero === 'industry' && <BlogIndustryHero />}
         {post.hero === 'backbone' && <BlogBackboneHero />}
+        {post.hero === 'methods' && <BlogMethodsHero />}
 
         <article>
           {post.content.map((block, i) => (

@@ -1,8 +1,9 @@
 // Blog posts for /blog. Add new posts at the top of the array.
 // Content blocks: { type: 'p' | 'h2' | 'pairs' | 'callout' | 'cta', ... }
+// Optional on h2: art: 'steno' | 'voice' | 'digital' (small section illustration)
 // Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
 // CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
-// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone'
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -25,6 +26,97 @@ export const BLOG_TAGS = {
 }
 
 export const blogPosts = [
+  {
+    slug: 'stenographer-voice-writer-digital-reporter',
+    title: 'Steno, Voice, and Digital: Three Paths to the Same Record',
+    excerpt:
+      'Stenographer, voice writer, digital reporter. Different tools. Different training. Same job when your name is on the transcript: make the record, then stand behind it.',
+    date: '2026-08-13',
+    dateLabel: 'August 13, 2026',
+    dateLabelShort: '8/13/26',
+    readMinutes: 5,
+    tags: ['industry'],
+    hero: 'methods',
+    metaDescription:
+      'Stenographer vs voice writer vs digital court reporter: how each captures proceedings, what they share, and why the transcript still depends on a human who owns the record.',
+    content: [
+      {
+        type: 'p',
+        text: 'If you hang around law long enough, you will hear one word used for everyone who makes the record: court reporter. Stenographer. Voice writer. Digital reporter. People treat those as the same title. They are not. They are three different ways of doing the work, folded under one familiar label.',
+      },
+      {
+        type: 'p',
+        text: 'This is not a ranking. Courts, agencies, and freelancers use all three. What matters is knowing how the work is captured, where the skill lives, and why the person who certifies the pages still matters no matter which path they took.',
+      },
+
+      { type: 'h2', text: 'The stenographer', art: 'steno' },
+      {
+        type: 'p',
+        text: 'A stenographer writes on a stenotype machine. Fingers press chords, not single letters. Those chords map to sounds and phrases through a theory the reporter spent years learning. Software expands the strokes into English. Done well, it can keep up with the room in realtime and feed a clean enough draft to edit into a final transcript.',
+      },
+      {
+        type: 'p',
+        text: 'The skill is in the machine, the theory, and the judgment under pressure. Homophones, overlapping speakers, and a mumbled exhibit number still land on the reporter. The stenotype is fast. It is not magic. The human still has to know what was said and how it should read on the page.',
+      },
+
+      { type: 'h2', text: 'The voice writer', art: 'voice' },
+      {
+        type: 'p',
+        text: 'A voice writer speaks the proceedings into a stenomask or similar quiet microphone. They repeat, paraphrase, and mark what is happening while the room keeps moving. Speech recognition and CAT software turn that spoken input into text the reporter then edits.',
+      },
+      {
+        type: 'p',
+        text: 'The skill looks different from steno, but it is just as trained. Voice writers learn how to dictate cleanly, how to tag speakers and events, and how to stay accurate when testimony gets messy. Many also deliver realtime. The path into the chair is different. The duty on the certificate page is not.',
+      },
+
+      { type: 'h2', text: 'The digital reporter', art: 'digital' },
+      {
+        type: 'p',
+        text: 'A digital reporter captures the proceeding primarily with multi-channel audio, often while monitoring levels, logging annotations, and making sure the recording is usable. The transcript may be produced later from that recording by the reporter, a team, or a transcription workflow built around the files.',
+      },
+      {
+        type: 'p',
+        text: 'This is not "press record and leave." Bad setup, a dead channel, or a missing log note can wreck a job as surely as a mistranslated stroke. The craft sits more in capture, documentation, and turning audio into a faithful transcript than in writing live at steno or voice speed. Where digital reporting is allowed, the person responsible for the record still has to stand behind the pages.',
+      },
+
+      { type: 'h2', text: 'What they share' },
+      {
+        type: 'p',
+        text: 'All three can produce a transcript that becomes part of a legal matter. All three face the same hard parts of English: names, numbers, homophones, false starts, and the little words that change meaning when they go missing. All three work under deadlines that do not care which machine sat on the table.',
+      },
+      {
+        type: 'callout',
+        text: 'Different tools. Same pressure. Same need for a careful pass before the job leaves the desk.',
+      },
+      {
+        type: 'p',
+        text: 'The industry argument about which method "should" win is louder than most working reporters have time for. In practice, jurisdictions set rules. Clients hire who they trust. Reporters pick the path they trained for. The useful question is not which title is purest. It is whether the finished transcript is accurate, readable, and owned by someone who checked it.',
+      },
+
+      { type: 'h2', text: 'Where Court Reportcard fits' },
+      {
+        type: 'p',
+        text: 'We do not sit in the room. We do not care whether your draft came from a stenotype, a stenomask, or a carefully monitored recording. You upload a transcript you already made. We flag likely slips. You accept, ignore, or fix. Nothing changes until you say so.',
+      },
+      {
+        type: 'p',
+        text: 'That is deliberate. Proofreading help should follow the pages, not pick a side in a methods debate. Steno, voice, and digital reporters all ship work with their name on it. A second set of eyes at the end of a long job helps every one of those paths for the same reason: tired eyes miss things, and the record does not get a mulligan.',
+      },
+      {
+        type: 'callout',
+        text: 'Respect the craft. Respect the differences. Hold the same standard on the last page.',
+      },
+      {
+        type: 'cta',
+        headline: 'Whatever path made the draft, finish it carefully.',
+        text: 'Court Reportcard is a second set of eyes for court reporters. Catch slips before the transcript leaves your desk.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_methods_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'faster-transcripts-stronger-backbone',
     title: 'Faster Transcripts, Stronger Backbone',
