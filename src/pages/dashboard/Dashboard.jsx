@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import Tooltip from '../../components/Tooltip'
+import HeardAboutPrompt from '../../components/HeardAboutPrompt'
 import { retryStuckCases } from '../../lib/backgroundAnalysis'
 import { waitForCasePersists } from '../../lib/casePersist'
 
 export default function Dashboard() {
-  const { displayName } = useAuth()
+  const { displayName, user } = useAuth()
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
   const [cases, setCases] = useState([])
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [viewTarget, setViewTarget] = useState(null)
   const [downloading, setDownloading] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showHeardAbout, setShowHeardAbout] = useState(false)
 
   const retryRan = useRef(false)
   // Tracks statuses from the previous poll so we can detect processing→analyzed flips.
@@ -32,6 +34,29 @@ export default function Dashboard() {
       }
     })
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) {
+      setShowHeardAbout(false)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('heard_about_status')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (cancelled) return
+      if (error) {
+        console.warn('heard_about status check failed:', error.message)
+        setShowHeardAbout(false)
+        return
+      }
+      setShowHeardAbout(data?.heard_about_status === 'pending')
+    })()
+    return () => { cancelled = true }
+  }, [user?.id])
 
   useEffect(() => {
     const hasProcessing = cases.some((c) => c.status === 'processing')
@@ -245,6 +270,10 @@ export default function Dashboard() {
             </Link>
           </div>
         </header>
+
+        {showHeardAbout && (
+          <HeardAboutPrompt onDone={() => setShowHeardAbout(false)} />
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">

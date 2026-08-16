@@ -11,8 +11,13 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   plan text,
   plan_started_at timestamp with time zone,
   plan_renews_at timestamp with time zone,
+  heard_about_status text NOT NULL DEFAULT 'pending'::text,
+  heard_about text,
+  heard_about_detail text,
+  heard_about_at timestamp with time zone,
   CONSTRAINT user_tokens_pkey PRIMARY KEY (user_id),
-  CONSTRAINT user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT user_profiles_heard_about_status_check CHECK ((heard_about_status = ANY (ARRAY['pending'::text, 'answered'::text, 'skipped'::text, 'legacy'::text])))
 );
 
 CREATE TABLE IF NOT EXISTS public.cases (
