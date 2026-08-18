@@ -1787,10 +1787,12 @@ export default function DashboardEditor() {
               )}
               {openAnnotations.length > 0 && (
                 <span
-                  className="material-symbols-outlined text-on-surface-variant/70 text-[18px]"
+                  className={`material-symbols-outlined text-on-surface-variant/70 text-[18px] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    insightFiltersCollapsed ? 'rotate-180' : 'rotate-0'
+                  }`}
                   aria-hidden="true"
                 >
-                  {insightFiltersCollapsed ? 'unfold_more' : 'unfold_less'}
+                  unfold_less
                 </span>
               )}
             </div>
@@ -1804,8 +1806,19 @@ export default function DashboardEditor() {
             <span className="material-symbols-outlined text-sm">close</span>
           </button>
         </div>
-        {openAnnotations.length > 0 && !insightFiltersCollapsed && (
-          <div className="px-3 py-2 space-y-2 bg-surface-container-low">
+        {openAnnotations.length > 0 && (
+          <div
+            className={`grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              insightFiltersCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+            }`}
+          >
+            <div
+              className={`min-h-0 overflow-hidden transition-opacity duration-250 ease-out ${
+                insightFiltersCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+              aria-hidden={insightFiltersCollapsed}
+            >
+              <div className="px-3 py-2 space-y-2 bg-surface-container-low border-t border-outline-variant/10">
           <div className="grid grid-cols-2 gap-1.5">
             {/* Priority filter */}
             <div className="relative min-w-0">
@@ -1983,6 +1996,8 @@ export default function DashboardEditor() {
               Compact
             </button>
           </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

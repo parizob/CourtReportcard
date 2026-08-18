@@ -66,8 +66,18 @@ export default function DashboardLayout() {
     <div className="bg-background text-on-background min-h-screen flex flex-col">
       <div className="flex flex-1">
 
-        {navExpanded ? (
-          <aside className="hidden md:flex flex-col w-64 shrink-0 sticky top-[65px] h-[calc(100vh-65px)] bg-surface-container-low py-6 pl-4 overflow-y-auto font-body text-sm font-medium">
+        <aside
+          className={`hidden md:block shrink-0 sticky top-[65px] h-[calc(100vh-65px)] relative z-20 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            navExpanded ? 'w-64' : 'w-5'
+          }`}
+          aria-label="Dashboard navigation"
+        >
+          <div
+            className={`h-full w-64 flex flex-col bg-surface-container-low py-6 pl-4 overflow-y-auto font-body text-sm font-medium transition-opacity duration-250 ease-out ${
+              navExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+            aria-hidden={!navExpanded}
+          >
             {/* Utility icon bar — same Tooltip as dashboard case actions */}
             <div className="mx-2 mb-0 flex items-center gap-1">
               <Tooltip text="Getting Started" placement="right">
@@ -97,7 +107,7 @@ export default function DashboardLayout() {
                   onClick={() => setExpanded(false)}
                   data-track-id="dash_nav_collapse"
                   aria-label="Hide menu"
-                  aria-expanded="true"
+                  aria-expanded={navExpanded}
                   className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-tertiary-fixed hover:bg-tertiary-fixed transition-colors"
                 >
                   <span className="material-symbols-outlined text-xl">left_panel_close</span>
@@ -110,6 +120,7 @@ export default function DashboardLayout() {
             <NavLink
               to="/dashboard/billing"
               data-track-id="dash_nav_token_balance"
+              tabIndex={navExpanded ? undefined : -1}
               className={({ isActive }) =>
                 `mb-6 mx-2 flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
                   isActive
@@ -139,6 +150,7 @@ export default function DashboardLayout() {
                   key={item.label}
                   to={navTo(item)}
                   end={item.end}
+                  tabIndex={navExpanded ? undefined : -1}
                   data-track-id={`dash_nav_${item.label.toLowerCase()}`}
                   className={({ isActive }) =>
                     isActive
@@ -157,6 +169,7 @@ export default function DashboardLayout() {
               <button
                 type="button"
                 onClick={handleSignOut}
+                tabIndex={navExpanded ? undefined : -1}
                 data-track-id="dash_sign_out"
                 className="flex items-center gap-3 px-4 py-3 text-error font-body text-sm font-medium hover:bg-error/10 transition-colors w-full rounded-l-lg"
               >
@@ -164,25 +177,27 @@ export default function DashboardLayout() {
                 <span>Sign Out</span>
               </button>
             </div>
-          </aside>
-        ) : (
-          /* Collapsed tab aligns with Hide menu at the top of the sidebar */
-          <aside className="hidden md:block w-0 shrink-0 sticky top-[65px] h-[calc(100vh-65px)] relative z-20">
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              data-track-id="dash_nav_expand"
-              title="Show navigation"
-              aria-label="Show navigation"
-              aria-expanded="false"
-              className="group absolute left-0 top-6 z-30 flex h-32 w-5 items-center justify-center rounded-r-lg bg-tertiary-fixed text-on-tertiary-fixed editorial-shadow hover:brightness-[0.97] transition-[filter] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            >
-              <span className="font-body text-[9px] font-bold uppercase tracking-[0.2em] rotate-90 whitespace-nowrap select-none opacity-80 group-hover:opacity-100">
-                Menu
-              </span>
-            </button>
-          </aside>
-        )}
+          </div>
+
+          {/* Collapsed tab — fades in as the pane shuts */}
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            tabIndex={navExpanded ? -1 : undefined}
+            data-track-id="dash_nav_expand"
+            title="Show navigation"
+            aria-label="Show navigation"
+            aria-expanded={navExpanded}
+            aria-hidden={navExpanded}
+            className={`group absolute left-0 top-6 z-30 flex h-32 w-5 items-center justify-center rounded-r-lg bg-tertiary-fixed text-on-tertiary-fixed editorial-shadow hover:brightness-[0.97] transition-[opacity,filter] duration-250 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+              navExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            <span className="font-body text-[9px] font-bold uppercase tracking-[0.2em] rotate-90 whitespace-nowrap select-none opacity-80 group-hover:opacity-100">
+              Menu
+            </span>
+          </button>
+        </aside>
 
         <div key={pathname} className="flex-1 min-w-0 page-rise">
           <Outlet />
