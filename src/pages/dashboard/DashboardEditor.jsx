@@ -66,12 +66,28 @@ export default function DashboardEditor() {
   const [insightSeverityFilter, setInsightSeverityFilter] = useState('all')
   const [insightTypeFilter, setInsightTypeFilter] = useState('all')
   const [insightFilterMenu, setInsightFilterMenu] = useState(null) // 'severity' | 'type' | null
+  const [insightsCompact, setInsightsCompact] = useState(() => {
+    try {
+      return localStorage.getItem('cr-insights-compact') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [insightFiltersCollapsed, setInsightFiltersCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('cr-insights-filters-collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [insightsPaneActive, setInsightsPaneActive] = useState(false)
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
   const originalTextRef = useRef(originalText)
   const wasRtfRef = useRef(false)
   const titleRef = useRef(title)
+  const insightsAsideRef = useRef(null)
   const softWrapTranscript = useMemo(
     () => shouldSoftWrapTranscript(wasRtf, originalText),
     [wasRtf, originalText]
@@ -121,8 +137,8 @@ export default function DashboardEditor() {
   }, [inlinePopover])
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ entries, annotations, originalText }),
-    [entries, annotations, originalText]
+    () => JSON.stringify({ entries, annotations, originalText, wasRtf }),
+    [entries, annotations, originalText, wasRtf]
   )
   const hasChanges = currentSnapshot !== originalSnapshot
 
@@ -202,6 +218,58 @@ export default function DashboardEditor() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [insightFilterMenu])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cr-insights-compact', insightsCompact ? '1' : '0')
+    } catch { /* ignore */ }
+  }, [insightsCompact])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cr-insights-filters-collapsed', insightFiltersCollapsed ? '1' : '0')
+    } catch { /* ignore */ }
+  }, [insightFiltersCollapsed])
+
+  // While the pointer is over Insights, keep wheel scrolling inside that pane
+  // (don't chain to the transcript / page).
+  useEffect(() => {
+    if (!insightsPaneActive) {
+      document.documentElement.style.removeProperty('overflow')
+      return undefined
+    }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.removeProperty('overflow')
+    }
+  }, [insightsPaneActive])
+
+  useEffect(() => {
+    const aside = insightsAsideRef.current
+    if (!aside) return undefined
+    const onWheel = (e) => {
+      const scroller = aside.querySelector('[data-insights-scroll]')
+      if (!scroller) return
+      const maxScroll = scroller.scrollHeight - scroller.clientHeight
+      const atTop = scroller.scrollTop <= 0
+      const atBottom = scroller.scrollTop >= maxScroll - 1
+      const scrollingUp = e.deltaY < 0
+      const scrollingDown = e.deltaY > 0
+
+      // Hovering filters/header: drive the list scroll directly.
+      if (!scroller.contains(e.target)) {
+        e.preventDefault()
+        scroller.scrollTop += e.deltaY
+        return
+      }
+      // At list edges: block scroll-chaining to the page/transcript.
+      if ((atTop && scrollingUp) || (atBottom && scrollingDown) || maxScroll <= 0) {
+        e.preventDefault()
+      }
+    }
+    aside.addEventListener('wheel', onWheel, { passive: false })
+    return () => aside.removeEventListener('wheel', onWheel)
+  }, [])
 
   const reacceptIds = useMemo(
     () => new Set(exportVerifyFailed.map((item) => item.id)),
@@ -1413,9 +1481,11 @@ export default function DashboardEditor() {
     entriesRef.current = snap.entries
     annotationsRef.current = snap.annotations
     originalTextRef.current = snap.originalText ?? null
+    wasRtfRef.current = snap.wasRtf === true
     setEntries(snap.entries)
     setAnnotations(snap.annotations)
     if (snap.originalText !== undefined) setOriginalText(snap.originalText)
+    if (snap.wasRtf !== undefined) setWasRtf(snap.wasRtf === true)
     setSaved(false)
   }
 
@@ -1675,35 +1745,67 @@ export default function DashboardEditor() {
   // Shared between the desktop in-flow sidebar and the mobile portal-rendered
   // drawer below, so both stay in sync without duplicating this JSX by hand.
   const insightsPanel = (
-    <>
-      {/* Insights header */}
-      <div className="px-3 pt-3 pb-2.5 border-b border-outline-variant/10 bg-surface-container-low space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-md bg-secondary-container flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-on-secondary-container text-sm">auto_awesome</span>
+    <div className="flex flex-col h-full min-h-0">
+      {/* Insights header — stays pinned while the list scrolls */}
+      <div className="shrink-0 border-b border-outline-variant/10 z-20">
+        <div className="flex items-stretch bg-primary-fixed/55 border-b border-outline-variant/10">
+          <button
+            type="button"
+            onClick={() => {
+              if (openAnnotations.length === 0) return
+              setInsightFiltersCollapsed((c) => !c)
+              setInsightFilterMenu(null)
+            }}
+            disabled={openAnnotations.length === 0}
+            aria-expanded={openAnnotations.length > 0 ? !insightFiltersCollapsed : undefined}
+            aria-label={
+              openAnnotations.length === 0
+                ? 'Insights'
+                : insightFiltersCollapsed
+                  ? 'Show filters'
+                  : 'Hide filters'
+            }
+            className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors ${
+              openAnnotations.length > 0
+                ? 'hover:bg-primary-fixed/75 cursor-pointer'
+                : 'cursor-default'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-md bg-secondary-container flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-on-secondary-container text-sm">auto_awesome</span>
+              </div>
+              <h2 className="font-headline font-bold text-on-surface text-sm leading-none">Insights</h2>
             </div>
-            <h2 className="font-headline font-bold text-on-surface text-sm leading-none">Insights</h2>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {openAnnotations.length > 0 && (
-              <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums mr-1">
-                {insightFiltersActive
-                  ? `${filteredOpenAnnotations.length}/${openAnnotations.length}`
-                  : `${openAnnotations.length} OPEN`}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setMobileInsightsOpen(false)}
-              className="md:hidden w-6 h-6 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
-              aria-label="Close insights"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
-          </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {openAnnotations.length > 0 && (
+                <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums">
+                  {insightFiltersActive
+                    ? `${filteredOpenAnnotations.length}/${openAnnotations.length}`
+                    : `${openAnnotations.length} OPEN`}
+                </span>
+              )}
+              {openAnnotations.length > 0 && (
+                <span
+                  className="material-symbols-outlined text-on-surface-variant/70 text-[18px]"
+                  aria-hidden="true"
+                >
+                  {insightFiltersCollapsed ? 'unfold_more' : 'unfold_less'}
+                </span>
+              )}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileInsightsOpen(false)}
+            className="md:hidden w-9 flex items-center justify-center text-on-surface-variant hover:bg-outline-variant/20 transition-colors shrink-0"
+            aria-label="Close insights"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
         </div>
-        {openAnnotations.length > 0 && (
+        {openAnnotations.length > 0 && !insightFiltersCollapsed && (
+          <div className="px-3 py-2 space-y-2 bg-surface-container-low">
           <div className="grid grid-cols-2 gap-1.5">
             {/* Priority filter */}
             <div className="relative min-w-0">
@@ -1843,11 +1945,54 @@ export default function DashboardEditor() {
               )}
             </div>
           </div>
+          <div
+            className="relative grid grid-cols-2 p-0.5 rounded-lg bg-surface-container border border-outline-variant/20"
+            role="group"
+            aria-label="Suggestion list density"
+          >
+            <div
+              aria-hidden="true"
+              className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-md bg-surface-container-lowest shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                insightsCompact ? 'translate-x-full' : 'translate-x-0'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setInsightsCompact((c) => !c)}
+              aria-pressed={!insightsCompact}
+              className={`relative z-10 flex items-center justify-center gap-1 rounded-md py-1.5 text-[11px] font-bold transition-colors duration-200 ${
+                !insightsCompact
+                  ? 'text-on-surface'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm">view_agenda</span>
+              Detailed
+            </button>
+            <button
+              type="button"
+              onClick={() => setInsightsCompact((c) => !c)}
+              aria-pressed={insightsCompact}
+              className={`relative z-10 flex items-center justify-center gap-1 rounded-md py-1.5 text-[11px] font-bold transition-colors duration-200 ${
+                insightsCompact
+                  ? 'text-on-surface'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm">view_headline</span>
+              Compact
+            </button>
+          </div>
+          </div>
         )}
       </div>
 
+      <div
+        data-insights-scroll
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+      >
       {/* Annotation cards */}
-      <div className="p-4 space-y-4">
+      <div className={insightsCompact ? 'p-3 space-y-2' : 'p-4 space-y-4'}>
         {openAnnotations.length === 0 && reacceptAnnotations.length === 0 && annotations.length > 0 && (
           <div className="text-center py-6">
             <span className="material-symbols-outlined text-4xl text-green-500 block mb-3">check_circle</span>
@@ -1946,6 +2091,51 @@ export default function DashboardEditor() {
         )}
 
         {filteredOpenAnnotations.map((ann) => (
+          insightsCompact ? (
+            <div
+              key={ann.id}
+              id={`ann-card-${ann.id}`}
+              role="group"
+              onClick={(e) => {
+                if (e.target.closest('button, input, textarea, select, a, label')) return
+                jumpToAnnotation(ann)
+              }}
+              className={`insights-hover-grow relative px-2.5 py-2 rounded-md cursor-pointer ${severityCardBorder(ann.severity)}`}
+            >
+              <p className={`text-[9px] font-bold uppercase tracking-wide mb-1 ${severityLabelClass(ann.severity)}`}>
+                {typeLabel(ann.type)}
+                {!isReviewOnlyAnnotation(ann) && <> &middot; {ann.severity}</>}
+                {isReviewOnlyAnnotation(ann) && <> suggestion</>}
+              </p>
+              {isReviewOnlyAnnotation(ann) ? (
+                <p className="text-xs text-on-surface leading-snug mb-2 line-clamp-3">
+                  {ann.suggestion || ann.explanation || ann.original}
+                </p>
+              ) : (
+                <p className="text-xs leading-snug mb-2 break-words">
+                  <span className="line-through text-on-surface-variant">{ann.original}</span>
+                  <span className="text-on-surface-variant mx-1" aria-hidden="true">→</span>
+                  <span className="font-bold text-on-surface">{suggestionLabel(ann.suggestion)}</span>
+                </p>
+              )}
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => acceptAnnotation(ann.id)}
+                  className="flex-1 text-[11px] font-bold px-2 py-1.5 rounded bg-surface-container text-on-surface hover:bg-green-50 hover:text-green-800 transition-colors"
+                >
+                  {isReviewOnlyAnnotation(ann) ? 'Review' : 'Accept'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => ignoreAnnotation(ann.id)}
+                  className="flex-1 text-[11px] font-bold px-2 py-1.5 rounded border border-outline-variant/40 text-on-surface hover:bg-surface-container transition-colors"
+                >
+                  Ignore
+                </button>
+              </div>
+            </div>
+          ) : (
           <div
             key={ann.id}
             id={`ann-card-${ann.id}`}
@@ -1956,7 +2146,7 @@ export default function DashboardEditor() {
               if (e.target.closest('button, input, textarea, select, a, label')) return
               jumpToAnnotation(ann)
             }}
-            className={`group relative p-4 rounded-lg cursor-pointer ${severityCardBorder(ann.severity)}`}
+            className={`insights-hover-grow group relative p-4 rounded-lg cursor-pointer ${severityCardBorder(ann.severity)}`}
           >
             <div className="absolute top-2 right-2 flex flex-col items-center gap-0.5">
               <Tooltip text="Ignore suggestion" placement="left">
@@ -2046,6 +2236,7 @@ export default function DashboardEditor() {
               Ignore this suggestion
             </button>
           </div>
+          )
         ))}
       </div>
 
@@ -2181,15 +2372,16 @@ export default function DashboardEditor() {
           Back to Dashboard
         </Link>
       </div>
-    </>
+      </div>
+    </div>
   )
 
   return (
     <main className="min-h-screen bg-background">
       {/* Header */}
-      <div className="px-8 lg:px-12 pt-8 pb-6 max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6">
-          <div>
+      <div className="px-8 lg:px-12 pt-8 pb-4 max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 flex items-center gap-2">
               <span className="material-symbols-outlined text-sm text-primary">edit_note</span>
               Transcript Review
@@ -2197,11 +2389,37 @@ export default function DashboardEditor() {
             <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">
               {caseData?.name || 'Editor'}
             </h1>
-            <p className="font-body text-on-surface-variant mt-2 max-w-xl text-sm">
+            <p className="font-body text-on-surface-variant mt-1.5 max-w-xl text-sm leading-relaxed">
               Review flagged issues, accept or ignore suggestions, and edit text directly. Save when you're done.
             </p>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {transcriptFile && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-lowest rounded-full text-[11px] font-bold text-on-surface-variant border border-outline-variant/20 max-w-full">
+                  <span className="material-symbols-outlined text-primary text-sm shrink-0">description</span>
+                  <span className="truncate">{transcriptFile.file_name}</span>
+                </span>
+              )}
+              {audioFile && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-lowest rounded-full text-[11px] font-bold text-on-surface-variant border border-outline-variant/20 max-w-full">
+                  <span className="material-symbols-outlined text-tertiary-fixed-dim text-sm shrink-0">audio_file</span>
+                  <span className="truncate">{audioFile.file_name}</span>
+                </span>
+              )}
+              {openAnnotations.length > 0 && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full text-[11px] font-bold text-amber-700 border border-amber-200">
+                  <span className="material-symbols-outlined text-sm">rate_review</span>
+                  {openAnnotations.length} open
+                </span>
+              )}
+              {hasChanges && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full text-[11px] font-bold text-amber-700 border border-amber-200">
+                  <span className="material-symbols-outlined text-sm">edit</span>
+                  Unsaved
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col items-start md:items-end gap-4 shrink-0">
+          <div className="flex flex-col items-start md:items-end gap-3 shrink-0 md:pt-7">
             <div className="flex items-center gap-2">
               {hasChanges && (
                 <Tooltip text="Revert unsaved changes">
@@ -2318,34 +2536,6 @@ export default function DashboardEditor() {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Pills */}
-        <div className="flex flex-wrap gap-3 mt-5">
-          {transcriptFile && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest rounded-full text-xs font-bold text-on-surface-variant editorial-shadow border border-outline-variant/20">
-              <span className="material-symbols-outlined text-primary text-sm">description</span>
-              {transcriptFile.file_name}
-            </span>
-          )}
-          {audioFile && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest rounded-full text-xs font-bold text-on-surface-variant editorial-shadow border border-outline-variant/20">
-              <span className="material-symbols-outlined text-tertiary-fixed-dim text-sm">audio_file</span>
-              {audioFile.file_name}
-            </span>
-          )}
-          {openAnnotations.length > 0 && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-full text-xs font-bold text-amber-700 editorial-shadow border border-amber-200">
-              <span className="material-symbols-outlined text-sm">rate_review</span>
-              {openAnnotations.length} suggestion{openAnnotations.length !== 1 ? 's' : ''} to review
-            </span>
-          )}
-          {hasChanges && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-full text-xs font-bold text-amber-700 editorial-shadow border border-amber-200">
-              <span className="material-symbols-outlined text-sm">edit</span>
-              Unsaved changes
-            </span>
-          )}
         </div>
       </div>
 
@@ -2781,8 +2971,17 @@ export default function DashboardEditor() {
           )}
         </section>
 
-        {/* Sidebar (desktop) — stays in the flex flow so the transcript column sizes correctly */}
-        <aside className="hidden md:block w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        {/* Sidebar (desktop) — accent border when focused; wheel scroll stays in-pane. */}
+        <aside
+          ref={insightsAsideRef}
+          onMouseEnter={() => setInsightsPaneActive(true)}
+          onMouseLeave={() => setInsightsPaneActive(false)}
+          onFocusCapture={() => setInsightsPaneActive(true)}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setInsightsPaneActive(false)
+          }}
+          className="hidden md:block w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-hidden relative z-10"
+        >
           {insightsPanel}
         </aside>
       </div>
@@ -2814,7 +3013,7 @@ export default function DashboardEditor() {
           )}
 
           <aside
-            className={`md:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm shadow-2xl transition-transform duration-300 ease-out bg-surface border-l border-outline-variant/15 overflow-y-auto ${mobileInsightsOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`md:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm shadow-2xl transition-transform duration-300 ease-out bg-surface border-l border-outline-variant/15 overflow-hidden flex flex-col ${mobileInsightsOpen ? 'translate-x-0' : 'translate-x-full'}`}
           >
             {insightsPanel}
           </aside>

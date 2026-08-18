@@ -249,6 +249,22 @@
   animation: heroBadgePop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 2.9s both;
 }
 
+/* Insights cards: slight grow under the pointer. */
+.insights-hover-grow {
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+  transform-origin: center left;
+  will-change: transform;
+}
+
+.insights-hover-grow:hover {
+  transform: scale(1.015);
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(25, 28, 29, 0.06);
+  position: relative;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal {
     opacity: 1;
@@ -263,5 +279,15 @@
   .hero-mock-line,
   .hero-badge-pop {
     animation: none !important;
+  }
+
+  .insights-hover-grow,
+  .insights-hover-grow:hover {
+    transition: none !important;
+  }
+
+  .insights-hover-grow:hover {
+    transform: none;
+    box-shadow: 0 0 0 1px rgba(0, 25, 57, 0.12);
   }
 }
