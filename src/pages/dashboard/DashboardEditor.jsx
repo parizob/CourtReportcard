@@ -13,6 +13,26 @@ import {
 import { shouldSoftWrapTranscript } from '../../lib/transcriptDisplay'
 import Tooltip from '../../components/Tooltip'
 
+const ANNOTATION_TYPE_LABELS = {
+  spelling: 'Spelling',
+  context: 'Context',
+  grammar: 'Grammar',
+  legal_term: 'Legal Term',
+  punctuation: 'Punctuation',
+  capitalization: 'Capitalization',
+  missing_word: 'Missing Word',
+  extra_word: 'Extra Word',
+  repeated_paragraph: 'Repeated Paragraph',
+  speaker_label_typo: 'Speaker Label',
+}
+
+const SEVERITY_FILTER_META = {
+  all: { label: 'Priority', icon: 'filter_list', tone: 'text-on-surface-variant' },
+  critical: { label: 'Critical', icon: 'priority_high', tone: 'text-error' },
+  warning: { label: 'Warning', icon: 'hearing', tone: 'text-amber-600' },
+  suggestion: { label: 'Suggestion', icon: 'lightbulb', tone: 'text-primary' },
+}
+
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -43,6 +63,9 @@ export default function DashboardEditor() {
   const [inlinePopover, setInlinePopover] = useState(null) // { id, top, left, placeAbove }
   const [legendOpen, setLegendOpen] = useState(false)
   const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false)
+  const [insightSeverityFilter, setInsightSeverityFilter] = useState('all')
+  const [insightTypeFilter, setInsightTypeFilter] = useState('all')
+  const [insightFilterMenu, setInsightFilterMenu] = useState(null) // 'severity' | 'type' | null
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
@@ -115,6 +138,70 @@ export default function DashboardEditor() {
     () => sortedAnnotations(annotations.filter((a) => a.status === 'open')),
     [annotations, sortedAnnotations]
   )
+
+  useEffect(() => {
+    setInsightSeverityFilter('all')
+    setInsightTypeFilter('all')
+    setInsightFilterMenu(null)
+  }, [caseId])
+
+  const insightTypeOptions = useMemo(() => {
+    const seen = new Set()
+    for (const a of openAnnotations) {
+      if (a.type) seen.add(a.type)
+    }
+    return [...seen].sort()
+  }, [openAnnotations])
+
+  const filteredOpenAnnotations = useMemo(() => {
+    return openAnnotations.filter((a) => {
+      if (insightSeverityFilter !== 'all' && a.severity !== insightSeverityFilter) return false
+      if (insightTypeFilter !== 'all' && a.type !== insightTypeFilter) return false
+      return true
+    })
+  }, [openAnnotations, insightSeverityFilter, insightTypeFilter])
+
+  const insightFiltersActive = insightSeverityFilter !== 'all' || insightTypeFilter !== 'all'
+
+  const insightSeverityMenuOptions = useMemo(() => {
+    return ['all', 'critical', 'warning', 'suggestion'].map((value) => ({
+      value,
+      label: value === 'all' ? 'All priorities' : SEVERITY_FILTER_META[value].label,
+      count: openAnnotations.filter((a) => {
+        if (insightTypeFilter !== 'all' && a.type !== insightTypeFilter) return false
+        return value === 'all' || a.severity === value
+      }).length,
+    }))
+  }, [openAnnotations, insightTypeFilter])
+
+  const insightTypeMenuOptions = useMemo(() => {
+    const opts = [
+      { value: 'all', label: 'All types' },
+      ...insightTypeOptions.map((t) => ({ value: t, label: ANNOTATION_TYPE_LABELS[t] || t })),
+    ]
+    return opts.map((opt) => ({
+      ...opt,
+      count: openAnnotations.filter((a) => {
+        if (insightSeverityFilter !== 'all' && a.severity !== insightSeverityFilter) return false
+        return opt.value === 'all' || a.type === opt.value
+      }).length,
+    }))
+  }, [openAnnotations, insightTypeOptions, insightSeverityFilter])
+
+  useEffect(() => {
+    if (insightTypeFilter !== 'all' && !insightTypeOptions.includes(insightTypeFilter)) {
+      setInsightTypeFilter('all')
+    }
+  }, [insightTypeOptions, insightTypeFilter])
+
+  useEffect(() => {
+    if (!insightFilterMenu) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setInsightFilterMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [insightFilterMenu])
 
   const reacceptIds = useMemo(
     () => new Set(exportVerifyFailed.map((item) => item.id)),
@@ -1516,18 +1603,7 @@ export default function DashboardEditor() {
     suggestion: 'border-l-4 border-primary/30 bg-surface-container-lowest',
   }[s] || 'border-l-4 border-outline-variant bg-surface-container-lowest')
 
-  const typeLabel = (t) => ({
-    spelling: 'Spelling',
-    context: 'Context',
-    grammar: 'Grammar',
-    legal_term: 'Legal Term',
-    punctuation: 'Punctuation',
-    capitalization: 'Capitalization',
-    missing_word: 'Missing Word',
-    extra_word: 'Extra Word',
-    repeated_paragraph: 'Repeated Paragraph',
-    speaker_label_typo: 'Speaker Label',
-  }[t] || t)
+  const typeLabel = (t) => ANNOTATION_TYPE_LABELS[t] || t
 
   const transcriptFile = caseData?.case_files?.find((f) => f.file_type === 'transcript')
   const audioFile = caseData?.case_files?.find((f) => f.file_type === 'audio')
@@ -1601,25 +1677,173 @@ export default function DashboardEditor() {
   const insightsPanel = (
     <>
       {/* Insights header */}
-      <div className="p-4 border-b border-outline-variant/10 bg-surface-container-low">
+      <div className="px-3 pt-3 pb-2.5 border-b border-outline-variant/10 bg-surface-container-low space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-headline font-bold text-on-surface flex items-center gap-2 text-base">
-            <span className="material-symbols-outlined text-tertiary-fixed-dim">auto_awesome</span>
-            Insights
-          </h2>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-md bg-secondary-container flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-on-secondary-container text-sm">auto_awesome</span>
+            </div>
+            <h2 className="font-headline font-bold text-on-surface text-sm leading-none">Insights</h2>
+          </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-              {openAnnotations.length} TO REVIEW
-            </span>
+            {openAnnotations.length > 0 && (
+              <span className="bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums mr-1">
+                {insightFiltersActive
+                  ? `${filteredOpenAnnotations.length}/${openAnnotations.length}`
+                  : `${openAnnotations.length} OPEN`}
+              </span>
+            )}
             <button
+              type="button"
               onClick={() => setMobileInsightsOpen(false)}
               className="md:hidden w-6 h-6 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+              aria-label="Close insights"
             >
-              <span className="material-symbols-outlined text-base">close</span>
+              <span className="material-symbols-outlined text-sm">close</span>
             </button>
           </div>
         </div>
-        <p className="text-xs text-on-surface-variant mt-1">Accept or ignore each suggestion below.</p>
+        {openAnnotations.length > 0 && (
+          <div className="grid grid-cols-2 gap-1.5">
+            {/* Priority filter */}
+            <div className="relative min-w-0">
+              <button
+                type="button"
+                onClick={() => setInsightFilterMenu((m) => (m === 'severity' ? null : 'severity'))}
+                aria-expanded={insightFilterMenu === 'severity'}
+                aria-haspopup="listbox"
+                className={`w-full flex items-center gap-1.5 bg-surface-container-lowest border text-left rounded-md pl-2 pr-1.5 py-1.5 transition-colors ${
+                  insightFilterMenu === 'severity' || insightSeverityFilter !== 'all'
+                    ? 'border-primary/35 ring-1 ring-primary/15'
+                    : 'border-outline-variant/25 hover:border-outline-variant/50'
+                }`}
+              >
+                <span className={`material-symbols-outlined text-sm shrink-0 ${SEVERITY_FILTER_META[insightSeverityFilter]?.tone || 'text-on-surface-variant'}`}>
+                  {SEVERITY_FILTER_META[insightSeverityFilter]?.icon || 'filter_list'}
+                </span>
+                <span className="flex-1 min-w-0 text-[11px] font-medium text-on-surface truncate">
+                  {SEVERITY_FILTER_META[insightSeverityFilter]?.label || 'Priority'}
+                </span>
+                <span className="material-symbols-outlined text-on-surface-variant text-sm shrink-0">
+                  {insightFilterMenu === 'severity' ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+              {insightFilterMenu === 'severity' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setInsightFilterMenu(null)} />
+                  <div
+                    role="listbox"
+                    aria-label="Filter by priority"
+                    className="absolute left-0 right-0 top-full mt-1 z-50 min-w-[11rem] bg-surface-container-lowest border border-outline-variant/25 rounded-lg editorial-shadow py-1 max-h-52 overflow-y-auto"
+                  >
+                    {insightSeverityMenuOptions.map((opt) => {
+                      const selected = insightSeverityFilter === opt.value
+                      const meta = SEVERITY_FILTER_META[opt.value]
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          onClick={() => {
+                            setInsightSeverityFilter(opt.value)
+                            setInsightFilterMenu(null)
+                          }}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors ${
+                            selected ? 'bg-primary/5' : 'hover:bg-surface-container/60'
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-sm shrink-0 ${meta.tone}`}>
+                            {meta.icon}
+                          </span>
+                          <span className={`flex-1 text-[11px] font-medium ${selected ? 'text-primary' : 'text-on-surface'}`}>
+                            {opt.label}
+                          </span>
+                          <span
+                            className={`min-w-[1.25rem] h-4 px-1 inline-flex items-center justify-center rounded-full text-[10px] font-bold tabular-nums ${
+                              selected
+                                ? 'bg-primary text-on-primary'
+                                : 'text-on-surface-variant/70'
+                            }`}
+                          >
+                            {opt.count}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Type filter */}
+            <div className="relative min-w-0">
+              <button
+                type="button"
+                onClick={() => setInsightFilterMenu((m) => (m === 'type' ? null : 'type'))}
+                aria-expanded={insightFilterMenu === 'type'}
+                aria-haspopup="listbox"
+                className={`w-full flex items-center gap-1.5 bg-surface-container-lowest border text-left rounded-md pl-2 pr-1.5 py-1.5 transition-colors ${
+                  insightFilterMenu === 'type' || insightTypeFilter !== 'all'
+                    ? 'border-primary/35 ring-1 ring-primary/15'
+                    : 'border-outline-variant/25 hover:border-outline-variant/50'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm shrink-0 text-on-surface-variant">category</span>
+                <span className="flex-1 min-w-0 text-[11px] font-medium text-on-surface truncate">
+                  {insightTypeFilter === 'all'
+                    ? 'Type'
+                    : (ANNOTATION_TYPE_LABELS[insightTypeFilter] || insightTypeFilter)}
+                </span>
+                <span className="material-symbols-outlined text-on-surface-variant text-sm shrink-0">
+                  {insightFilterMenu === 'type' ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+              {insightFilterMenu === 'type' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setInsightFilterMenu(null)} />
+                  <div
+                    role="listbox"
+                    aria-label="Filter by type"
+                    className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] w-full bg-surface-container-lowest border border-outline-variant/25 rounded-lg editorial-shadow py-1 max-h-52 overflow-y-auto"
+                  >
+                    {insightTypeMenuOptions.map((opt) => {
+                      const selected = insightTypeFilter === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          onClick={() => {
+                            setInsightTypeFilter(opt.value)
+                            setInsightFilterMenu(null)
+                          }}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors ${
+                            selected ? 'bg-primary/5' : 'hover:bg-surface-container/60'
+                          }`}
+                        >
+                          <span className={`flex-1 text-[11px] font-medium ${selected ? 'text-primary' : 'text-on-surface'}`}>
+                            {opt.label}
+                          </span>
+                          <span
+                            className={`min-w-[1.25rem] h-4 px-1 inline-flex items-center justify-center rounded-full text-[10px] font-bold tabular-nums ${
+                              selected
+                                ? 'bg-primary text-on-primary'
+                                : 'text-on-surface-variant/70'
+                            }`}
+                          >
+                            {opt.count}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Annotation cards */}
@@ -1701,7 +1925,27 @@ export default function DashboardEditor() {
           </div>
         )}
 
-        {openAnnotations.map((ann) => (
+        {openAnnotations.length > 0 && filteredOpenAnnotations.length === 0 && (
+          <div className="text-center py-6 px-2">
+            <span className="material-symbols-outlined text-3xl text-on-surface-variant/50 block mb-2">filter_list_off</span>
+            <p className="font-bold text-on-surface text-sm mb-1">No matching suggestions</p>
+            <p className="text-xs text-on-surface-variant mb-3 leading-relaxed">
+              Nothing open matches these filters.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setInsightSeverityFilter('all')
+                setInsightTypeFilter('all')
+              }}
+              className="text-xs font-bold text-primary hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {filteredOpenAnnotations.map((ann) => (
           <div
             key={ann.id}
             id={`ann-card-${ann.id}`}
@@ -1775,8 +2019,10 @@ export default function DashboardEditor() {
                       setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
                     }
                   }}
-                  placeholder="Or enter your own correction…"
-                  className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
+                  placeholder="Enter your own correction…"
+                  className={`w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 ${
+                    customTexts[ann.id]?.trim() ? 'pr-9' : ''
+                  }`}
                 />
                 {customTexts[ann.id]?.trim() && (
                   <button
@@ -2697,8 +2943,10 @@ export default function DashboardEditor() {
                             setCustomTexts((prev) => { const n = { ...prev }; delete n[ann.id]; return n })
                           }
                         }}
-                        placeholder="Or enter your own correction…"
-                        className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 pr-9"
+                        placeholder="Enter your own correction…"
+                        className={`w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-primary/30 text-on-surface placeholder:text-on-surface-variant/30 ${
+                          customTexts[ann.id]?.trim() ? 'pr-9' : ''
+                        }`}
                       />
                       {customTexts[ann.id]?.trim() && (
                         <button
