@@ -353,7 +353,7 @@ export default function DashboardExport() {
   }
 
   return (
-    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex items-start justify-center px-6 py-7">
+    <main className="h-[calc(100vh-65px)] overflow-y-auto bg-background flex items-center justify-center px-6 py-7">
       <div className="w-full max-w-2xl flex flex-col gap-4">
 
         {/* Header */}
@@ -462,14 +462,14 @@ export default function DashboardExport() {
                 checked: includeLineNumbers,
                 onChange: setIncludeLineNumbers,
                 title: 'Line numbers',
-                help: 'Left-column numbers (1 to 25). Turn off if your CAT software adds its own.',
+                help: 'The 1 to 25 numbers down the left side of each page.',
               },
               {
                 available: hasPageNumbers,
                 checked: includePageNumbers,
                 onChange: setIncludePageNumbers,
                 title: 'Page numbers',
-                help: 'Centered page headers in the body. Turn off for Case CATalyst or Eclipse re-import.',
+                help: 'The page number at the top of each transcript page.',
               },
             ].map(({ available, checked, onChange, title, help }) => (
               <label
@@ -568,15 +568,6 @@ export default function DashboardExport() {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Coming soon — compact */}
-        <div className="shrink-0 flex items-center gap-3 pt-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Coming soon</p>
-          <div className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-1.5 opacity-50">
-            <span className="material-symbols-outlined text-sm text-blue-400">description</span>
-            <span className="text-xs font-semibold text-on-surface-variant">DOCX</span>
           </div>
         </div>
 
