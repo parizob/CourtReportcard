@@ -85,7 +85,8 @@ export function blankLineNumbers(text) {
       if (bare && bare[1].length < 30) {
         const num = parseInt(bare[2], 10)
         if (num >= 1 && num <= 25 && leadInGutter(bare[1].length, allowedStarts)) {
-          return ''
+          // Keep the row so PDF/TXT vertical layout does not shift when digits are blanked.
+          return bare[1] + ' '.repeat(bare[2].length) + cr
         }
         return line
       }
@@ -99,7 +100,6 @@ export function blankLineNumbers(text) {
       if (!leadInGutter(lead.length, allowedStarts)) return line
 
       const blanked = lead + ' '.repeat(digits.length) + gap + rest
-      if (!blanked.trim()) return ''
       return blanked + cr
     })
     .join('\n')

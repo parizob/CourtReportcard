@@ -199,6 +199,148 @@ console.log('helpers')
 assert(stripPageHeaderLines(fixture).split('\n').filter(isPageHeaderLine).length === 0, 'stripPageHeaderLines')
 assert(stripLineNumberColumn(fixture).includes('Q. What'), 'stripLineNumberColumn keeps Q')
 
+{
+  console.log('pdf')
+  const {
+    encodePdf,
+    sanitizePdfText,
+    fitPdfFontSize,
+    splitPdfPages,
+    PDF_FONT_SIZE_MAX,
+  } = await import('../src/lib/exportPdf.js')
+  const { StandardFonts, PDFDocument } = await import('pdf-lib')
+  assert(sanitizePdfText('smart \u201Cquotes\u201D and \u2014 dash') === 'smart "quotes" and - dash', 'sanitize smart punctuation')
+  assert(!sanitizePdfText('before\fafter').includes('?'), 'form-feed does not become ?')
+  assert(sanitizePdfText('before\fafter').includes('\f'), 'form-feed preserved for breaks')
+
+  const pages = splitPdfPages('short\n' + 'x'.repeat(120))
+  assert(pages.length === 1, 'splitPdfPages does not wrap long lines')
+  assert(pages[0].some((l) => l.length === 120), 'long line kept intact')
+
+  const body = formatExportText(fixture, { includeLineNumbers: true, includePageNumbers: true })
+  const bytes = await encodePdf(body)
+  assert(bytes instanceof Uint8Array && bytes.length > 100, 'encodePdf returns bytes')
+  const head = String.fromCharCode(...bytes.slice(0, 5))
+  assert(head === '%PDF-', 'PDF magic header')
+  const loaded = await PDFDocument.load(bytes)
+  assert(loaded.getPageCount() >= 1, 'PDF has at least one page')
+
+  const twoPages = [
+    '       1     Q. First page only.',
+    '       2     A. Yes.',
+    '\f',
+    '       1     Q. Second page only.',
+    '       2     A. Also yes.',
+  ].join('\n')
+  const twoLoaded = await PDFDocument.load(await encodePdf(twoPages))
+  assert(twoLoaded.getPageCount() === 2, 'form-feed → one PDF page each')
+
+  const bothBreaks = [
+    '       1     Q. First page.',
+    '       2     A. Yes.',
+    '\f',
+    '',
+    `${' '.repeat(64)}2`,
+    '',
+    '       1     Q. Second page.',
+  ].join('\n')
+  const bothLoaded = await PDFDocument.load(await encodePdf(bothBreaks))
+  assert(bothLoaded.getPageCount() === 2, 'form-feed + header → no blank between')
+
+  const leadingFf = `\f\n${' '.repeat(64)}1\n       1     Q. Only page.\n`
+  const leadLoaded = await PDFDocument.load(await encodePdf(leadingFf))
+  assert(leadLoaded.getPageCount() === 1, 'leading form-feed → no blank first page')
+
+  const headerPages = [
+    `${' '.repeat(64)}1`,
+    '       1     Q. Page one.',
+    `${' '.repeat(64)}2`,
+    '       1     Q. Page two.',
+  ].join('\n')
+  const headerLoaded = await PDFDocument.load(await encodePdf(headerPages))
+  assert(headerLoaded.getPageCount() === 2, 'page-number headers → one PDF page each')
+
+  const docFont = await PDFDocument.create()
+  const courier = await docFont.embedFont(StandardFonts.Courier)
+  const long = ' '.repeat(10) + 'Q. ' + 'word '.repeat(30)
+  const size = fitPdfFontSize(courier, [long], 612 - 72, 792 - 72, 25)
+  assert(size > 0, 'fit font positive')
+  assert(size <= PDF_FONT_SIZE_MAX, 'font capped')
+  assert(courier.widthOfTextAtSize(long, size) <= 612 - 72 + 0.5, 'fitted size keeps line on page')
+
+  const dense = [
+    `${' '.repeat(64)}1`,
+    ...Array.from({ length: 33 }, (_, i) => `       ${(i % 25) + 1}     Line ${i} of dense page content here.`),
+  ].join('\n')
+  assert(splitPdfPages(dense).length === 1, 'dense content is one logical page')
+  const denseLoaded = await PDFDocument.load(await encodePdf(dense))
+  assert(denseLoaded.getPageCount() === 1, 'dense page does not spill to a second PDF page')
+
+  const short = `${' '.repeat(64)}1\n       1     Q. Only a few lines.\n       2     A. Yes.\n`
+  const shortRaw = Buffer.from(await encodePdf(short)).toString('latin1')
+  const inflated = []
+  const { inflateSync } = await import('zlib')
+  for (const m of shortRaw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    let chunk = m[1]
+    if (chunk.endsWith('\r\n')) chunk = chunk.slice(0, -2)
+    else if (chunk.endsWith('\n')) chunk = chunk.slice(0, -1)
+    try {
+      inflated.push(inflateSync(Buffer.from(chunk, 'latin1')).toString('latin1'))
+    } catch {
+      /* not flate */
+    }
+  }
+  const ys = []
+  for (const text of inflated) {
+    for (const t of text.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) Tm/g)) ys.push(+t[2])
+  }
+  assert(ys.length >= 2, 'short page has drawn lines')
+  const topY = Math.max(...ys)
+  const botY = Math.min(...ys)
+  const topMargin = 792 - topY
+  const bottomMargin = botY
+  assert(Math.abs(topMargin - bottomMargin) < 25, `centered short page top≈bottom (top=${topMargin.toFixed(1)} bot=${bottomMargin.toFixed(1)})`)
+
+  // Blanking line numbers must not shift the vertical frame vs line-numbers-on
+  async function firstBaseline(plain) {
+    const raw = Buffer.from(await encodePdf(plain)).toString('latin1')
+    const { inflateSync } = await import('zlib')
+    const ys = []
+    for (const m of raw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+      let chunk = m[1]
+      if (chunk.endsWith('\r\n')) chunk = chunk.slice(0, -2)
+      else if (chunk.endsWith('\n')) chunk = chunk.slice(0, -1)
+      let text
+      try {
+        text = inflateSync(Buffer.from(chunk, 'latin1')).toString('latin1')
+      } catch {
+        continue
+      }
+      for (const t of text.matchAll(/1 0 0 1 ([\d.]+) ([\d.]+) Tm/g)) ys.push(+t[2])
+      if (ys.length) break // first page only
+    }
+    return Math.max(...ys)
+  }
+  const multi = [
+    `${' '.repeat(64)}1`,
+    '',
+    '       1     Q. Page one line.',
+    '       2     A. Answer one.',
+    '',
+    `${' '.repeat(64)}2`,
+    '',
+    '       1     Q. Page two line.',
+    '       2     A. Answer two.',
+    '',
+    '       3     Q. More on page two.',
+  ].join('\n')
+  const withNums = formatExportText(multi, { includeLineNumbers: true, includePageNumbers: true })
+  const noNums = formatExportText(multi, { includeLineNumbers: false, includePageNumbers: true })
+  const topWith = await firstBaseline(withNums)
+  const topWithout = await firstBaseline(noNums)
+  assert(Math.abs(topWith - topWithout) < 0.5, `line-num toggle keeps first-page top (with=${topWith} without=${topWithout})`)
+}
+
 if (failed) {
   console.error(`\n${failed} failure(s), ${passed} passed`)
   process.exit(1)

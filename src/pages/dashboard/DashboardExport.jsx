@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
+import { encodePdf } from '../../lib/exportPdf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
 import { detectExportNumbering, formatExportText } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
@@ -210,7 +211,10 @@ export default function DashboardExport() {
   }
 
   const triggerDownload = (content, filename, mime) => {
-    const blob = new Blob([content], { type: mime })
+    const blob =
+      content instanceof Blob
+        ? content
+        : new Blob([content], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -236,6 +240,9 @@ export default function DashboardExport() {
         triggerDownload(content, `${baseName}.txt`, 'text/plain')
       } else if (format === 'rtf') {
         triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
+      } else if (format === 'pdf') {
+        const pdfBytes = await encodePdf(content)
+        triggerDownload(pdfBytes, `${baseName}.pdf`, 'application/pdf')
       }
       // Best-effort completion signal — never block the download the user already got.
       try {
@@ -498,10 +505,11 @@ export default function DashboardExport() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
               { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
+              { format: 'pdf', icon: 'picture_as_pdf', color: 'bg-red-50 text-red-600', ext: '.pdf', desc: 'Portable document.' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -509,18 +517,18 @@ export default function DashboardExport() {
                 onClick={() => handleExport(format)}
                 disabled={!!exporting || exportBlocked}
                 data-track-id={`export_${format}_L${includeLineNumbers ? 1 : 0}_P${includePageNumbers ? 1 : 0}`}
-                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-4 flex items-center gap-3 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
+                className="h-[60px] bg-surface-container-lowest rounded-xl editorial-shadow px-3 sm:px-4 flex items-center gap-2.5 hover:ring-2 hover:ring-primary/20 transition-all text-left group disabled:opacity-50"
               >
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-80 group-hover:scale-105 transition-transform`}>
                   <span className="material-symbols-outlined text-lg">{icon}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-headline font-bold text-on-surface text-sm">
+                  <p className="font-headline font-bold text-on-surface text-sm whitespace-nowrap truncate">
                     Download <span className="text-on-surface-variant font-normal">({ext})</span>
                   </p>
                   <p className="hidden sm:block text-[11px] text-on-surface-variant leading-snug truncate">{desc}</p>
                 </div>
-                <span className="material-symbols-outlined text-primary text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="material-symbols-outlined text-primary text-lg shrink-0 w-0 overflow-hidden opacity-0 group-hover:w-5 group-hover:opacity-100 transition-all">
                   {exporting === format ? 'check_circle' : 'download'}
                 </span>
               </button>
@@ -566,15 +574,10 @@ export default function DashboardExport() {
         {/* Coming soon — compact */}
         <div className="shrink-0 flex items-center gap-3 pt-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Coming soon</p>
-          {[
-            { icon: 'picture_as_pdf', label: 'PDF', color: 'text-red-400' },
-            { icon: 'description', label: 'DOCX', color: 'text-blue-400' },
-          ].map((f) => (
-            <div key={f.label} className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-1.5 opacity-50">
-              <span className={`material-symbols-outlined text-sm ${f.color}`}>{f.icon}</span>
-              <span className="text-xs font-semibold text-on-surface-variant">{f.label}</span>
-            </div>
-          ))}
+          <div className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-1.5 opacity-50">
+            <span className="material-symbols-outlined text-sm text-blue-400">description</span>
+            <span className="text-xs font-semibold text-on-surface-variant">DOCX</span>
+          </div>
         </div>
 
       </div>
