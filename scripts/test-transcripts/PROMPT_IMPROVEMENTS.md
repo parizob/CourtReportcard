@@ -17,6 +17,34 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Rule: 2026-08-21 — Extract compact JSON / no blank-line spiral — APPLIED
+
+**Source:** Prod extract failures (~4% of charged jobs in prior 7 days): Gloria
+Brown, Gillian / Stanley Gillian, trial jackson. Shared pattern: extract JSON
+truncated mid-string or illegal escapes. Gloria `raw_fail` (~66KB) showed a
+whitespace death spiral (~32k `\n` escapes after only ~640 bytes of real JSON).
+
+**Change (EXTRACTION_ONLY_PROMPT only — not proofread):** Add CRITICAL RULE —
+COMPACT JSON: minified JSON; collapse 3+ consecutive newlines inside strings;
+no blank-line padding with `\n` runs; valid JSON escapes only. Update OUTPUT
+example to minified schema. Mirror recovery suffix in Edge + `gemini.js`.
+
+**Applied:** 2026-08-21 in `supabase/functions/analyze-case/prompts.ts`,
+`src/lib/gemini.js`, recovery strings in `analyze-case/index.ts` + `gemini.js`.
+
+**Test:** `npm run test:extract-compact` (trap + `sample_transcript` regression).
+Optional A/B: `COMPARE_BASELINE=1 npm run test:extract-compact`.
+
+**Harness 2026-08-21 (3×, flash-lite, temp 0):**
+- Amplified whitespace trap (12k blank mid-caption): CURRENT **3/3** parse OK,
+  max blank run ≤2, testimony present; ~1.4KB vs baseline ~2.0KB (more compact).
+  Baseline also 3/3 on this synthetic (model often skips blanks already).
+- `sample_transcript.txt` regression: CURRENT **3/3**, 29 entries, stable.
+- `test:parse-json`: 42/42 pass.
+- Note: production parser (`parseGeminiJsonResponse`) required — bare
+  `JSON.parse` can fail on rare trailing junk after a complete first object;
+  Edge already uses first-value extract.
+
 ### Rule: 2026-08-10 — Do not flag years/dates as "future/impossible" — APPLIED
 
 **Source:** User email (beta). Model flagged `"later searched in 2026"` with

@@ -2763,13 +2763,14 @@ CRITICAL RULE — EVERY PASSAGE APPEARS EXACTLY ONCE:
 - Each passage of text must appear as EXACTLY ONE entry. NEVER duplicate an entry.
 - If you see repeated text in the source, include it only ONCE.
 
-OUTPUT — respond with ONLY valid JSON:
-{
-  "title": "<case title if found>",
-  "entries": [
-    { "id": 1, "speaker": "SPEAKER NAME", "text": "The original text exactly as written..." }
-  ]
-}
+CRITICAL RULE — COMPACT JSON (prevent truncated / bloated output):
+- Emit minified JSON: no pretty-print indentation, no extra spaces after ":" or ",".
+- Inside every string value (especially "text"): never pad with long runs of blank lines. Collapse 3+ consecutive newlines to a single newline. Do not emit dozens or thousands of \\n escapes for empty vertical space, CAPTION alignment gaps, or page gutters.
+- Preserve all words, punctuation, and meaningful single line breaks exactly. Only collapse pure empty/blank-line padding.
+- Use only valid JSON escapes inside strings (\\n, \\r, \\t, \\\\, \\"). Never invent illegal escapes such as \\.
+
+OUTPUT — respond with ONLY valid minified JSON matching this schema:
+{"title":"<case title if found>","entries":[{"id":1,"speaker":"SPEAKER NAME","text":"The original text exactly as written..."}]}
 
 Now extract the following file content:`
 
@@ -3160,9 +3161,10 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
       console.warn(`Extract JSON parse failed (${err?.message || err}); one recovery re-call…`)
       const recoverySuffix =
         '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
-        'Respond with ONLY a single valid JSON object matching the required schema. ' +
+        'Respond with ONLY a single valid minified JSON object matching the required schema. ' +
         'No markdown fences, no commentary, no trailing text. ' +
-        'Escape all quotes and control characters inside string values.'
+        'Escape all quotes and control characters inside string values with valid JSON escapes only. ' +
+        'Never pad strings with repeated \\n blank lines — collapse 3+ consecutive newlines to one.'
       extractionResult = await callGemini(`${prompt}${recoverySuffix}`, filePart, MODEL_EXTRACT, { thinkingLevel: 'minimal' })
     }
   }

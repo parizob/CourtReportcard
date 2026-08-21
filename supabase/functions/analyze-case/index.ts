@@ -512,9 +512,10 @@ function normalizeProofreadGeminiResult(result: unknown): { annotations: any[]; 
 
 const EXTRACT_JSON_RECOVERY_SUFFIX =
   '\n\nCRITICAL RECOVERY: Your previous response was not valid JSON. ' +
-  'Respond with ONLY a single valid JSON object matching the required schema. ' +
+  'Respond with ONLY a single valid minified JSON object matching the required schema. ' +
   'No markdown fences, no commentary, no trailing text. ' +
-  'Escape all quotes and control characters inside string values.'
+  'Escape all quotes and control characters inside string values with valid JSON escapes only. ' +
+  'Never pad strings with repeated \\n blank lines — collapse 3+ consecutive newlines to one.'
 
 type ExtractPersistCtx = {
   admin: any

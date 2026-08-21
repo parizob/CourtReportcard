@@ -16,6 +16,7 @@
     "test:expand-repeats": "node scripts/test-expand-exact-repeats.mjs",
     "test:fidelity": "node scripts/test-transcript-fidelity-stress.mjs",
     "test:parse-json": "node scripts/test-parse-gemini-json.mjs",
+    "test:extract-compact": "node scripts/test-extract-compact-json.mjs",
     "test:highlight-jump": "node scripts/test-highlight-jump-coverage.mjs",
     "test:rtf-upload": "node scripts/test-rtf-upload-path.mjs",
     "test:page-count": "node scripts/test-page-count.mjs",

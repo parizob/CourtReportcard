@@ -22,13 +22,14 @@ CRITICAL RULE — EVERY PASSAGE APPEARS EXACTLY ONCE:
 - Each passage of text must appear as EXACTLY ONE entry. NEVER duplicate an entry.
 - If you see repeated text in the source, include it only ONCE.
 
-OUTPUT — respond with ONLY valid JSON:
-{
-  "title": "<case title if found>",
-  "entries": [
-    { "id": 1, "speaker": "SPEAKER NAME", "text": "The original text exactly as written..." }
-  ]
-}
+CRITICAL RULE — COMPACT JSON (prevent truncated / bloated output):
+- Emit minified JSON: no pretty-print indentation, no extra spaces after ":" or ",".
+- Inside every string value (especially "text"): never pad with long runs of blank lines. Collapse 3+ consecutive newlines to a single newline. Do not emit dozens or thousands of \\n escapes for empty vertical space, CAPTION alignment gaps, or page gutters.
+- Preserve all words, punctuation, and meaningful single line breaks exactly. Only collapse pure empty/blank-line padding.
+- Use only valid JSON escapes inside strings (\\n, \\r, \\t, \\\\, \\"). Never invent illegal escapes such as \\.
+
+OUTPUT — respond with ONLY valid minified JSON matching this schema:
+{"title":"<case title if found>","entries":[{"id":1,"speaker":"SPEAKER NAME","text":"The original text exactly as written..."}]}
 
 Now extract the following file content:`
 
