@@ -65,7 +65,7 @@ export default function OurPlatform() {
           <div className="max-w-4xl mx-auto text-center">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-5 inline-block">The Platform</span>
             <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface tracking-tight leading-[1.1] mb-6">
-              The fastest way to proofread<br className="hidden sm:block"/>a transcript. By far.
+              The fastest way to proofread<br className="hidden sm:block" /> a transcript. By far.
             </h1>
             <p className="text-on-surface-variant text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
               A 100-page deposition that takes a human hours takes Court Reportcard just minutes, at a fraction of the cost.
