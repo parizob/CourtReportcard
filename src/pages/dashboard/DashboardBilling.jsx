@@ -318,7 +318,8 @@ export default function DashboardBilling() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {TOKEN_PACKS.map((pack, idx) => {
                 const pileImage = PILE_IMAGES[idx] ?? PILE_IMAGES[PILE_IMAGES.length - 1]
-                const isPopular = idx === 1
+                const isPopular = pack.id === 'pack_1000'
+                const perToken = (pack.priceUsd / pack.tokens).toFixed(2)
                 return (
                 <div
                   key={pack.id}
@@ -334,7 +335,8 @@ export default function DashboardBilling() {
                   <img src={pileImage} alt="" aria-hidden="true" className="h-14 w-auto mx-auto mb-3" />
                   <p className="text-3xl font-extrabold text-on-surface">{pack.tokens.toLocaleString()}</p>
                   <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold mb-3">tokens</p>
-                  <p className="text-lg font-bold text-on-surface mb-3">${pack.priceUsd}</p>
+                  <p className="text-lg font-bold text-on-surface">${pack.priceUsd}</p>
+                  <p className="text-[10px] text-on-surface-variant mt-1 mb-3">${perToken} per token</p>
                   <button
                     onClick={() => handleBuy(pack)}
                     disabled={purchasingId !== null}

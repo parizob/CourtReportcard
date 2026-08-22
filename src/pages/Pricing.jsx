@@ -124,7 +124,7 @@ export default function Pricing() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {TOKEN_PACKS.map((pack, idx) => {
                 const pileImage = PILE_IMAGES[idx] ?? PILE_IMAGES[PILE_IMAGES.length - 1]
-                const isPopular = idx === 1
+                const isPopular = pack.id === 'pack_1000'
                 const perToken = (pack.priceUsd / pack.tokens).toFixed(2)
                 return (
                   <div
