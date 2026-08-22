@@ -1747,7 +1747,7 @@ export default function DashboardEditor() {
   const insightsPanel = (
     <div className="flex flex-col h-full min-h-0">
       {/* Insights header — stays pinned while the list scrolls */}
-      <div className="shrink-0 border-b border-outline-variant/10 z-20">
+      <div className={`shrink-0 border-b border-outline-variant/10 ${insightFilterMenu ? 'z-30' : 'z-20'}`}>
         <div className="flex items-stretch bg-primary-fixed/55 border-b border-outline-variant/10">
           <button
             type="button"
@@ -1813,8 +1813,12 @@ export default function DashboardEditor() {
             }`}
           >
             <div
-              className={`min-h-0 overflow-hidden transition-opacity duration-250 ease-out ${
-                insightFiltersCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              className={`min-h-0 transition-opacity duration-250 ease-out ${
+                insightFiltersCollapsed
+                  ? 'overflow-hidden opacity-0 pointer-events-none'
+                  : // Visible when open so Priority/Type menus are not clipped by the
+                    // collapse animation's overflow-hidden (and the pane's overflow).
+                    'overflow-visible opacity-100'
               }`}
               aria-hidden={insightFiltersCollapsed}
             >
@@ -2995,7 +2999,9 @@ export default function DashboardEditor() {
           onBlurCapture={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget)) setInsightsPaneActive(false)
           }}
-          className="hidden md:block w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] overflow-hidden relative z-10"
+          className={`hidden md:block w-64 shrink-0 bg-surface border-l border-outline-variant/15 sticky top-[65px] h-[calc(100vh-65px)] relative z-10 ${
+            insightFilterMenu ? 'overflow-visible' : 'overflow-hidden'
+          }`}
         >
           {insightsPanel}
         </aside>
@@ -3028,7 +3034,9 @@ export default function DashboardEditor() {
           )}
 
           <aside
-            className={`md:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm shadow-2xl transition-transform duration-300 ease-out bg-surface border-l border-outline-variant/15 overflow-hidden flex flex-col ${mobileInsightsOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`md:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm shadow-2xl transition-transform duration-300 ease-out bg-surface border-l border-outline-variant/15 flex flex-col ${
+              insightFilterMenu ? 'overflow-visible' : 'overflow-hidden'
+            } ${mobileInsightsOpen ? 'translate-x-0' : 'translate-x-full'}`}
           >
             {insightsPanel}
           </aside>
