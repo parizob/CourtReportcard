@@ -7,6 +7,7 @@ import BlogTipsHero from '../components/BlogTipsHero'
 import BlogIndustryHero from '../components/BlogIndustryHero'
 import BlogBackboneHero from '../components/BlogBackboneHero'
 import BlogMethodsHero from '../components/BlogMethodsHero'
+import BlogLarkHero from '../components/BlogLarkHero'
 import { useAuth } from '../context/AuthContext'
 import { getPostBySlug } from '../data/blogPosts'
 
@@ -224,6 +225,7 @@ export default function BlogPost() {
         {post.hero === 'industry' && <BlogIndustryHero />}
         {post.hero === 'backbone' && <BlogBackboneHero />}
         {post.hero === 'methods' && <BlogMethodsHero />}
+        {post.hero === 'lark' && <BlogLarkHero />}
 
         <article>
           {post.content.map((block, i) => (

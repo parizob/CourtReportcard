@@ -3,7 +3,7 @@
 // Optional on h2: art: 'steno' | 'voice' | 'digital' (small section illustration)
 // Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
 // CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
-// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods'
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods' | 'lark'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -26,6 +26,125 @@ export const BLOG_TAGS = {
 }
 
 export const blogPosts = [
+  {
+    slug: 'let-a-reporter-know-lark',
+    title: 'Let A Reporter Know (LARK): Small Tips That Make the Record Better',
+    excerpt:
+      'A simple idea: when you learn something useful for court reporters, pass it on. Tips for people who work with reporters, tips for reporters, and one more useful tool at the end.',
+    date: '2026-08-23',
+    dateLabel: 'August 23, 2026',
+    dateLabelShort: '8/23/26',
+    readMinutes: 5,
+    tags: ['tips'],
+    hero: 'lark',
+    metaDescription:
+      'Practical tips for attorneys, clients, and agencies who work with court reporters, plus tips reporters can share with each other, including keeping your dictionary current.',
+    content: [
+      {
+        type: 'p',
+        text: 'Court reporting runs on shared knowledge. Someone shows you a better way to handle a messy spelling. Someone warns you about a firm that loves overlapping objections. Someone shares a good way to remember those hard-to-spell drug names. That is how the craft actually travels: one useful tip at a time.',
+      },
+      {
+        type: 'p',
+        text: 'So here is a small idea with a big name: Let A Reporter Know. LARK for short. When you learn something that helps the person making the record, do not keep it to yourself. Pass it on. Tell a colleague. Tell the room. Tell the next reporter who inherits the same client.',
+      },
+      {
+        type: 'p',
+        text: 'This post is a starter kit. Two short lists. One for people who work with reporters. One for reporters. Then one more tip from us at the end.',
+      },
+      {
+        type: 'callout',
+        text: 'LARK: if it helps the record, share it.',
+      },
+
+      { type: 'h2', text: 'For people who work with reporters' },
+      {
+        type: 'p',
+        text: 'Whether you are an attorney, a witness, a judge, or anyone else in the room, you do not need a new process. You just need the reporter to actually know what they need before the job starts moving.',
+      },
+      {
+        type: 'p',
+        text: '1. Talk at a normal speed, and enunciate. You do not need to speak like a robot. You do need clear enough speech that the words can be told apart. Mumbled names and swallowed endings are where clean transcripts quietly fall apart.',
+      },
+      {
+        type: 'p',
+        text: '2. Make sure the reporter knows unusual spellings and party names early. If the caption has a name that fights English, get it to the reporter before they are guessing from audio alone.',
+      },
+      {
+        type: 'p',
+        text: '3. Make sure the reporter knows if you need rough or expedite, and whether you are ordering the transcript at all, before the day, not at the end of it. Late surprises are how good jobs turn into bad nights.',
+      },
+      {
+        type: 'p',
+        text: '4. Do not talk over each other if you care about a clean record. The transcript cannot invent two clear sentences out of one pileup. Pause. Finish. Then respond.',
+      },
+      {
+        type: 'p',
+        text: '5. Make sure the reporter knows when the room changes. New Zoom link. Exhibit drop. Last-minute witness. If the setup moved, the reporter should know before they are already mid-stream.',
+      },
+      {
+        type: 'callout',
+        text: 'You do not have to manage the reporter. Just make sure they know.',
+      },
+
+      { type: 'h2', text: 'For reporters' },
+      {
+        type: 'p',
+        text: 'This side of LARK is peer to peer. The tips that save your afternoon often save someone else\'s too.',
+      },
+      {
+        type: 'p',
+        text: '1. Keep your dictionary up to date. Old entries, half-built jobs, and forgotten brief forms quietly create work for future you. A current dictionary is not busywork. It is how you stop paying for the same correction twice.',
+      },
+      {
+        type: 'p',
+        text: '2. When you catch a weird homophone or a job-specific name, pass it along. Text a friend. Drop it in the group chat. Future-you will also thank past-you.',
+      },
+      {
+        type: 'p',
+        text: '3. Build a short end-of-job checklist so tired eyes are not your only quality check. Spellings. Numbers. Exhibit references. The three places you personally always miss when you are cooked.',
+      },
+      {
+        type: 'p',
+        text: '4. Protect the basics. Water. Breaks. Do not proof at midnight if you can help it. Exhausted proofreading is how clean jobs get one ugly error on page 47.',
+      },
+      {
+        type: 'p',
+        text: '5. Share one CAT or workflow trick that saved you real time. No gatekeeping. If a macro, a layout, or a stupid-simple habit cut an hour off your week, Let A Reporter Know.',
+      },
+
+      { type: 'h2', text: 'One more LARK' },
+      {
+        type: 'p',
+        text: 'Here is ours. If you proof long transcripts alone, let a reporter know there is a second set of eyes built for this work.',
+      },
+      {
+        type: 'p',
+        text: 'Court Reportcard is a proofreading tool for court reporters. You upload a transcript you already made. It flags likely slips: homophones, missing words, punctuation, context problems that a plain spellchecker shrugs at. You accept, ignore, or fix. Nothing changes unless you say so.',
+      },
+      {
+        type: 'p',
+        text: 'It does not sit in the room. It does not replace you. It helps you catch the things tired eyes miss before the job leaves your desk.',
+      },
+      {
+        type: 'callout',
+        text: 'That is the whole movement in one line: useful knowledge should travel. Tools included.',
+      },
+      {
+        type: 'p',
+        text: 'If you have a LARK tip of your own, share it. Reply to this post. Tell a colleague. Start with one useful thing and pass it on. That is how movements actually begin: not with a slogan, with a habit.',
+      },
+      {
+        type: 'cta',
+        headline: 'Let a reporter know about a second set of eyes.',
+        text: 'Court Reportcard flags hard-to-see slips before the transcript leaves your desk. You stay in control of every change.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_lark_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'stenographer-voice-writer-digital-reporter',
     title: 'Steno, Voice, and Digital: Three Paths to the Same Record',
