@@ -287,58 +287,81 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials — scrolling marquee */}
-        <section className="py-14 sm:py-20 bg-primary/5 overflow-hidden">
-          <div ref={setRevealRef(0)} className="landing-reveal text-center mb-10 sm:mb-12 px-6">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">Feedback from real reporters</span>
-          </div>
-          {(() => {
-            const reviews = [
-              { quote: 'This will save me SO much time editing.', name: 'Christina C.', initial: 'CC' },
-              { quote: 'Caught all the errors that were missed!', name: 'Zoe Z.', initial: 'ZZ' },
-              { quote: 'I am definitely interested.', name: 'Fista S.', initial: 'FS' },
-              { quote: 'I love the system.', name: 'James T.', initial: 'JT' },
-            ]
-            const Card = ({ quote, name, initial }) => (
-              <div className="bg-surface-container-lowest rounded-2xl editorial-shadow flex flex-col w-80 shrink-0 transition-transform hover:translate-y-[-2px]">
-                <div className="p-7 flex flex-col flex-1">
-                  <p className="text-on-surface text-base leading-relaxed flex-1">{quote}</p>
-                  <div className="mt-7 pt-5 border-t border-outline-variant/20 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-on-secondary-container tracking-tight">{initial}</span>
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">{name}</span>
+        {/* Trust band: what you get + why we built it */}
+        <section className="py-14 sm:py-20 px-6 sm:px-8 bg-primary/5">
+          <div className="max-w-5xl mx-auto">
+            <div ref={setRevealRef(0)} className="landing-reveal text-center mb-8 sm:mb-10">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                Built for Court Reporters
+              </span>
+              <h2 className="font-headline font-bold text-2xl sm:text-3xl text-on-surface mt-3">
+                What reporters actually get
+              </h2>
+            </div>
+            <div className="grid md:grid-cols-3 gap-4 sm:gap-5 mb-8 sm:mb-10">
+              {[
+                {
+                  icon: 'spellcheck',
+                  title: 'Flags the hard stuff',
+                  body: 'Homophones, missing words, punctuation, and steno-style slips before the file leaves your desk.',
+                  delay: '',
+                  refIdx: 1,
+                },
+                {
+                  icon: 'verified_user',
+                  title: 'You stay in control',
+                  body: 'Accept or ignore every suggestion. Nothing changes in the transcript unless you say so.',
+                  delay: 'landing-reveal-delay-1',
+                  refIdx: 2,
+                },
+                {
+                  icon: 'schedule',
+                  title: 'Minutes, not hours',
+                  body: 'A long deposition that takes a careful human hours comes back ready to review in minutes.',
+                  delay: 'landing-reveal-delay-2',
+                  refIdx: 3,
+                },
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  ref={setRevealRef(c.refIdx)}
+                  className={`landing-reveal ${c.delay} bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/15 p-6`}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-on-secondary-container">{c.icon}</span>
                   </div>
+                  <h3 className="font-headline font-bold text-lg text-on-surface mb-2">{c.title}</h3>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">{c.body}</p>
                 </div>
-              </div>
-            )
-            return (
-              <div ref={setRevealRef(1)} className="landing-reveal">
-                <div className="flex animate-marquee gap-6 w-max">
-                  {[...reviews, ...reviews].map((r, i) => <Card key={i} {...r} />)}
-                </div>
-              </div>
-            )
-          })()}
-        </section>
+              ))}
+            </div>
 
-        {/* Founder Story Section */}
-        <section className="py-14 sm:py-20 px-6 sm:px-8">
-          <div ref={setRevealRef(2)} className="landing-reveal max-w-4xl mx-auto">
-            <div className="bg-surface-container-lowest rounded-2xl editorial-shadow border border-outline-variant/15 p-8 sm:p-12">
-              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
-                <div className="shrink-0 w-16 sm:w-20 flex justify-center sm:justify-start">
-                  <span className="font-headline font-black text-7xl sm:text-8xl text-primary/15 leading-none select-none">&ldquo;</span>
+            <div
+              ref={setRevealRef(4)}
+              className="landing-reveal landing-reveal-delay-3 bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/15 p-7 sm:p-10"
+            >
+              <div className="flex flex-col sm:flex-row gap-5 sm:gap-8 items-start">
+                <div className="shrink-0 w-12 sm:w-16 flex justify-center sm:justify-start">
+                  <span className="font-headline font-black text-6xl sm:text-7xl text-primary/15 leading-none select-none">
+                    &ldquo;
+                  </span>
                 </div>
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3 block">Why We Built This</span>
-                  <p className="text-lg sm:text-xl text-on-surface leading-relaxed mb-4">
-                    My wife is an experienced stenographer. I watched her spend as many hours proofreading a transcript as she did recording it — alone, under deadline, with no second set of eyes available. That's the problem Court Reportcard was built to solve.
+                <div className="min-w-0">
+                  <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3 block">
+                    Why we built this
+                  </span>
+                  <p className="text-base sm:text-lg text-on-surface leading-relaxed mb-4">
+                    My wife is an experienced stenographer. I watched her spend as many hours proofreading a transcript as she did recording it, alone, under deadline, with no second set of eyes available. That&apos;s the problem Court Reportcard was built to solve.
                   </p>
-                  <p className="text-sm font-bold text-on-surface-variant mb-5">— Brandon, Founder</p>
-                  <Link to="/aboutus" className="group text-primary font-bold text-sm inline-flex items-center gap-1">
+                  <p className="text-sm font-bold text-on-surface-variant mb-4">— Brandon, Founder</p>
+                  <Link
+                    to="/aboutus"
+                    className="group text-primary font-bold text-sm inline-flex items-center gap-1"
+                  >
                     <span className="group-hover:underline">Read our full story</span>
-                    <span className="material-symbols-outlined text-base transition-transform group-hover:translate-x-1">arrow_forward</span>
+                    <span className="material-symbols-outlined text-base transition-transform group-hover:translate-x-1">
+                      arrow_forward
+                    </span>
                   </Link>
                 </div>
               </div>
@@ -346,106 +369,157 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* How It Works Section */}
-        <section className="bg-surface-container-low py-16 sm:py-24 px-6 sm:px-8">
-          <div className="max-w-[1440px] mx-auto">
-            <div ref={setRevealRef(3)} className="landing-reveal mb-10 sm:mb-16 text-center">
-              <h2 className="font-headline font-bold text-3xl sm:text-4xl text-on-surface mb-4">How Court Reportcard Works</h2>
-              <div className="w-16 h-1 bg-primary mx-auto"></div>
+        {/* How it works + diagnostics */}
+        <section className="bg-surface-container-low py-14 sm:py-20 px-6 sm:px-8">
+          <div className="max-w-5xl mx-auto">
+            <div ref={setRevealRef(5)} className="landing-reveal text-center mb-10 sm:mb-10">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                How it works
+              </span>
+              <h2 className="font-headline font-bold text-2xl sm:text-3xl text-on-surface mt-3">
+                How Court Reportcard Works
+              </h2>
             </div>
-            <div className="grid md:grid-cols-3 gap-6 sm:gap-12">
-              {/* Step 1 */}
-              <div ref={setRevealRef(4)} className="landing-reveal landing-reveal-delay-1 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
-                <div className="w-14 h-14 bg-primary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-primary transition-colors">
-                  <span className="material-symbols-outlined text-primary group-hover:text-on-primary">cloud_upload</span>
-                </div>
-                <h3 className="font-headline font-bold text-xl mb-3">Upload Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">Drop in your .txt or .rtf transcript from your steno software. Give the case a name and we'll start the review.</p>
-                <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">01</div>
+            <div
+              ref={setRevealRef(6)}
+              className="landing-reveal grid lg:grid-cols-2 gap-10 sm:gap-8 items-center mb-12 sm:mb-10"
+            >
+              <div className="order-2 lg:order-1">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-3 block">
+                  Context-aware catches
+                </span>
+                <h3 className="font-headline font-bold text-2xl sm:text-3xl text-on-surface mb-3">
+                  Beyond spellcheck
+                </h3>
+                <p className="text-sm text-on-surface-variant leading-relaxed mb-6 max-w-md">
+                  Court Reportcard flags what a plain spellchecker misses: impossible dates, wrong words in context, and other slips that only make sense when you read the transcript as a whole. You still decide what to accept.
+                </p>
+                <ul className="space-y-3.5 text-sm text-on-surface-variant leading-relaxed">
+                  <li className="flex gap-2.5 items-start">
+                    <span className="material-symbols-outlined text-primary text-[18px] shrink-0 mt-0.5">check_circle</span>
+                    <span>Homophones and context mix-ups</span>
+                  </li>
+                  <li className="flex gap-2.5 items-start">
+                    <span className="material-symbols-outlined text-primary text-[18px] shrink-0 mt-0.5">check_circle</span>
+                    <span>Impossible or contradictory dates</span>
+                  </li>
+                  <li className="flex gap-2.5 items-start">
+                    <span className="material-symbols-outlined text-primary text-[18px] shrink-0 mt-0.5">check_circle</span>
+                    <span>Confidence scores so you know where to focus</span>
+                  </li>
+                </ul>
               </div>
-              {/* Step 2 */}
-              <div ref={setRevealRef(5)} className="landing-reveal landing-reveal-delay-2 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
-                <div className="w-14 h-14 bg-tertiary-fixed rounded-lg flex items-center justify-center mb-6 group-hover:bg-tertiary-fixed-dim transition-colors">
+
+              {/* Mock of a real Insights critical card — same soft glow as hero dialogue */}
+              <div className="relative max-w-md w-full mx-auto order-1 lg:order-2 lg:mx-0 lg:ml-auto">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-1.5"
+                >
+                  <div className="absolute inset-0 rounded-xl bg-primary/10 blur-xl" />
+                  <div className="absolute inset-[18%] rounded-xl bg-secondary-container/40 blur-md" />
+                </div>
+                <div className="relative bg-surface-container-lowest rounded-lg editorial-shadow border-l-4 border-error p-4 sm:p-5">
+                <div className="absolute top-2.5 right-2.5 flex flex-col items-center gap-0.5">
+                  <span
+                    className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/40 text-xs leading-none"
+                    aria-hidden="true"
+                  >
+                    &times;
+                  </span>
+                  <span
+                    className="w-5 h-5 flex items-center justify-center rounded-full text-on-surface-variant/30"
+                    aria-hidden="true"
+                  >
+                    <span className="material-symbols-outlined text-xs">my_location</span>
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-error flex items-center gap-1 mb-2">
+                  <span className="material-symbols-outlined text-xs">error</span>
+                  Context &middot; Critical
+                </span>
+                <p className="text-sm font-medium text-on-surface mb-1 pr-8">
+                  Found <strong>&quot;November 31st&quot;</strong>
+                </p>
+                <p className="text-xs text-on-surface-variant leading-relaxed mb-3">
+                  The witness stated the event occurred on November 31st, but November only has 30 days.
+                </p>
+                <p className="text-[10px] text-on-surface-variant/60 mb-3">Confidence: 96%</p>
+                <div className="w-full text-xs font-bold px-3 py-2.5 min-h-[2.5rem] leading-snug rounded border border-transparent bg-surface-container text-on-surface text-center">
+                  Accept: &quot;November 30th&quot;
+                </div>
+                <div className="mt-2">
+                  <div className="w-full text-xs bg-surface-container/60 border border-outline-variant/25 px-3 py-2 rounded-lg text-on-surface-variant/40">
+                    Enter your own correction…
+                  </div>
+                </div>
+                <p className="mt-3 text-center text-[10px] text-on-surface-variant/50">
+                  Ignore this suggestion
+                </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-5 sm:gap-5">
+              <div
+                ref={setRevealRef(7)}
+                className="landing-reveal landing-reveal-delay-1 relative z-0 bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/15 p-6 transition-transform duration-300 ease-out hover:scale-[1.05] hover:z-10"
+              >
+                <div className="w-10 h-10 bg-primary-fixed rounded-lg flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-primary">cloud_upload</span>
+                </div>
+                <h3 className="font-headline font-bold text-lg text-on-surface mb-2">Upload Transcript</h3>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  Drop in your .txt or .rtf transcript from your steno software. Give the case a name and we&apos;ll start the review.
+                </p>
+                <div className="absolute top-5 right-5 text-4xl font-black text-surface-container-high/50 select-none" aria-hidden="true">
+                  01
+                </div>
+              </div>
+              <div
+                ref={setRevealRef(8)}
+                className="landing-reveal landing-reveal-delay-2 relative z-0 bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/15 p-6 transition-transform duration-300 ease-out hover:scale-[1.05] hover:z-10"
+              >
+                <div className="w-10 h-10 bg-tertiary-fixed rounded-lg flex items-center justify-center mb-4">
                   <span className="material-symbols-outlined text-on-tertiary-fixed">analytics</span>
                 </div>
-                <h3 className="font-headline font-bold text-xl mb-3">Review Suggestions</h3>
-                <p className="text-on-surface-variant leading-relaxed">We flag likely spelling issues, homophones, punctuation mistakes, and other context-sensitive errors. You review each one and decide what to keep.</p>
-                <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">02</div>
-              </div>
-              {/* Step 3 */}
-              <div ref={setRevealRef(6)} className="landing-reveal landing-reveal-delay-3 group relative bg-surface-container-lowest p-8 rounded-xl editorial-shadow transition-all hover:translate-y-[-4px]">
-                <div className="w-14 h-14 bg-secondary-container rounded-lg flex items-center justify-center mb-6 group-hover:bg-secondary transition-colors">
-                  <span className="material-symbols-outlined text-on-secondary-container group-hover:text-on-secondary">download_done</span>
+                <h3 className="font-headline font-bold text-lg text-on-surface mb-2">Review Suggestions</h3>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  We flag likely spelling issues, homophones, punctuation mistakes, and other context-sensitive errors. You review each one and decide what to keep.
+                </p>
+                <div className="absolute top-5 right-5 text-4xl font-black text-surface-container-high/50 select-none" aria-hidden="true">
+                  02
                 </div>
-                <h3 className="font-headline font-bold text-xl mb-3">Export Transcript</h3>
-                <p className="text-on-surface-variant leading-relaxed">You stay in control of every change. Accept what looks right, ignore the rest, then download your transcript when you're done reviewing.</p>
-                <div className="absolute top-8 right-8 text-6xl font-black text-surface-container-high/50 -z-0 select-none">03</div>
+              </div>
+              <div
+                ref={setRevealRef(9)}
+                className="landing-reveal landing-reveal-delay-3 relative z-0 bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/15 p-6 transition-transform duration-300 ease-out hover:scale-[1.05] hover:z-10"
+              >
+                <div className="w-10 h-10 bg-secondary-container rounded-lg flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-on-secondary-container">download_done</span>
+                </div>
+                <h3 className="font-headline font-bold text-lg text-on-surface mb-2">Export Transcript</h3>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  You stay in control of every change. Accept what looks right, ignore the rest, then download your transcript when you&apos;re done reviewing.
+                </p>
+                <div className="absolute top-5 right-5 text-4xl font-black text-surface-container-high/50 select-none" aria-hidden="true">
+                  03
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Advanced Diagnostics Section */}
-        <section className="py-16 sm:py-24 px-6 sm:px-8 max-w-[1440px] mx-auto">
-          <div ref={setRevealRef(7)} className="landing-reveal bg-primary rounded-2xl overflow-hidden flex flex-col lg:flex-row">
-            <div className="lg:w-1/2 p-8 sm:p-12 lg:p-20 flex flex-col justify-center">
-              <span className="text-primary-fixed-dim uppercase font-bold tracking-[0.2em] text-xs mb-4">Advanced Diagnostics</span>
-              <h2 className="text-on-primary font-headline font-bold text-3xl sm:text-4xl mb-6">Beyond Spellcheck.</h2>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
-                  <div>
-                    <h4 className="text-on-primary font-bold">Lexical Consistency</h4>
-                    <p className="text-on-primary-container text-sm">Ensures technical terms and names are spelled identically throughout 500+ pages.</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
-                  <div>
-                    <h4 className="text-on-primary font-bold">Context Tracking</h4>
-                    <p className="text-on-primary-container text-sm">Automatically catch contradictions across dates, document references, and witness statements spanning the entire transcript.</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
-                  <div>
-                    <h4 className="text-on-primary font-bold">Confidence Scoring</h4>
-                    <p className="text-on-primary-container text-sm">Every flagged item gets a confidence score so you know exactly where to focus your review.</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="mt-1"><span className="material-symbols-outlined text-tertiary-fixed-dim">check_circle</span></div>
-                  <div>
-                    <h4 className="text-on-primary font-bold">Same-Day Ready</h4>
-                    <p className="text-on-primary-container text-sm">Fast enough to check a same-day rough draft before it ships, something a human usually has to rush for.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="lg:w-1/2 bg-surface-container-high relative min-h-[400px]">
-              <div className="absolute inset-10 bg-surface rounded-xl editorial-shadow p-6 flex flex-col gap-4">
-                <div className="flex gap-2">
-                  <div className="h-2 w-full bg-surface-container rounded"></div>
-                  <div className="h-2 w-24 bg-primary-fixed rounded"></div>
-                </div>
-                <div className="h-4 w-full bg-surface-container-low rounded"></div>
-                <div className="h-4 w-3/4 bg-surface-container-low rounded"></div>
-                <div className="p-4 bg-tertiary-fixed/20 border-l-4 border-tertiary-fixed rounded">
-                  <p className="text-xs italic text-on-surface-variant">"Date validation error: The witness stated the event occurred on November 31st, but November only has 30 days."</p>
-                </div>
-                <div className="h-4 w-full bg-surface-container-low rounded"></div>
-              </div>
-            </div>
-          </div>
-        </section>
         {/* Built for section */}
-        <section className="py-14 sm:py-20 px-6 sm:px-8 bg-surface-container-low">
-          <div ref={setRevealRef(8)} className="landing-reveal max-w-3xl mx-auto text-center">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 inline-block">Built for legal professionals</span>
-            <h2 className="font-headline font-bold text-xl sm:text-2xl text-on-surface mb-5 tracking-tight">
+        <section className="py-14 sm:py-20 px-6 sm:px-8 bg-background">
+          <div ref={setRevealRef(10)} className="landing-reveal max-w-5xl mx-auto text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-3 inline-block">
+              Built for legal professionals
+            </span>
+            <h2 className="font-headline font-bold text-2xl sm:text-3xl text-on-surface mb-4 tracking-tight">
               Designed for stenographers, digital reporters, and voice writers.
             </h2>
-            <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
+            <p className="text-sm text-on-surface-variant leading-relaxed max-w-2xl mx-auto">
               Tuned to the errors that actually show up in legal transcripts: spelling, punctuation, homophone substitutions, legal-term mix-ups, and other context-sensitive mistakes. Trusted by court reporters reviewing depositions, hearings, and trials.
             </p>
           </div>
