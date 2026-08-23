@@ -5,12 +5,12 @@ export default function SiteFooter() {
   return (
     <footer className="w-full border-t border-outline-variant/15">
       <div className="bg-[#f8f9fa]">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-6 sm:px-12 py-8 w-full max-w-[1440px] mx-auto gap-6 md:gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-6 sm:px-12 py-4 w-full max-w-[1440px] mx-auto gap-4 md:gap-4">
           <div>
             <Link to="/" className="hover:opacity-80 transition-opacity">
               <BrandLogo size={22} className="text-xl" />
             </Link>
-            <p className="text-on-surface-variant text-[10px] font-body uppercase tracking-widest mt-2">
+            <p className="text-on-surface-variant text-[10px] font-body uppercase tracking-widest mt-1">
               © 2026 Court Reportcard. All Rights Reserved.
             </p>
           </div>
