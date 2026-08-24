@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   heard_about text,
   heard_about_detail text,
   heard_about_at timestamp with time zone,
+  export_include_line_numbers boolean NOT NULL DEFAULT true,
+  export_include_page_numbers boolean NOT NULL DEFAULT true,
+  auto_advance_on_accept boolean NOT NULL DEFAULT false,
   CONSTRAINT user_tokens_pkey PRIMARY KEY (user_id),
   CONSTRAINT user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
   CONSTRAINT user_profiles_heard_about_status_check CHECK ((heard_about_status = ANY (ARRAY['pending'::text, 'answered'::text, 'skipped'::text, 'legacy'::text])))

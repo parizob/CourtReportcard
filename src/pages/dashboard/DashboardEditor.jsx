@@ -12,6 +12,7 @@ import {
 } from '../../lib/casePersist'
 import { shouldSoftWrapTranscript } from '../../lib/transcriptDisplay'
 import Tooltip from '../../components/Tooltip'
+import { useAuth } from '../../context/AuthContext'
 
 const ANNOTATION_TYPE_LABELS = {
   spelling: 'Spelling',
@@ -35,6 +36,10 @@ const SEVERITY_FILTER_META = {
 
 export default function DashboardEditor() {
   const [searchParams] = useSearchParams()
+  const { preferences } = useAuth()
+  const autoAdvanceRef = useRef(false)
+  autoAdvanceRef.current = preferences?.auto_advance_on_accept === true
+  const jumpToAnnotationRef = useRef(() => {})
   const navigate = useNavigate()
   const caseId = searchParams.get('case')
 
@@ -154,6 +159,25 @@ export default function DashboardEditor() {
     () => sortedAnnotations(annotations.filter((a) => a.status === 'open')),
     [annotations, sortedAnnotations]
   )
+
+  const pickNextOpenAfter = useCallback((anns, closedId) => {
+    const ordered = sortedAnnotations(anns.filter((a) => a.status === 'open'))
+    const idx = ordered.findIndex((a) => a.id === closedId)
+    const remaining = ordered.filter((a) => a.id !== closedId)
+    if (!remaining.length) return null
+    if (idx < 0) return remaining[0]
+    if (idx >= remaining.length) return null
+    return remaining[idx]
+  }, [sortedAnnotations])
+
+  const maybeAutoAdvance = useCallback((closedId, annsBeforeResolve) => {
+    if (!autoAdvanceRef.current) return
+    const next = pickNextOpenAfter(annsBeforeResolve, closedId)
+    if (!next) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => jumpToAnnotationRef.current(next))
+    })
+  }, [pickNextOpenAfter])
 
   useEffect(() => {
     setInsightSeverityFilter('all')
@@ -779,6 +803,7 @@ export default function DashboardEditor() {
       setSaved(false)
       setError('')
       showJumpNotice('Marked as reviewed. Transcript text was not changed.')
+      maybeAutoAdvance(annotationId, curAnnotations)
       void persistNow().then((result) => {
         if (result === 'skipped') {
           setError('Could not save that accept yet. Click Save Changes.')
@@ -1084,6 +1109,7 @@ export default function DashboardEditor() {
     setSaved(false)
     setInlinePopover(null)
     setError('')
+    maybeAutoAdvance(annotationId, curAnnotations)
 
     void persistNow().then((result) => {
       if (result === 'skipped') {
@@ -1093,7 +1119,7 @@ export default function DashboardEditor() {
       console.error('Persist after accept failed:', err)
       setError(err.message || 'Could not save that accept. Click Save Changes and try again.')
     })
-  }, [persistNow, showJumpNotice])
+  }, [persistNow, showJumpNotice, maybeAutoAdvance])
 
   const ignoreAnnotation = useCallback((annotationId) => {
     const curAnnotations = annotationsRef.current
@@ -1105,6 +1131,7 @@ export default function DashboardEditor() {
     setInlinePopover(null)
     setSaved(false)
     setError('')
+    maybeAutoAdvance(annotationId, curAnnotations)
 
     void persistNow().then((result) => {
       if (result === 'skipped') {
@@ -1114,7 +1141,7 @@ export default function DashboardEditor() {
       console.error('Persist after ignore failed:', err)
       setError(err.message || 'Could not save that ignore. Click Save Changes and try again.')
     })
-  }, [persistNow])
+  }, [persistNow, maybeAutoAdvance])
 
   // Jump-to: highlight span → precomputed line from last paint → entry
   // anchor (entries view) → re-locate with multiple needles (original /
@@ -1195,6 +1222,8 @@ export default function DashboardEditor() {
     )
     showJumpNotice('Could not locate this flag in the transcript view.')
   }, [showJumpNotice])
+
+  jumpToAnnotationRef.current = jumpToAnnotation
 
   const reopenAnnotation = useCallback((annotationId) => {
     const curAnnotations = annotationsRef.current

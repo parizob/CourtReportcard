@@ -21,6 +21,7 @@ import DashboardUpload from './pages/dashboard/DashboardUpload'
 import DashboardEditor from './pages/dashboard/DashboardEditor'
 import DashboardExport from './pages/dashboard/DashboardExport'
 import DashboardAccount from './pages/dashboard/DashboardAccount'
+import DashboardSettings from './pages/dashboard/DashboardSettings'
 import DashboardBilling from './pages/dashboard/DashboardBilling'
 import ResetPassword from './pages/ResetPassword'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -57,6 +58,7 @@ function AppShell() {
             <Route path="editor" element={<DashboardEditor />} />
             <Route path="export" element={<DashboardExport />} />
             <Route path="account" element={<DashboardAccount />} />
+            <Route path="settings" element={<DashboardSettings />} />
             <Route path="billing" element={<DashboardBilling />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

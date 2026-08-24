@@ -3,6 +3,21 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
+const DEFAULT_PREFERENCES = {
+  export_include_line_numbers: true,
+  export_include_page_numbers: true,
+  auto_advance_on_accept: false,
+}
+
+function normalizePreferences(row) {
+  if (!row) return { ...DEFAULT_PREFERENCES }
+  return {
+    export_include_line_numbers: row.export_include_line_numbers !== false,
+    export_include_page_numbers: row.export_include_page_numbers !== false,
+    auto_advance_on_accept: row.auto_advance_on_accept === true,
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -11,17 +26,50 @@ export function AuthProvider({ children }) {
   const [tokenBalance, setTokenBalance] = useState(null)
   const [userPlan, setUserPlan] = useState(null)
   const [planRenewsAt, setPlanRenewsAt] = useState(null)
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES)
+  const [preferencesLoading, setPreferencesLoading] = useState(false)
 
   const fetchTokenBalance = useCallback(async (uid) => {
-    if (!uid) { setTokenBalance(null); setUserPlan(null); setPlanRenewsAt(null); return }
+    if (!uid) {
+      setTokenBalance(null)
+      setUserPlan(null)
+      setPlanRenewsAt(null)
+      setPreferences(DEFAULT_PREFERENCES)
+      setPreferencesLoading(false)
+      return
+    }
+    setPreferencesLoading(true)
     const { data } = await supabase
       .from('user_profiles')
-      .select('balance, plan, plan_renews_at')
+      .select(
+        'balance, plan, plan_renews_at, export_include_line_numbers, export_include_page_numbers, auto_advance_on_accept',
+      )
       .eq('user_id', uid)
       .single()
     setTokenBalance(data?.balance ?? 0)
     setUserPlan(data?.plan ?? null)
     setPlanRenewsAt(data?.plan_renews_at ?? null)
+    setPreferences(normalizePreferences(data))
+    setPreferencesLoading(false)
+  }, [])
+
+  const updatePreferences = useCallback(async (patch) => {
+    const { data, error } = await supabase.rpc('update_user_preferences', {
+      p_export_include_line_numbers:
+        patch.export_include_line_numbers === undefined
+          ? null
+          : patch.export_include_line_numbers,
+      p_export_include_page_numbers:
+        patch.export_include_page_numbers === undefined
+          ? null
+          : patch.export_include_page_numbers,
+      p_auto_advance_on_accept:
+        patch.auto_advance_on_accept === undefined ? null : patch.auto_advance_on_accept,
+    })
+    if (error) throw error
+    const next = normalizePreferences(data)
+    setPreferences(next)
+    return next
   }, [])
 
   // Balance is mutated only through SECURITY DEFINER RPCs — the client has no
@@ -68,6 +116,7 @@ export function AuthProvider({ children }) {
         setTokenBalance(null)
         setUserPlan(null)
         setPlanRenewsAt(null)
+        setPreferences(DEFAULT_PREFERENCES)
       }
     })
 
@@ -107,6 +156,7 @@ export function AuthProvider({ children }) {
     setTokenBalance(null)
     setUserPlan(null)
     setPlanRenewsAt(null)
+    setPreferences(DEFAULT_PREFERENCES)
   }
 
   const openModal = (tab = 'signin') => { setModalTab(tab); setModalOpen(true) }
@@ -122,6 +172,9 @@ export function AuthProvider({ children }) {
       tokenBalance,
       userPlan,
       planRenewsAt,
+      preferences,
+      preferencesLoading,
+      updatePreferences,
       spendTokens,
       refundTokens,
       refreshTokens: () => user && fetchTokenBalance(user.id),

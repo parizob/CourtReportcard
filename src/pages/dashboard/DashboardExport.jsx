@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
@@ -7,10 +7,14 @@ import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
 import { detectExportNumbering, formatExportText } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
 import { trackEvent } from '../../lib/telemetry'
+import { useAuth } from '../../context/AuthContext'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
   const caseId = searchParams.get('case')
+  const { preferences } = useAuth()
+  const preferencesRef = useRef(preferences)
+  preferencesRef.current = preferences
 
   const [caseData, setCaseData] = useState(null)
   const [entries, setEntries] = useState([])
@@ -77,8 +81,15 @@ export default function DashboardExport() {
         const numbering = detectExportNumbering(parsed.originalText || '')
         setHasLineNumbers(numbering.hasLineNumbers)
         setHasPageNumbers(numbering.hasPageNumbers)
-        setIncludeLineNumbers(numbering.hasLineNumbers)
-        setIncludePageNumbers(numbering.hasPageNumbers)
+        // Seed from Settings prefs when the file has that numbering.
+        // Local toggles are a one-off override for this visit only.
+        const prefs = preferencesRef.current
+        setIncludeLineNumbers(
+          numbering.hasLineNumbers && prefs?.export_include_line_numbers !== false,
+        )
+        setIncludePageNumbers(
+          numbering.hasPageNumbers && prefs?.export_include_page_numbers !== false,
+        )
 
         // File is source of truth. Sync metrics from it so dashboard matches
         // what they can download. In-session save failures are fail-closed above.

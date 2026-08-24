@@ -360,6 +360,14 @@ export default function SiteHeader() {
                     Account
                   </Link>
                   <Link
+                    to="/dashboard/settings"
+                    onClick={() => setAccountOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-base">settings</span>
+                    Settings
+                  </Link>
+                  <Link
                     to="/dashboard/billing"
                     onClick={() => setAccountOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
