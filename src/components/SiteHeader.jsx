@@ -376,14 +376,6 @@ export default function SiteHeader() {
                     Plans &amp; Billing
                   </Link>
                   <Link
-                    to="/dashboard"
-                    onClick={() => setAccountOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-base">dashboard</span>
-                    Dashboard
-                  </Link>
-                  <Link
                     to="/support"
                     onClick={() => setAccountOpen(false)}
                     className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
