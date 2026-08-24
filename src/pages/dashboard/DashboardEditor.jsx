@@ -395,6 +395,41 @@ export default function DashboardEditor() {
       setCaseData(caseRow)
 
       const extractedFile = caseRow.case_files?.find((f) => f.file_type === 'extracted')
+        || await (async () => {
+          // Heal orphaned storage (KUNECKI): JSON exists but case_files row missing.
+          const prefix = `${caseRow.user_id}/${caseId}/extracted`
+          const { data: listed, error: listErr } = await supabase.storage
+            .from('case-files')
+            .list(prefix, { limit: 20 })
+          if (listErr || !listed?.length) return null
+          const jsonFile = listed.find((f) => /\.json$/i.test(f.name)) || listed[0]
+          if (!jsonFile?.name) return null
+          const storagePath = `${prefix}/${jsonFile.name}`
+          const fileSize = jsonFile.metadata?.size ?? jsonFile.metadata?.contentLength ?? null
+          const { data: healed, error: healErr } = await supabase
+            .from('case_files')
+            .insert({
+              case_id: caseId,
+              file_type: 'extracted',
+              file_name: jsonFile.name,
+              file_size: typeof fileSize === 'number' ? fileSize : null,
+              storage_path: storagePath,
+              mime_type: 'application/json',
+            })
+            .select('*')
+            .single()
+          if (healErr) {
+            // Concurrent heal or race: re-read case_files.
+            console.warn('Editor load: heal extracted case_files failed', healErr.message)
+            const { data: refreshed } = await supabase
+              .from('cases')
+              .select('case_files(*)')
+              .eq('id', caseId)
+              .single()
+            return refreshed?.case_files?.find((f) => f.file_type === 'extracted') || null
+          }
+          return healed
+        })()
       if (extractedFile) {
         // Set path ref before canPersist — persist must never skip for a missing
         // path while the UI is already interactive (useEffect sync is one tick late).

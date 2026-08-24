@@ -2113,6 +2113,35 @@ async function dispatchProofreadBatches(
  * race-claim merge when every batch JSON is present.
  * Returns 'merged' | 'dispatched' | 'waiting' | 'busy_merge'.
  */
+async function ensureExtractedCaseFileRow(
+  admin: any,
+  opts: { caseId: string; fileName: string; storagePath: string; fileSize: number },
+): Promise<void> {
+  const { caseId, fileName, storagePath, fileSize } = opts
+  const { data: existing, error: selErr } = await admin
+    .from('case_files')
+    .select('id')
+    .eq('case_id', caseId)
+    .eq('storage_path', storagePath)
+    .limit(1)
+  if (selErr) {
+    throw new Error(`case_files lookup failed for extracted pointer: ${selErr.message}`)
+  }
+  if ((existing?.length ?? 0) > 0) return
+
+  const { error: insErr } = await admin.from('case_files').insert({
+    case_id: caseId,
+    file_type: 'extracted',
+    file_name: fileName,
+    file_size: fileSize,
+    storage_path: storagePath,
+    mime_type: 'application/json',
+  })
+  if (insErr) {
+    throw new Error(`case_files extracted insert failed: ${insErr.message}`)
+  }
+}
+
 async function refillProofreadWaveOrMerge(opts: {
   admin: any
   SUPABASE_URL: string
@@ -2142,6 +2171,16 @@ async function refillProofreadWaveOrMerge(opts: {
 
   const { data: existingFinal } = await admin.storage.from('case-files').list(extractedDir, { search: finalName })
   if ((existingFinal?.length ?? 0) > 0) {
+    // Storage can exist without a case_files row (KUNECKI-class orphan). Heal
+    // the pointer before advancing or the editor shows an empty transcript.
+    const meta = existingFinal.find((f: { name: string }) => f.name === finalName) || existingFinal[0]
+    const size = meta?.metadata?.size ?? meta?.metadata?.contentLength ?? 0
+    await ensureExtractedCaseFileRow(admin, {
+      caseId,
+      fileName: finalName,
+      storagePath: finalPath,
+      fileSize: typeof size === 'number' ? size : 0,
+    })
     await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
       case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0,
     })
@@ -2236,13 +2275,11 @@ async function refillProofreadWaveOrMerge(opts: {
 
       const finalBytes = new TextEncoder().encode(JSON.stringify(finalJson, null, 2))
       await admin.storage.from('case-files').upload(finalPath, finalBytes, { upsert: true, contentType: 'application/json' })
-      await admin.from('case_files').insert({
-        case_id: caseId,
-        file_type: 'extracted',
-        file_name: finalName,
-        file_size: finalBytes.byteLength,
-        storage_path: finalPath,
-        mime_type: 'application/json',
+      await ensureExtractedCaseFileRow(admin, {
+        caseId,
+        fileName: finalName,
+        storagePath: finalPath,
+        fileSize: finalBytes.byteLength,
       })
       await admin.storage.from('case-files').remove([entriesPath, ...batchPaths, ...claimPaths, lockPath])
 
@@ -2775,7 +2812,15 @@ Deno.serve(async (req: Request) => {
         let totalDropped = 0
         const byType: Record<string, number> = {}
         for (const f of extractedFiles || []) {
-          const { data: blob } = await admin.storage.from('case-files').download(`${extractedDir}/${f.name}`)
+          const storagePath = `${extractedDir}/${f.name}`
+          const size = f.metadata?.size ?? f.metadata?.contentLength ?? 0
+          await ensureExtractedCaseFileRow(admin, {
+            caseId,
+            fileName: f.name,
+            storagePath,
+            fileSize: typeof size === 'number' ? size : 0,
+          })
+          const { data: blob } = await admin.storage.from('case-files').download(storagePath)
           if (!blob) continue
           const finalJson = JSON.parse(await blob.text())
           totalEntries += (finalJson.entries || []).length
@@ -2854,6 +2899,14 @@ Deno.serve(async (req: Request) => {
   if ((existingFinal?.length ?? 0) > 0) {
     const work = (async () => {
       try {
+        const meta = existingFinal.find((f: { name: string }) => f.name === finalName) || existingFinal[0]
+        const size = meta?.metadata?.size ?? meta?.metadata?.contentLength ?? 0
+        await ensureExtractedCaseFileRow(admin, {
+          caseId,
+          fileName: finalName,
+          storagePath: finalPath,
+          fileSize: typeof size === 'number' ? size : 0,
+        })
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'proofread', file_index: fileIndex + 1, batch_index: 0, attempt: 0 })
       } catch (err) {
         await handleFailure(admin, caseRow, caseId, err, `proofread file_index advance (file ${fileIndex})`)
