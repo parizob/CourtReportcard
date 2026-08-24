@@ -1,0 +1,44 @@
+{
+  "transcript": "transcript_10_am_pm_provide_fp.txt",
+  "description": "Alison FP regression (2026-08-24). Valid 12:45 p.m. and 3 p.m. must NOT be deleted as extra_word; grammatical provide forms must NOT become provided. Positive control: doubled p.m. p.m. should still flag. Also seeded the the.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "the the",
+      "type": "extra_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "the plaintiff",
+      "note": "Real doubled article: 'counsel for the the plaintiff'."
+    },
+    {
+      "id": 2,
+      "match": "p.m. p.m.",
+      "type": "extra_word",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "p.m.",
+      "note": "Positive control: doubled time marker should STILL flag as extra_word. Guardrail must not suppress this."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "12:45 p.m.",
+      "note": "CORRECT clock time with minutes. Must NOT flag p.m. as extra_word."
+    },
+    {
+      "text": "3 p.m.",
+      "note": "CORRECT even-hour form (no :00). Must NOT flag p.m. as extra_word."
+    },
+    {
+      "text": "9:00 a.m. - 10:15 a.m.",
+      "note": "CORRECT caption times. Must NOT flag a.m. as extra_word."
+    },
+    {
+      "text": "Did ComEd provide more than five years",
+      "note": "CORRECT do-support + base verb. Must NOT rewrite provide → provided."
+    },
+    {
+      "text": "to provide a\n               18   different perspective",
+      "note": "CORRECT infinitive. Must NOT rewrite provide → provided."
+    }
+  ]
+}

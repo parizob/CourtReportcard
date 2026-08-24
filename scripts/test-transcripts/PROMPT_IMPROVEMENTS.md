@@ -17,6 +17,68 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Applied: 2026-08-24 — Guard a.m./p.m. and grammatical base-form verbs (Alison FP)
+
+**Source:** Paying user `stenoalison@gmail.com` (Prod). False positives on a
+finished job: (1) `extra_word` critical deleting `p.m.` from a valid clock
+time (`12:45 p.m.` next to an exhibit admission); (2) `spelling`/`grammar`
+critical rewriting `provide` → `provided` in grammatical constructions
+(`to provide a different perspective`; `Did ComEd provide more than…`).
+
+**Bucket:** Guardrail only (mechanically checkable from text; suppress bad
+flags). Prompt already teaches a.m./p.m. as normal time style (numbers
+rules) but lacks an EXTRA_WORD do-not-delete. Tense over-correction is
+new.
+
+**RULES bullets** (after `pled`, before `any`):
+
+```
+- Do NOT flag "a.m." or "p.m." as "extra_word",
+  missing text, or a steno artifact when they appear as a normal time-of-day
+  marker with a clock time or hour (e.g., "12:45 p.m.", "9 a.m.", "3 p.m.").
+  This exemption covers a single time marker next to a time ONLY.
+- DO flag an immediate doubled time marker … "p.m. p.m." / "a.m. a.m." …
+- Do NOT rewrite a verb into a different tense or participle when the form
+  on the page is already grammatical for its construction. ...
+```
+
+**Applied:** 2026-08-24 in `supabase/functions/analyze-case/prompts.ts` +
+`src/lib/gemini.js`. Deployed `analyze-case` to **Dev**.
+
+**Harness** (`transcript_10_am_pm_provide_fp.txt`, 3 runs, temp 0):
+- Alison traps: **0/3** flagged `p.m.` as extra_word; **0/3** rewrote
+  `provide` → `provided`.
+- Seeded `the the`: **3/3** caught.
+- Seeded `p.m. p.m.`: **0/3** on first wording (exemption buried the
+  "still flag doubles" clause). After splitting into DO-flag bullet:
+  **2/3**. After also putting the example on the `extra_word` category
+  line and carving doubles out of EXTRA_WORD DOUBLED-WORD EXEMPTION:
+  _(retest below)_.
+- Unrelated noise: intermittent caption `vs.`→`v.`.
+
+**Prod deploy:** pending user OK.
+
+### Applied follow-up: 2026-08-24 — Catch doubled p.m./a.m. junk
+
+**Why it missed:** Extract preserved `"The clerk wrote p.m. p.m. on the stamp…"`.
+Proofread over-generalized the new single-marker exemption (and possibly
+the "that that" doubled-word exemption) and skipped the positive control.
+
+**Prompt-only tighten** (DO-flag bullet + category example + carve-out from
+DOUBLED-WORD EXEMPTION): flaky — **2/3** then **0/3**. Not good enough.
+
+**Code fix (authoritative):** `detectDoubledTimeMarkers` /
+`mergeDoubledTimeMarkerAnnotations` in `src/lib/gemini.js` + mirrored in
+`analyze-case/index.ts`. Regex for immediate identical time-marker doubles
+with or without periods (`p.m. p.m.`, `pm pm`, `a.m a.m`, `am. am.`, …).
+Wired into harness path, Edge proofread merge, and editor load heal.
+Unit: `node scripts/test-doubled-time-markers.mjs`.
+
+**Harness:** `transcript_10` ×3 after deterministic merge: **3/3** recall
+on both seeds; Alison traps still clean (no single-`p.m.` / `provide` FPs).
+
+**Prod deploy:** pending user OK (Edge + frontend editor heal).
+
 ### Rule: 2026-08-21 — Extract compact JSON / no blank-line spiral — APPLIED
 
 **Source:** Prod extract failures (~4% of charged jobs in prior 7 days): Gloria

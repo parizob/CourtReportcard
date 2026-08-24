@@ -1294,6 +1294,76 @@ function mergeStructuralReviewAnnotations(originalText: string | undefined, entr
   )
 }
 
+// Mirrors src/lib/gemini.js detectDoubledTimeMarkers / mergeDoubledTimeMarkerAnnotations.
+// Identical pairs with or without periods: "p.m. p.m.", "pm pm", "a.m a.m", etc.
+const DOUBLED_TIME_MARKER_RE = /(?<![A-Za-z0-9])([ap]\.?m\.?)\s+\1(?![A-Za-z0-9])/gi
+
+function detectDoubledTimeMarkers(entries: any[]): any[] {
+  const flags: any[] = []
+  for (const entry of entries || []) {
+    const text = entry?.text || ''
+    if (!text) continue
+    const re = new RegExp(DOUBLED_TIME_MARKER_RE.source, 'gi')
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      flags.push({
+        type: 'extra_word',
+        severity: 'critical',
+        original: m[0],
+        suggestion: m[1],
+        explanation:
+          'Identical time marker repeated back-to-back with no clock digits between the copies.',
+        confidence: 1,
+        entry_id: entry.id,
+        start: m.index,
+        end: m.index + m[0].length,
+        status: 'open',
+        _source: 'deterministic',
+      })
+    }
+  }
+  return flags
+}
+
+function mergeDoubledTimeMarkerAnnotations(entries: any[], annotations: any[]): any[] {
+  const base = Array.isArray(annotations) ? annotations : []
+  const detected = detectDoubledTimeMarkers(entries)
+  if (!detected.length) return base
+
+  const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const covered = (d: any) =>
+    base.some((a) => {
+      if (a?.entry_id !== d.entry_id) return false
+      const ao = normalize(a.original)
+      const dn = normalize(d.original)
+      if (!ao || !dn) return false
+      if (ao === dn || ao.includes(dn) || dn.includes(ao)) return true
+      if (
+        typeof a.start === 'number' &&
+        typeof a.end === 'number' &&
+        a.end > a.start &&
+        a.start < d.end &&
+        d.start < a.end
+      ) {
+        return true
+      }
+      return false
+    })
+
+  let maxId = 0
+  for (const a of base) {
+    const n = Number(a?.id)
+    if (Number.isFinite(n) && n > maxId) maxId = n
+  }
+
+  const added: any[] = []
+  for (const d of detected) {
+    if (covered(d)) continue
+    added.push({ ...d, id: ++maxId })
+  }
+  return added.length ? [...base, ...added] : base
+}
+
 function deduplicateTranscript(rawEntries: any[], rawAnnotations: any[]): { entries: any[]; annotations: any[] } {
   const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
   const entryKeyMap: Record<string, number> = {}
@@ -2261,6 +2331,8 @@ async function refillProofreadWaveOrMerge(opts: {
       }
       allAnnotations.forEach((a, i) => { a.id = i + 1 })
       allAnnotations = mergeStructuralReviewAnnotations(originalText, entries, allAnnotations)
+      allAnnotations = mergeDoubledTimeMarkerAnnotations(entries, allAnnotations)
+      allAnnotations.forEach((a, i) => { a.id = i + 1 })
 
       const finalJson: any = {
         title: title || '',

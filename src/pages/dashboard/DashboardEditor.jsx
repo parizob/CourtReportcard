@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase, downloadCaseFile } from '../../lib/supabase'
-import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, stripEntriesLineNumberGutters, dropLineNumberOnlyAnnotations, expandExactRepeatAnnotations, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
+import { fixAnnotationPositions, filterPhantomFixes, deduplicateTranscript, flexFind, applyCorrectionDetailed, expandDeletionRange, buildCleanContentMap, locateAnnotationInCleanContent, locateAnnotationWithAnchor, locateAtAnchorStrict, isSuggestionAlreadyApplied, locateNeedleNear, shiftAcceptedApplySites, repairAcceptedCleanSpans, buildUniqueContextAnchor, ensureAnnotationAnchors, wouldFlattenTranscriptStructure, missingCrossLineReopenBytes, sanitizeAnnotationsLeakedLineNumbers, sanitizeAnnotationLeakedLineNumbers, stripEntriesLineNumberGutters, dropLineNumberOnlyAnnotations, expandExactRepeatAnnotations, jumpSearchNeedles, resolveJumpLineIndex, lineParticipatesInNeedle, dropTranscriptUnplaceableAnnotations, mergeStructuralReviewAnnotations, mergeDoubledTimeMarkerAnnotations, isReviewOnlyAnnotation, compactSpanText } from '../../lib/gemini'
 import {
   clearCasePersistError,
   waitForCasePersists,
@@ -497,10 +497,13 @@ export default function DashboardEditor() {
         }
         // Deterministic review-only flags: repeated Q/A + role-label typos (THE CUORT).
         // Force critical severity so older saved warning flags paint correctly.
-        const fixedAnnotations = mergeStructuralReviewAnnotations(
-          parsed.originalText || null,
+        const fixedAnnotations = mergeDoubledTimeMarkerAnnotations(
           gutterCleanEntries,
-          placeableAnnotations
+          mergeStructuralReviewAnnotations(
+            parsed.originalText || null,
+            gutterCleanEntries,
+            placeableAnnotations
+          )
         ).map((a) =>
           isReviewOnlyAnnotation(a) && a.status === 'open'
             ? { ...a, severity: 'critical' }
