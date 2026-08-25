@@ -24,6 +24,7 @@
     "test:proofread-parallel": "node scripts/test-proofread-parallel.mjs",
     "test:settings-finds": "node scripts/test-settings-and-finds.mjs",
     "test:user-finds": "node scripts/test-user-finds.mjs",
+    "test:failure-email": "node scripts/test-analysis-failure-email.mjs",
     "check:schema-parity": "node scripts/check-schema-parity.mjs",
     "seed:export-mock": "node scripts/seed-export-mock-case.mjs",
     "seed:sample-transcript": "node scripts/seed-sample-transcript-case.mjs",

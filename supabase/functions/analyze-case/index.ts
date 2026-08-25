@@ -16,6 +16,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum, buildProofreadReferenceDateBlock } from './prompts.ts'
 import {
+  escapeHtml,
+  failureEmailHtml,
+  failureEmailKind,
+  isProhibitedContentError,
+} from './emails.ts'
+import {
   PROOFREAD_PARALLEL_CONCURRENCY,
   PROOFREAD_CLAIM_STALE_MS,
   PROOFREAD_WATCHDOG_GRACE_MS,
@@ -79,6 +85,7 @@ const ENTRIES_PER_PROOFREAD_BATCH = 250
 // (timeout, momentary 5xx). Empty proofread results retry here too, then
 // accept and continue (see MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY). Won't help
 // a chunk whose content deterministically confuses the model at temperature:0.
+// PROHIBITED_CONTENT (Gemini content filter) fails immediately — no retries.
 // Raised from 3 to 4 on 2026-07-16 alongside the ENTRIES_PER_PROOFREAD_BATCH trim.
 const MAX_CHUNK_ATTEMPTS = 4
 // A non-trivial proofread batch that returns zero annotations may be a
@@ -264,9 +271,17 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
 
   if (!rawText) {
     console.warn(`Gemini returned no content (${model}):`, JSON.stringify(diag))
+    const block = String(diag.blockReason || '')
+    const finish = String(diag.finishReason || '')
+    if (/PROHIBITED_CONTENT/i.test(block) || /PROHIBITED_CONTENT/i.test(finish)) {
+      throw new Error(
+        `PROHIBITED_CONTENT: Gemini blocked this request ` +
+        `(blockReason=${block || 'none'} finishReason=${finish || 'unknown'})`,
+      )
+    }
     throw new Error(
-      `Gemini returned no content. finishReason=${diag.finishReason || 'unknown'} ` +
-      `blockReason=${diag.blockReason || 'none'} parts=${diag.partCount}`,
+      `Gemini returned no content. finishReason=${finish || 'unknown'} ` +
+      `blockReason=${block || 'none'} parts=${diag.partCount}`,
     )
   }
 
@@ -1703,15 +1718,6 @@ async function mergeExtractionChunks(
 }
 
 // ── Email (Resend) ──
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   if (!apiKey) {
@@ -1776,31 +1782,6 @@ function zeroIssueAlertHtml(opts: {
           Skim for material misses. If it looks clean, do nothing. If you find real errors, email the user personally.
         </p>
         <a href="${editorUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Open in Editor</a>
-      </div>
-    </div>
-  `
-}
-
-function failureEmailHtml(caseName: string, refunded: number, repeatFailure = false): string {
-  const supportUrl = `${SITE_URL}/support`
-  const safeName = escapeHtml(caseName)
-  const nextStep = repeatFailure
-    ? `This is the second time this specific file has run into a problem. Sometimes that's something about the file, sometimes it's on our end, we're not sure yet without a closer look. Instead of trying again, email us at <a href="mailto:support@courtreportcard.com" style="color: #001939; font-weight: 700; text-decoration: underline;">support@courtreportcard.com</a> or use <a href="${supportUrl}" style="color: #001939; font-weight: 700; text-decoration: underline;">Contact Support</a> so we can check what's actually going on.`
-    : `This is usually a temporary issue. Please try uploading again. If it happens a second time, reach out and we'll take a look. Don't keep retrying the same file over and over.`
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
-      <div style="background: #001939; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-        <p style="color: white; font-size: 18px; font-weight: 800; margin: 0;">We couldn't finish your transcript</p>
-      </div>
-      <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
-        <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          We hit a problem analyzing <strong>${safeName}</strong>, so it wasn't completed.
-          We've <strong>refunded ${Number(refunded) || 0} token${refunded === 1 ? '' : 's'}</strong>. You weren't charged.
-        </p>
-        <p style="font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
-          ${nextStep}
-        </p>
-        <a href="${supportUrl}" style="display: inline-block; background: #001939; color: white; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">Contact Support</a>
       </div>
     </div>
   `
@@ -1946,10 +1927,11 @@ async function handleFailure(admin: any, caseRow: any, caseId: string, err: unkn
 
   const email = (userResult as any)?.data?.user?.email
   if (email) {
+    const kind = failureEmailKind(err, repeatFailure)
     await sendEmail(
       email,
       `We couldn't finish analyzing ${claimed.name}`,
-      failureEmailHtml(claimed.name, refund, repeatFailure),
+      failureEmailHtml(claimed.name, refund, kind, SITE_URL),
     )
   }
 }
@@ -2847,7 +2829,8 @@ Deno.serve(async (req: Request) => {
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
       } catch (err) {
         const stage = `extract file ${fileIndex} chunk ${chunkIndex} attempt ${attempt}`
-        if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+        const canRetry = !isProhibitedContentError(err) && attempt < MAX_CHUNK_ATTEMPTS - 1
+        if (canRetry) {
           try {
             await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: attempt + 1 })
           } catch (retryErr) {
@@ -3123,7 +3106,8 @@ Deno.serve(async (req: Request) => {
         }
       }
       const stage = `proofread file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
-      if (attempt < MAX_CHUNK_ATTEMPTS - 1) {
+      const canRetry = !isProhibitedContentError(err) && attempt < MAX_CHUNK_ATTEMPTS - 1
+      if (canRetry) {
         try {
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
             case_id: caseId,
