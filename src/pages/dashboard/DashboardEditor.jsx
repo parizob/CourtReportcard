@@ -3557,10 +3557,10 @@ export default function DashboardEditor() {
                 <button
                   type="button"
                   onClick={downloadUserFinds}
-                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                  className="group text-xs font-bold text-primary flex items-center gap-1.5"
                 >
-                  <span className="material-symbols-outlined text-base">download</span>
-                  Download list
+                  <span className="material-symbols-outlined text-base transition-transform duration-200 group-hover:translate-y-0.5">download</span>
+                  <span className="group-hover:underline">Download list</span>
                 </button>
               </div>
             )}
