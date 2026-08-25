@@ -1,22 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { DEFAULT_PREFERENCES, normalizePreferences } from '../lib/userPreferences'
 
 const AuthContext = createContext(null)
-
-const DEFAULT_PREFERENCES = {
-  export_include_line_numbers: true,
-  export_include_page_numbers: true,
-  auto_advance_on_accept: false,
-}
-
-function normalizePreferences(row) {
-  if (!row) return { ...DEFAULT_PREFERENCES }
-  return {
-    export_include_line_numbers: row.export_include_line_numbers !== false,
-    export_include_page_numbers: row.export_include_page_numbers !== false,
-    auto_advance_on_accept: row.auto_advance_on_accept === true,
-  }
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)

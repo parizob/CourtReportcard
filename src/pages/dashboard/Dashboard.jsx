@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
+import { supabase, downloadCaseFile } from '../../lib/supabase'
 import Tooltip from '../../components/Tooltip'
 import HeardAboutPrompt from '../../components/HeardAboutPrompt'
 import { retryStuckCases } from '../../lib/backgroundAnalysis'
 import { waitForCasePersists } from '../../lib/casePersist'
+import { normalizeUserFinds, formatUserFindsDownload, triggerTextDownload } from '../../lib/userFinds'
 
 export default function Dashboard() {
   const { displayName, user } = useAuth()
@@ -17,6 +18,8 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [viewTarget, setViewTarget] = useState(null)
+  const [viewFinds, setViewFinds] = useState([])
+  const [viewFindsLoading, setViewFindsLoading] = useState(false)
   const [downloading, setDownloading] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showHeardAbout, setShowHeardAbout] = useState(false)
@@ -25,6 +28,10 @@ export default function Dashboard() {
   // Tracks statuses from the previous poll so we can detect processing→analyzed flips.
   // null means "initial load not yet done" — we never fire events on first load.
   const prevStatusesRef = useRef(null)
+  /** @type {React.MutableRefObject<Map<string, import('../../lib/userFinds').UserFind[]>>} */
+  const findsCacheRef = useRef(new Map())
+  /** @type {React.MutableRefObject<Map<string, Promise<import('../../lib/userFinds').UserFind[]>>>} */
+  const findsInflightRef = useRef(new Map())
 
   useEffect(() => {
     fetchCases(true).then(() => {
@@ -119,6 +126,8 @@ export default function Dashboard() {
       if (error) throw error
 
       setCases((prev) => prev.filter((c) => c.id !== deleteTarget.id))
+      findsCacheRef.current.delete(deleteTarget.id)
+      findsInflightRef.current.delete(deleteTarget.id)
       setDeleteTarget(null)
     } catch (err) {
       console.error('Delete failed:', err)
@@ -127,6 +136,68 @@ export default function Dashboard() {
       setDeleting(false)
     }
   }
+
+  const loadFindsForCase = (caseRow, { force = false } = {}) => {
+    if (!caseRow?.id) return Promise.resolve([])
+    if (!force && findsCacheRef.current.has(caseRow.id)) {
+      return Promise.resolve(findsCacheRef.current.get(caseRow.id))
+    }
+    const inflight = findsInflightRef.current.get(caseRow.id)
+    if (inflight) return inflight
+    const promise = (async () => {
+      try {
+        const extracted = (caseRow.case_files || []).find((f) => f.file_type === 'extracted')
+        if (!extracted?.storage_path) {
+          findsCacheRef.current.set(caseRow.id, [])
+          return []
+        }
+        const { data: blob, error } = await downloadCaseFile(extracted.storage_path)
+        if (error) throw error
+        const parsed = JSON.parse(await blob.text())
+        const finds = normalizeUserFinds(parsed.userFinds)
+        findsCacheRef.current.set(caseRow.id, finds)
+        return finds
+      } catch (err) {
+        console.warn('Could not load my finds for case modal:', err)
+        if (!findsCacheRef.current.has(caseRow.id)) findsCacheRef.current.set(caseRow.id, [])
+        return findsCacheRef.current.get(caseRow.id) || []
+      } finally {
+        findsInflightRef.current.delete(caseRow.id)
+      }
+    })()
+    findsInflightRef.current.set(caseRow.id, promise)
+    return promise
+  }
+
+  const prefetchFinds = (caseRow) => {
+    void loadFindsForCase(caseRow)
+  }
+
+  useEffect(() => {
+    if (!viewTarget) {
+      setViewFinds([])
+      setViewFindsLoading(false)
+      return
+    }
+    // Paint cache immediately so My finds does not pop in a second later.
+    const cached = findsCacheRef.current.get(viewTarget.id)
+    if (cached) {
+      setViewFinds(cached)
+      setViewFindsLoading(false)
+    } else {
+      setViewFinds([])
+      setViewFindsLoading(true)
+    }
+    let cancelled = false
+    // Refresh in background so editor edits are not stuck behind a stale cache.
+    loadFindsForCase(viewTarget, { force: true }).then((finds) => {
+      if (!cancelled) {
+        setViewFinds(finds)
+        setViewFindsLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [viewTarget])
 
   const handleDownload = async (file) => {
     setDownloading(file.id)
@@ -431,6 +502,8 @@ export default function Dashboard() {
                         </span>
                       ) : (
                         <button
+                          onMouseEnter={() => prefetchFinds(c)}
+                          onFocus={() => prefetchFinds(c)}
                           onClick={() => setViewTarget(c)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
                         >
@@ -563,7 +636,7 @@ export default function Dashboard() {
               <p className="text-sm text-on-surface-variant text-center py-8">No original files found for this case.</p>
             ) : (
               <div className="space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Uploaded Files</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Files</p>
                 {originalFiles(viewTarget).map((f) => (
                   <div key={f.id} className="flex items-center justify-between bg-surface-container/40 rounded-xl p-4">
                     <div className="flex items-center gap-3 min-w-0">
@@ -575,7 +648,7 @@ export default function Dashboard() {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-on-surface truncate">{f.file_name}</p>
                         <p className="text-[10px] text-on-surface-variant">
-                          {f.file_type === 'transcript' ? 'Transcript' : 'Audio'} &middot; {formatSize(f.file_size)}
+                          {f.file_type === 'transcript' ? 'Uploaded transcript' : 'Uploaded audio'} &middot; {formatSize(f.file_size)}
                         </p>
                       </div>
                     </div>
@@ -593,6 +666,36 @@ export default function Dashboard() {
                     </button>
                   </div>
                 ))}
+                {(viewFindsLoading || viewFinds.length > 0) && (
+                  <div className="flex items-center justify-between bg-surface-container/40 rounded-xl p-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-secondary-container">
+                        <span className="material-symbols-outlined text-lg text-on-secondary-container">playlist_add_check</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-on-surface truncate">My finds</p>
+                        <p className="text-[10px] text-on-surface-variant">
+                          {viewFindsLoading && viewFinds.length === 0
+                            ? 'Loading…'
+                            : `${viewFinds.length} find${viewFinds.length === 1 ? '' : 's'}`}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (viewFindsLoading && viewFinds.length === 0) return
+                        const body = formatUserFindsDownload(viewFinds)
+                        const base = (viewTarget.name || 'transcript').replace(/[^\w.\- ]+/g, '').trim() || 'transcript'
+                        triggerTextDownload(body, `${base}_finds.txt`)
+                      }}
+                      disabled={viewFindsLoading && viewFinds.length === 0}
+                      className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline shrink-0 ml-3 disabled:opacity-40 disabled:no-underline disabled:cursor-default"
+                    >
+                      <span className="material-symbols-outlined text-base">download</span>
+                      Download
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

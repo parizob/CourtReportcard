@@ -13,6 +13,15 @@ import {
 import { shouldSoftWrapTranscript } from '../../lib/transcriptDisplay'
 import Tooltip from '../../components/Tooltip'
 import { useAuth } from '../../context/AuthContext'
+import {
+  normalizeUserFinds,
+  nextUserFindId,
+  formatUserFindsDownload,
+  buildUserFindFromLine,
+  attachPageNumbersToLines,
+  triggerTextDownload,
+} from '../../lib/userFinds'
+import { nextOpenAfterResolve } from '../../lib/userPreferences'
 
 const ANNOTATION_TYPE_LABELS = {
   spelling: 'Spelling',
@@ -86,11 +95,17 @@ export default function DashboardEditor() {
     }
   })
   const [insightsPaneActive, setInsightsPaneActive] = useState(false)
+  const [userFinds, setUserFinds] = useState([])
+  const [findDraft, setFindDraft] = useState(null) // { text, lineIdx, top, left, note }
+  const [findNoteEditId, setFindNoteEditId] = useState(null)
+  const [findNoteDraft, setFindNoteDraft] = useState('')
+  const [findsModalOpen, setFindsModalOpen] = useState(false)
 
   const entriesRef = useRef(entries)
   const annotationsRef = useRef(annotations)
   const originalTextRef = useRef(originalText)
   const wasRtfRef = useRef(false)
+  const userFindsRef = useRef(userFinds)
   const titleRef = useRef(title)
   const insightsAsideRef = useRef(null)
   const softWrapTranscript = useMemo(
@@ -117,6 +132,7 @@ export default function DashboardEditor() {
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { extractedFilePathRef.current = extractedFilePath }, [extractedFilePath])
   useEffect(() => { caseIdRef.current = caseId }, [caseId])
+  useEffect(() => { userFindsRef.current = userFinds }, [userFinds])
   useEffect(() => {
     canPersistRef.current = false
   }, [caseId])
@@ -142,8 +158,8 @@ export default function DashboardEditor() {
   }, [inlinePopover])
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ entries, annotations, originalText, wasRtf }),
-    [entries, annotations, originalText, wasRtf]
+    () => JSON.stringify({ entries, annotations, originalText, wasRtf, userFinds }),
+    [entries, annotations, originalText, wasRtf, userFinds]
   )
   const hasChanges = currentSnapshot !== originalSnapshot
 
@@ -162,12 +178,7 @@ export default function DashboardEditor() {
 
   const pickNextOpenAfter = useCallback((anns, closedId) => {
     const ordered = sortedAnnotations(anns.filter((a) => a.status === 'open'))
-    const idx = ordered.findIndex((a) => a.id === closedId)
-    const remaining = ordered.filter((a) => a.id !== closedId)
-    if (!remaining.length) return null
-    if (idx < 0) return remaining[0]
-    if (idx >= remaining.length) return null
-    return remaining[idx]
+    return nextOpenAfterResolve(ordered, closedId)
   }, [sortedAnnotations])
 
   const maybeAutoAdvance = useCallback((closedId, annsBeforeResolve) => {
@@ -178,6 +189,110 @@ export default function DashboardEditor() {
       requestAnimationFrame(() => jumpToAnnotationRef.current(next))
     })
   }, [pickNextOpenAfter])
+
+  const commitUserFinds = useCallback((next) => {
+    userFindsRef.current = next
+    setUserFinds(next)
+    setSaved(false)
+    if (canPersistRef.current && caseIdRef.current && extractedFilePathRef.current) {
+      publishCaseReviewPending({
+        caseId: caseIdRef.current,
+        storagePath: extractedFilePathRef.current,
+        title: titleRef.current,
+        entries: entriesRef.current,
+        annotations: annotationsRef.current,
+        originalText: originalTextRef.current,
+        wasRtf: wasRtfRef.current,
+        userFinds: next,
+      })
+    }
+  }, [])
+
+  const addUserFindFromDraft = useCallback(() => {
+    if (!findDraft?.text || !originalTextRef.current) return
+    const { parsedLines } = buildCleanContentMap(originalTextRef.current)
+    const withPages = attachPageNumbersToLines(parsedLines)
+    const pl = withPages[findDraft.lineIdx]
+    if (!pl) return
+    const find = buildUserFindFromLine(
+      pl,
+      findDraft.text,
+      undefined,
+      nextUserFindId(userFindsRef.current),
+    )
+    if (!find) return
+    find.note = (findDraft.note || '').trim()
+    commitUserFinds([...userFindsRef.current, find])
+    setFindDraft(null)
+    window.getSelection()?.removeAllRanges()
+    void persistNowRef.current?.()
+  }, [findDraft, commitUserFinds])
+
+  const removeUserFind = useCallback((id) => {
+    commitUserFinds(userFindsRef.current.filter((f) => f.id !== id))
+    void persistNowRef.current?.()
+  }, [commitUserFinds])
+
+  const saveUserFindNote = useCallback((id, note) => {
+    commitUserFinds(
+      userFindsRef.current.map((f) => (f.id === id ? { ...f, note: String(note || '').trim() } : f)),
+    )
+    setFindNoteEditId(null)
+    setFindNoteDraft('')
+    void persistNowRef.current?.()
+  }, [commitUserFinds])
+
+  const jumpToUserFind = useCallback((find) => {
+    const highlight = document.getElementById(`find-highlight-${find.id}`)
+    if (highlight) {
+      highlight.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    if (Number.isFinite(find.lineIdx)) {
+      const el = document.getElementById(`transcript-line-${find.lineIdx}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }, [])
+
+  const downloadUserFinds = useCallback(() => {
+    const body = formatUserFindsDownload(userFindsRef.current)
+    if (!body) return
+    const base = (caseData?.name || 'transcript').replace(/[^\w.\- ]+/g, '').trim() || 'transcript'
+    triggerTextDownload(body, `${base}_finds.txt`)
+  }, [caseData?.name])
+
+  // Selection → draft "Add to my finds" (original-text view only).
+  useEffect(() => {
+    if (!originalText) {
+      setFindDraft(null)
+      return
+    }
+    const onMouseUp = () => {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || !sel.rangeCount) return
+      const text = sel.toString().replace(/\s+/g, ' ').trim()
+      if (text.length < 1 || text.length > 240) return
+      const range = sel.getRangeAt(0)
+      let node = range.commonAncestorContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+      const lineEl = node?.closest?.('[data-find-line]')
+      if (!lineEl) return
+      const lineIdx = Number(lineEl.getAttribute('data-find-line'))
+      if (!Number.isFinite(lineIdx)) return
+      const rect = range.getBoundingClientRect()
+      setFindDraft({
+        text,
+        lineIdx,
+        top: rect.bottom + 6,
+        left: Math.min(rect.left, window.innerWidth - 280),
+        note: '',
+      })
+    }
+    document.addEventListener('mouseup', onMouseUp)
+    return () => document.removeEventListener('mouseup', onMouseUp)
+  }, [originalText])
 
   useEffect(() => {
     setInsightSeverityFilter('all')
@@ -544,15 +659,19 @@ export default function DashboardEditor() {
         setAnnotations(fixedAnnotations)
         setOriginalText(parsed.originalText || null)
         setWasRtf(loadedWasRtf)
+        const loadedFinds = normalizeUserFinds(parsed.userFinds)
+        setUserFinds(loadedFinds)
         entriesRef.current = gutterCleanEntries
         annotationsRef.current = fixedAnnotations
         originalTextRef.current = parsed.originalText || null
         wasRtfRef.current = loadedWasRtf
+        userFindsRef.current = loadedFinds
         setOriginalSnapshot(JSON.stringify({
           entries: gutterCleanEntries,
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
           wasRtf: loadedWasRtf,
+          userFinds: loadedFinds,
         }))
         publishCaseReviewPending({
           caseId,
@@ -562,6 +681,7 @@ export default function DashboardEditor() {
           annotations: fixedAnnotations,
           originalText: parsed.originalText || null,
           wasRtf: loadedWasRtf,
+          userFinds: loadedFinds,
         })
         canPersistRef.current = true
         // Drop sticky persist failures from a prior session/HMR so Export is not
@@ -599,6 +719,7 @@ export default function DashboardEditor() {
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
         wasRtf: wasRtfRef.current,
+        userFinds: userFindsRef.current,
       })
     }
   }, [])
@@ -617,6 +738,7 @@ export default function DashboardEditor() {
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
         wasRtf: wasRtfRef.current,
+        userFinds: userFindsRef.current,
       })
     }
   }, [])
@@ -634,6 +756,7 @@ export default function DashboardEditor() {
       annotations: annotationsRef.current,
       originalText: originalTextRef.current,
       wasRtf: wasRtfRef.current,
+      userFinds: userFindsRef.current,
     })
     return true
   }, [])
@@ -653,6 +776,7 @@ export default function DashboardEditor() {
         annotations: annotationsRef.current,
         originalText: originalTextRef.current,
         wasRtf: wasRtfRef.current,
+        userFinds: userFindsRef.current,
       }))
       return result
     })
@@ -1819,21 +1943,23 @@ export default function DashboardEditor() {
           <button
             type="button"
             onClick={() => {
-              if (openAnnotations.length === 0) return
+              if (openAnnotations.length === 0 && !originalText) return
               setInsightFiltersCollapsed((c) => !c)
               setInsightFilterMenu(null)
             }}
-            disabled={openAnnotations.length === 0}
-            aria-expanded={openAnnotations.length > 0 ? !insightFiltersCollapsed : undefined}
+            disabled={openAnnotations.length === 0 && !originalText}
+            aria-expanded={
+              openAnnotations.length > 0 || originalText ? !insightFiltersCollapsed : undefined
+            }
             aria-label={
-              openAnnotations.length === 0
+              openAnnotations.length === 0 && !originalText
                 ? 'Insights'
                 : insightFiltersCollapsed
                   ? 'Show filters'
                   : 'Hide filters'
             }
             className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors ${
-              openAnnotations.length > 0
+              openAnnotations.length > 0 || originalText
                 ? 'hover:bg-primary-fixed/75 cursor-pointer'
                 : 'cursor-default'
             }`}
@@ -1852,7 +1978,7 @@ export default function DashboardEditor() {
                     : `${openAnnotations.length} OPEN`}
                 </span>
               )}
-              {openAnnotations.length > 0 && (
+              {(openAnnotations.length > 0 || originalText) && (
                 <span
                   className={`material-symbols-outlined text-on-surface-variant/70 text-[18px] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     insightFiltersCollapsed ? 'rotate-180' : 'rotate-0'
@@ -2072,6 +2198,41 @@ export default function DashboardEditor() {
           </div>
         )}
       </div>
+
+      {originalText && !insightFiltersCollapsed && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-surface-container border-b border-outline-variant/10">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-on-surface-variant text-sm">playlist_add_check</span>
+            </div>
+            <p className="font-headline font-bold text-on-surface text-sm leading-none truncate">
+              My finds
+            </p>
+            <span className="bg-on-surface-variant/90 text-surface-container-lowest text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums shrink-0">
+              {userFinds.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={downloadUserFinds}
+            disabled={userFinds.length === 0}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+            aria-label="Download my finds"
+            title="Download my finds"
+          >
+            <span className="material-symbols-outlined text-lg">download</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFindsModalOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"
+            aria-label="Open my finds"
+            title="Open my finds"
+          >
+            <span className="material-symbols-outlined text-lg">open_in_new</span>
+          </button>
+        </div>
+      )}
 
       <div
         data-insights-scroll
@@ -2763,6 +2924,44 @@ export default function DashboardEditor() {
               lastCleanEnd = h.cleanEnd
             }
 
+            // Persistent blue marks for personal finds (do not rewrite transcript).
+            const findMarks = []
+            for (const f of userFinds) {
+              let start = Number.isFinite(f.cleanStart) ? f.cleanStart : null
+              let end = Number.isFinite(f.cleanEnd) ? f.cleanEnd : null
+              if (start == null || end == null || end <= start) {
+                const needle = f.text || ''
+                if (!needle) continue
+                let from = 0
+                if (Number.isFinite(f.lineIdx) && parsedLines[f.lineIdx]) {
+                  from = parsedLines[f.lineIdx].cleanStart || 0
+                }
+                const idx = cleanContent.indexOf(needle, from)
+                const idx2 = idx < 0 ? cleanContent.indexOf(needle) : idx
+                if (idx2 < 0) continue
+                start = idx2
+                end = idx2 + needle.length
+              }
+              if (start < 0 || end <= start || end > cleanContent.length) continue
+              // Prefer software annotation paint if the ranges overlap.
+              if (cleanHighlights.some((h) => start < h.cleanEnd && end > h.cleanStart)) continue
+              findMarks.push({
+                id: f.id,
+                cleanStart: start,
+                cleanEnd: end,
+                text: f.text,
+                _kind: 'find',
+              })
+            }
+            findMarks.sort((a, b) => a.cleanStart - b.cleanStart)
+            const cleanFindMarks = []
+            let lastFindEnd = 0
+            for (const m of findMarks) {
+              if (m.cleanStart < lastFindEnd) continue
+              cleanFindMarks.push(m)
+              lastFindEnd = m.cleanEnd
+            }
+
             // Group lines into pages — prefer actual page-break markers from the file
             // Court reporter software right-justifies page numbers with 30+ leading spaces
             const pageBreakPattern = /^\s{30,}\d{1,4}\s*$/
@@ -2797,7 +2996,7 @@ export default function DashboardEditor() {
               const isPageBreakLine = /^\s*\d{1,4}\s*$/.test(content)
               if (isPageBreakLine) {
                 return (
-                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
+                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} data-find-line={pl.lineIdx} className="min-h-[1.5rem]">
                     <span className={wsClass}>{fullLine}</span>
                   </div>
                 )
@@ -2816,14 +3015,28 @@ export default function DashboardEditor() {
                 )
                 .map((h) => ({
                   ...h,
+                  _kind: 'ann',
                   localStart: Math.max(0, h.cleanStart - cleanStart),
                   localEnd: Math.min(content.length, h.cleanEnd - cleanStart),
                 }))
                 .filter((h) => h.localStart < h.localEnd)
 
-              if (lineHighlights.length === 0) {
+              const lineFindMarks = cleanFindMarks
+                .filter((h) => h.cleanStart < cleanEnd && h.cleanEnd > cleanStart)
+                .map((h) => ({
+                  ...h,
+                  _kind: 'find',
+                  localStart: Math.max(0, h.cleanStart - cleanStart),
+                  localEnd: Math.min(content.length, h.cleanEnd - cleanStart),
+                }))
+                .filter((h) => h.localStart < h.localEnd)
+
+              const paintMarks = [...lineHighlights, ...lineFindMarks]
+                .sort((a, b) => a.localStart - b.localStart)
+
+              if (paintMarks.length === 0) {
                 return (
-                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
+                  <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} data-find-line={pl.lineIdx} className="min-h-[1.5rem]">
                     <span className={wsClass}>{fullLine}</span>
                   </div>
                 )
@@ -2835,61 +3048,76 @@ export default function DashboardEditor() {
                 parts.push(<span key="pfx" className={wsClass}>{prefix}</span>)
               }
 
-              lineHighlights.sort((a, b) => a.localStart - b.localStart)
               let cursor = 0
 
-              for (const h of lineHighlights) {
+              for (const h of paintMarks) {
                 if (cursor < h.localStart) {
                   parts.push(<span key={`t-${cursor}`} className={wsClass}>{content.substring(cursor, h.localStart)}</span>)
                 }
+                // Skip if this mark overlaps a prior painted mark on this line.
+                if (h.localStart < cursor) continue
 
                 // No font-semibold in the mono transcript: bold synthesizes wider
                 // glyphs and makes green spans look offset (black letters mid-word,
                 // fake "extra spaces") even when the underlying text is fine.
                 let cls = `inline ${wsClass} `
-                if (h.status === 'accepted') {
-                  cls += isReviewOnlyAnnotation(h)
-                    ? 'text-sky-700 cursor-pointer'
-                    : 'text-green-600 cursor-pointer'
-                } else if (h.status === 'ignored') {
-                  cls += 'border-b border-dashed border-on-surface-variant/30 text-on-surface/60 cursor-pointer'
-                } else if (isReviewOnlyAnnotation(h) || h.severity === 'critical') {
-                  cls += 'border-b-2 border-error text-error cursor-pointer'
-                } else if (h.severity === 'warning') {
-                  cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
-                } else {
-                  cls += 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
-                }
+                let onClick = undefined
+                let title = undefined
+                let spanId = undefined
 
-                const openPopover = (e) => {
-                  e.stopPropagation()
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const POPOVER_W = 320
-                  const POPOVER_H = 180
-                  const margin = 12
-                  const spaceBelow = window.innerHeight - rect.bottom
-                  const placeAbove = spaceBelow < POPOVER_H + margin && rect.top > POPOVER_H + margin
-                  const top = placeAbove ? rect.top - POPOVER_H - 8 : rect.bottom + 8
-                  let left = rect.left + rect.width / 2 - POPOVER_W / 2
-                  left = Math.max(margin, Math.min(left, window.innerWidth - POPOVER_W - margin))
-                  setInlinePopover({ id: h.id, top, left, placeAbove })
+                if (h._kind === 'find') {
+                  cls += 'bg-primary/15 text-primary rounded-sm cursor-pointer'
+                  spanId = `find-highlight-${h.id}`
+                  title = 'My find — open list from Insights'
+                  onClick = (e) => {
+                    e.stopPropagation()
+                    setFindsModalOpen(true)
+                  }
+                } else {
+                  if (h.status === 'accepted') {
+                    cls += isReviewOnlyAnnotation(h)
+                      ? 'text-sky-700 cursor-pointer'
+                      : 'text-green-600 cursor-pointer'
+                  } else if (h.status === 'ignored') {
+                    cls += 'border-b border-dashed border-on-surface-variant/30 text-on-surface/60 cursor-pointer'
+                  } else if (isReviewOnlyAnnotation(h) || h.severity === 'critical') {
+                    cls += 'border-b-2 border-error text-error cursor-pointer'
+                  } else if (h.severity === 'warning') {
+                    cls += 'border-b-2 border-amber-500 text-amber-700 cursor-pointer'
+                  } else {
+                    cls += 'border-b border-dotted border-on-surface-variant/40 cursor-pointer'
+                  }
+                  spanId = `ann-highlight-${h.id}`
+                  title =
+                    h.status === 'accepted'
+                      ? (isReviewOnlyAnnotation(h)
+                        ? `Reviewed: "${h.original}" (text unchanged)`
+                        : `Accepted: "${h.original}" → "${h.suggestion}"`)
+                      : h.status === 'ignored'
+                        ? `Ignored: "${h.original}"`
+                        : `${h.type}: ${h.explanation}`
+                  onClick = (e) => {
+                    e.stopPropagation()
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const POPOVER_W = 320
+                    const POPOVER_H = 180
+                    const margin = 12
+                    const spaceBelow = window.innerHeight - rect.bottom
+                    const placeAbove = spaceBelow < POPOVER_H + margin && rect.top > POPOVER_H + margin
+                    const top = placeAbove ? rect.top - POPOVER_H - 8 : rect.bottom + 8
+                    let left = rect.left + rect.width / 2 - POPOVER_W / 2
+                    left = Math.max(margin, Math.min(left, window.innerWidth - POPOVER_W - margin))
+                    setInlinePopover({ id: h.id, top, left, placeAbove })
+                  }
                 }
 
                 parts.push(
                   <span
-                    key={`a-${h.id}-${h.localStart}`}
-                    id={`ann-highlight-${h.id}`}
+                    key={`${h._kind}-${h.id}-${h.localStart}`}
+                    id={spanId}
                     className={cls}
-                    title={
-                      h.status === 'accepted'
-                        ? (isReviewOnlyAnnotation(h)
-                          ? `Reviewed: "${h.original}" (text unchanged)`
-                          : `Accepted: "${h.original}" → "${h.suggestion}"`)
-                        : h.status === 'ignored'
-                          ? `Ignored: "${h.original}"`
-                          : `${h.type}: ${h.explanation}`
-                    }
-                    onClick={openPopover}
+                    title={title}
+                    onClick={onClick}
                   >
                     {content.substring(h.localStart, h.localEnd)}
                   </span>
@@ -2902,7 +3130,7 @@ export default function DashboardEditor() {
               }
 
               return (
-                <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} className="min-h-[1.5rem]">
+                <div key={lineKey} id={`transcript-line-${pl.lineIdx}`} data-find-line={pl.lineIdx} className="min-h-[1.5rem]">
                   {parts}
                 </div>
               )
@@ -3264,6 +3492,163 @@ export default function DashboardEditor() {
           document.body
         )
       })()}
+
+      {findDraft && createPortal(
+        <div
+          className="fixed z-[120] w-[260px] bg-surface-container-lowest rounded-xl editorial-shadow border border-outline-variant/20 p-3"
+          style={{ top: findDraft.top, left: Math.max(8, findDraft.left) }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">
+            Add to my finds
+          </p>
+          <p className="text-xs text-on-surface leading-relaxed mb-2 line-clamp-3">&quot;{findDraft.text}&quot;</p>
+          <input
+            type="text"
+            value={findDraft.note}
+            onChange={(e) => setFindDraft((d) => (d ? { ...d, note: e.target.value } : d))}
+            placeholder="Note (optional)"
+            className="w-full bg-surface-container px-2.5 py-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/30 mb-2"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={addUserFindFromDraft}
+              className="flex-1 bg-primary text-on-primary text-xs font-bold py-2 rounded-lg"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setFindDraft(null)}
+              className="px-3 text-xs font-bold text-on-surface-variant"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {findsModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFindsModalOpen(false)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl editorial-shadow p-6 sm:p-8 max-w-lg w-full mx-4 z-10 max-h-[85vh] flex flex-col">
+            <button
+              type="button"
+              onClick={() => setFindsModalOpen(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              aria-label="Close"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+            <div className="flex items-center gap-3 mb-4 pr-8">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary">playlist_add_check</span>
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-headline text-lg font-bold text-on-surface">My finds</h2>
+                <p className="text-xs text-on-surface-variant">
+                  {userFinds.length} find{userFinds.length === 1 ? '' : 's'} · select text in the transcript to add more
+                </p>
+              </div>
+            </div>
+            {userFinds.length > 0 && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={downloadUserFinds}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-base">download</span>
+                  Download list
+                </button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+              {userFinds.length === 0 ? (
+                <p className="text-sm text-on-surface-variant text-center py-10 leading-relaxed">
+                  No finds yet. Highlight text in the transcript, then add it here.
+                </p>
+              ) : (
+                userFinds.map((f) => (
+                  <div
+                    key={f.id}
+                    className="rounded-xl bg-surface-container/50 border border-outline-variant/15 p-3"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFindsModalOpen(false)
+                        requestAnimationFrame(() => jumpToUserFind(f))
+                      }}
+                      className="text-left w-full"
+                    >
+                      <p className="text-[10px] font-bold text-on-surface-variant">
+                        {[f.page != null ? `Page ${f.page}` : null, f.line != null ? `Line ${f.line}` : null]
+                          .filter(Boolean)
+                          .join(' · ') || 'Location unknown'}
+                      </p>
+                      <p className="text-sm text-on-surface mt-1 leading-relaxed">&quot;{f.text}&quot;</p>
+                    </button>
+                    {findNoteEditId === f.id ? (
+                      <div className="mt-2 space-y-1.5">
+                        <input
+                          type="text"
+                          value={findNoteDraft}
+                          onChange={(e) => setFindNoteDraft(e.target.value)}
+                          placeholder="Note (optional)"
+                          className="w-full bg-surface-container-lowest px-2.5 py-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => saveUserFindNote(f.id, findNoteDraft)}
+                            className="text-xs font-bold text-primary"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setFindNoteEditId(null); setFindNoteDraft('') }}
+                            className="text-xs font-bold text-on-surface-variant"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-xs text-on-surface-variant truncate">
+                          {f.note || 'No note'}
+                        </p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => { setFindNoteEditId(f.id); setFindNoteDraft(f.note || '') }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10"
+                            aria-label="Edit note"
+                          >
+                            <span className="material-symbols-outlined text-base">edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeUserFind(f.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10"
+                            aria-label="Remove find"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </main>
   )

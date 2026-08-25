@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 
 function SettingToggle({ id, title, help, checked, onChange, disabled }) {
@@ -42,6 +43,11 @@ export default function DashboardSettings() {
   const [savingKey, setSavingKey] = useState(null)
   const [error, setError] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
+  const savedTimerRef = useRef(null)
+
+  useEffect(() => () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+  }, [])
 
   const lineOn = preferences?.export_include_line_numbers !== false
   const pageOn = preferences?.export_include_page_numbers !== false
@@ -51,11 +57,11 @@ export default function DashboardSettings() {
     const key = Object.keys(patch)[0]
     setSavingKey(key)
     setError('')
-    setSavedFlash(false)
     try {
       await updatePreferences(patch)
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
       setSavedFlash(true)
-      setTimeout(() => setSavedFlash(false), 2000)
+      savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2000)
     } catch (err) {
       setError(err.message || 'Could not save that setting.')
     } finally {
@@ -83,13 +89,6 @@ export default function DashboardSettings() {
           <div className="mb-6 p-4 bg-error-container/30 border border-error/20 rounded-xl text-sm text-error font-medium flex items-start gap-2">
             <span className="material-symbols-outlined text-base mt-0.5 shrink-0">error</span>
             {error}
-          </div>
-        )}
-
-        {savedFlash && (
-          <div className="mb-6 p-3 bg-secondary-container/40 rounded-xl text-sm text-on-secondary-container font-medium flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">check_circle</span>
-            Saved
           </div>
         )}
 
@@ -133,6 +132,25 @@ export default function DashboardSettings() {
           </div>
         </section>
       </div>
+
+      {savedFlash && createPortal(
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl editorial-shadow bg-surface-container-lowest border border-outline-variant/15 text-sm font-medium text-on-surface"
+          style={{ animation: 'settingsSavedIn 200ms ease-out' }}
+        >
+          <span className="material-symbols-outlined text-base text-primary">check_circle</span>
+          Saved
+        </div>,
+        document.body,
+      )}
+      <style>{`
+        @keyframes settingsSavedIn {
+          from { opacity: 0; transform: translateX(12px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </main>
   )
 }

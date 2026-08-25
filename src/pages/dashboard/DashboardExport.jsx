@@ -8,6 +8,8 @@ import { detectExportNumbering, formatExportText } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
 import { trackEvent } from '../../lib/telemetry'
 import { useAuth } from '../../context/AuthContext'
+import { normalizeUserFinds, formatUserFindsDownload, triggerTextDownload } from '../../lib/userFinds'
+import { seedExportToggles } from '../../lib/userPreferences'
 
 export default function DashboardExport() {
   const [searchParams] = useSearchParams()
@@ -20,6 +22,7 @@ export default function DashboardExport() {
   const [entries, setEntries] = useState([])
   const [annotations, setAnnotations] = useState([])
   const [originalText, setOriginalText] = useState(null)
+  const [userFinds, setUserFinds] = useState([])
   const [metrics, setMetrics] = useState(null)
   const [loading, setLoading] = useState(!!caseId)
   const [error, setError] = useState('')
@@ -78,18 +81,15 @@ export default function DashboardExport() {
         setEntries(parsed.entries || [])
         setAnnotations(loadedAnnotations)
         setOriginalText(parsed.originalText || null)
+        setUserFinds(normalizeUserFinds(parsed.userFinds))
         const numbering = detectExportNumbering(parsed.originalText || '')
         setHasLineNumbers(numbering.hasLineNumbers)
         setHasPageNumbers(numbering.hasPageNumbers)
         // Seed from Settings prefs when the file has that numbering.
         // Local toggles are a one-off override for this visit only.
-        const prefs = preferencesRef.current
-        setIncludeLineNumbers(
-          numbering.hasLineNumbers && prefs?.export_include_line_numbers !== false,
-        )
-        setIncludePageNumbers(
-          numbering.hasPageNumbers && prefs?.export_include_page_numbers !== false,
-        )
+        const seeded = seedExportToggles(numbering, preferencesRef.current)
+        setIncludeLineNumbers(seeded.includeLineNumbers)
+        setIncludePageNumbers(seeded.includePageNumbers)
 
         // File is source of truth. Sync metrics from it so dashboard matches
         // what they can download. In-session save failures are fail-closed above.
@@ -107,6 +107,7 @@ export default function DashboardExport() {
         })
       } else {
         setCaseData(caseRow)
+        setUserFinds([])
         if (m) setMetrics(m)
       }
     } catch (err) {
@@ -465,55 +466,97 @@ export default function DashboardExport() {
             Choose what to include, then download. Always review before you submit.
           </p>
 
-          <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Include in download</p>
-            {[
-              {
-                available: hasLineNumbers,
-                checked: includeLineNumbers,
-                onChange: setIncludeLineNumbers,
-                title: 'Line numbers',
-                help: 'The 1 to 25 numbers down the left side of each page.',
-              },
-              {
-                available: hasPageNumbers,
-                checked: includePageNumbers,
-                onChange: setIncludePageNumbers,
-                title: 'Page numbers',
-                help: 'The page number at the top of each transcript page.',
-              },
-            ].map(({ available, checked, onChange, title, help }) => (
-              <label
-                key={title}
-                className={`flex items-start gap-3 ${available ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
-              >
-                {available ? (
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => onChange(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
-                  />
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className="mt-0.5 relative block w-4 h-4 shrink-0 rounded border border-outline-variant bg-surface-container-lowest"
-                  >
-                    <svg viewBox="0 0 16 16" className="absolute inset-0 w-full h-full text-on-surface-variant">
-                      <line x1="3.5" y1="12.5" x2="12.5" y2="3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-                    </svg>
+          <div className={`grid gap-3 items-stretch ${userFinds.length > 0 ? 'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1'}`}>
+            <div className="bg-surface-container-lowest rounded-xl editorial-shadow p-4 space-y-3 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Include in download</p>
+              {[
+                {
+                  available: hasLineNumbers,
+                  checked: includeLineNumbers,
+                  onChange: setIncludeLineNumbers,
+                  title: 'Line numbers',
+                  help: 'The 1 to 25 numbers down the left side of each page.',
+                },
+                {
+                  available: hasPageNumbers,
+                  checked: includePageNumbers,
+                  onChange: setIncludePageNumbers,
+                  title: 'Page numbers',
+                  help: 'The page number at the top of each transcript page.',
+                },
+              ].map(({ available, checked, onChange, title, help }) => (
+                <label
+                  key={title}
+                  className={`flex items-start gap-3 ${available ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
+                >
+                  {available ? (
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => onChange(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded accent-primary shrink-0 cursor-pointer"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 relative block w-4 h-4 shrink-0 rounded border border-outline-variant bg-surface-container-lowest"
+                    >
+                      <svg viewBox="0 0 16 16" className="absolute inset-0 w-full h-full text-on-surface-variant">
+                        <line x1="3.5" y1="12.5" x2="12.5" y2="3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-on-surface">
+                      {title}
+                    </span>
+                    <span className="block text-xs text-on-surface-variant leading-relaxed mt-0.5">
+                      {available ? help : 'Unavailable for this transcript.'}
+                    </span>
                   </span>
-                )}
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-on-surface">
-                    {title}
+                </label>
+              ))}
+            </div>
+
+            {userFinds.length > 0 && (
+              <div className="w-full sm:w-40 shrink-0 h-full bg-surface-container-lowest rounded-xl editorial-shadow p-4 flex flex-col gap-3 min-w-0">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">My finds</p>
+                    <span className="bg-on-surface-variant/90 text-surface-container-lowest text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums">
+                      {userFinds.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed mt-1.5">
+                    Fix these in your CAT software.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const body = formatUserFindsDownload(userFinds)
+                    const base = (caseData?.name || 'transcript').replace(/[^\w.\- ]+/g, '').trim() || 'transcript'
+                    triggerTextDownload(body, `${base}_finds.txt`)
+                    setExporting('finds')
+                    trackEvent({
+                      type: 'export',
+                      name: 'my_finds_download',
+                      trackId: 'export_my_finds',
+                      elementType: 'button',
+                      metadata: { case_id: caseId, count: userFinds.length },
+                    })
+                    setTimeout(() => setExporting(null), 600)
+                  }}
+                  disabled={!!exporting}
+                  className="mt-auto group flex items-center justify-center gap-1.5 text-xs font-bold text-primary border border-primary/30 hover:bg-primary/10 hover:border-primary/10 rounded-lg px-3 py-2.5 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <span className={`material-symbols-outlined text-base transition-transform duration-200 ${exporting === 'finds' ? 'scale-110' : 'group-hover:translate-y-0.5'}`}>
+                    {exporting === 'finds' ? 'check_circle' : 'download'}
                   </span>
-                  <span className="block text-xs text-on-surface-variant leading-relaxed mt-0.5">
-                    {available ? help : 'Unavailable for this transcript.'}
-                  </span>
-                </span>
-              </label>
-            ))}
+                  Download
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

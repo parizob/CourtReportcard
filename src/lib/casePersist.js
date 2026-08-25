@@ -24,6 +24,7 @@ let lastError = null
  *   annotations: unknown[],
  *   originalText: string | null,
  *   wasRtf?: boolean,
+ *   userFinds?: unknown[],
  * }} */
 let pending = null
 
@@ -73,6 +74,7 @@ export function publishCaseReviewPending(snapshot) {
     annotations: snapshot.annotations || [],
     originalText: snapshot.originalText ?? null,
     wasRtf: snapshot.wasRtf === true,
+    userFinds: Array.isArray(snapshot.userFinds) ? snapshot.userFinds : [],
   }
 }
 
@@ -152,6 +154,8 @@ async function writePendingToStorage(snap) {
   }
   if (snap.originalText) payload.originalText = snap.originalText
   if (snap.wasRtf === true) payload.wasRtf = true
+  // Always write when present (including []) so removals clear prior finds.
+  if (Array.isArray(snap.userFinds)) payload.userFinds = snap.userFinds
 
   const expected = annotationStatusCounts(snap.annotations)
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
