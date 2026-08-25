@@ -47,7 +47,7 @@ export function normalizeUserFinds(raw) {
  * @param {UserFind[]} finds
  */
 export function formatUserFindsDownload(finds) {
-  const list = normalizeUserFinds(finds)
+  const list = sortUserFinds(finds)
   if (!list.length) return ''
   return list
     .map((f) => {
@@ -72,6 +72,23 @@ export function formatUserFindsDownload(finds) {
 export function lineNumberFromPrefix(prefix) {
   const m = String(prefix || '').match(/(\d{1,2})\s*$/)
   return m ? m[1] : null
+}
+
+function locSortKey(value) {
+  if (value == null || String(value).trim() === '') return Number.POSITIVE_INFINITY
+  const n = Number(String(value).trim())
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY
+}
+
+/** Page ascending, then line ascending; missing page/line sort last within that key. */
+export function sortUserFinds(finds) {
+  return [...normalizeUserFinds(finds)].sort((a, b) => {
+    const pageDiff = locSortKey(a.page) - locSortKey(b.page)
+    if (pageDiff !== 0) return pageDiff
+    const lineDiff = locSortKey(a.line) - locSortKey(b.line)
+    if (lineDiff !== 0) return lineDiff
+    return (a.id || 0) - (b.id || 0)
+  })
 }
 
 /**

@@ -20,6 +20,7 @@ import {
   buildUserFindFromLine,
   attachPageNumbersToLines,
   triggerTextDownload,
+  sortUserFinds,
 } from '../../lib/userFinds'
 import { nextOpenAfterResolve } from '../../lib/userPreferences'
 
@@ -262,6 +263,8 @@ export default function DashboardEditor() {
     const base = (caseData?.name || 'transcript').replace(/[^\w.\- ]+/g, '').trim() || 'transcript'
     triggerTextDownload(body, `${base}_finds.txt`)
   }, [caseData?.name])
+
+  const sortedUserFinds = useMemo(() => sortUserFinds(userFinds), [userFinds])
 
   // Selection → draft "Add to my finds" (original-text view only).
   useEffect(() => {
@@ -2203,7 +2206,7 @@ export default function DashboardEditor() {
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-surface-container border-b border-outline-variant/10">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-on-surface-variant text-sm">playlist_add_check</span>
+              <span className="material-symbols-outlined text-on-surface-variant text-[18px] leading-none">playlist_add_check</span>
             </div>
             <p className="font-headline font-bold text-on-surface text-sm leading-none truncate">
               My finds
@@ -2212,25 +2215,27 @@ export default function DashboardEditor() {
               {userFinds.length}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={downloadUserFinds}
-            disabled={userFinds.length === 0}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
-            aria-label="Download my finds"
-            title="Download my finds"
-          >
-            <span className="material-symbols-outlined text-lg">download</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFindsModalOpen(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"
-            aria-label="Open my finds"
-            title="Open my finds"
-          >
-            <span className="material-symbols-outlined text-lg">open_in_new</span>
-          </button>
+          <Tooltip text="Download My Finds" placement="left">
+            <button
+              type="button"
+              onClick={downloadUserFinds}
+              disabled={userFinds.length === 0}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+              aria-label="Download My Finds"
+            >
+              <span className="material-symbols-outlined text-lg">download</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Open My Finds" placement="left">
+            <button
+              type="button"
+              onClick={() => setFindsModalOpen(true)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shrink-0"
+              aria-label="Open My Finds"
+            >
+              <span className="material-symbols-outlined text-lg">open_in_new</span>
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -3542,14 +3547,21 @@ export default function DashboardEditor() {
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
             <div className="flex items-center gap-3 mb-4 pr-8">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary">playlist_add_check</span>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-primary text-[22px] leading-none">playlist_add_check</span>
               </div>
               <div className="min-w-0">
-                <h2 className="font-headline text-lg font-bold text-on-surface">My finds</h2>
-                <p className="text-xs text-on-surface-variant">
-                  {userFinds.length} find{userFinds.length === 1 ? '' : 's'} · select text in the transcript to add more
-                </p>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-headline text-lg font-bold text-on-surface">My finds</h2>
+                  <span className="bg-on-surface-variant/90 text-surface-container-lowest text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums shrink-0">
+                    {userFinds.length}
+                  </span>
+                </div>
+                {userFinds.length > 0 && (
+                  <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
+                    Highlight text in the transcript to add more. Then, download and fix in your CAT software when you're done.
+                  </p>
+                )}
               </div>
             </div>
             {userFinds.length > 0 && (
@@ -3566,11 +3578,16 @@ export default function DashboardEditor() {
             )}
             <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
               {userFinds.length === 0 ? (
-                <p className="text-sm text-on-surface-variant text-center py-10 leading-relaxed">
-                  No finds yet. Highlight text in the transcript, then add it here.
-                </p>
+                <div className="text-center py-10 px-4 space-y-2">
+                  <p className="text-sm text-on-surface font-semibold leading-relaxed">
+                    Catch what the review missed
+                  </p>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">
+                    Highlight text in the transcript, add an optional note, and build a punch list you can download and fix in your CAT software.
+                  </p>
+                </div>
               ) : (
-                userFinds.map((f) => (
+                sortedUserFinds.map((f) => (
                   <div
                     key={f.id}
                     className="rounded-xl bg-surface-container/50 border border-outline-variant/15 p-3"

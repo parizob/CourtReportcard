@@ -29,6 +29,7 @@ import {
   formatUserFindsDownload,
   lineNumberFromPrefix,
   buildUserFindFromLine,
+  sortUserFinds,
 } from '../src/lib/userFinds.js'
 
 // --- Preferences ---
@@ -106,6 +107,20 @@ assert.ok(formatted.includes('"teh"'))
 assert.strictEqual(normalizeUserFinds([{ id: 1, text: '  ok  ' }])[0].text, 'ok')
 assert.strictEqual(normalizeUserFinds([{ id: 1, text: '' }]).length, 0)
 assert.strictEqual(normalizeUserFinds(null).length, 0)
+
+const sorted = sortUserFinds([
+  { id: 1, page: '2', line: '1', text: 'minutes', note: '', created_at: 'a' },
+  { id: 2, page: '1', line: '3', text: 'Did', note: '', created_at: 'b' },
+  { id: 3, page: '1', line: '2', text: 'Whitfield', note: '', created_at: 'c' },
+  { id: 4, page: '1', line: null, text: 'no-line', note: '', created_at: 'd' },
+])
+assert.deepStrictEqual(sorted.map((f) => f.text), ['Whitfield', 'Did', 'no-line', 'minutes'])
+
+const downloadOrder = formatUserFindsDownload([
+  { id: 1, page: '2', line: '1', text: 'second', note: '', created_at: 'a' },
+  { id: 2, page: '1', line: '2', text: 'first', note: '', created_at: 'b' },
+])
+assert.ok(downloadOrder.indexOf('first') < downloadOrder.indexOf('second'))
 
 // Extracted JSON round-trip: userFinds sit beside originalText, not inside it
 const extracted = {
