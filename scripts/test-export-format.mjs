@@ -96,6 +96,42 @@ console.log('layout: lines off + pages on (no column shift)')
   assert(!blankLineNumbers(caption).split('\n').some((l) => /^\s*\d{1,2}\s+Q\./.test(l)), 'no line nums before Q')
 }
 
+console.log('lines off: no leftover gutter digits (including page edges)')
+{
+  // Earlier CAT experiment left 25 / 1 visible at page breaks — that is wrong for
+  // "include line numbers" off. Blank every gutter digit; keep form feeds + page headers.
+  const pages = [
+    `${' '.repeat(75)}1`,
+    '',
+    '               10        Q.   Good morning.',
+    '               20                Stenographically reported by:',
+    '                                     Zoe F. Zimmerman, FPR',
+    '               25',
+    '\f',
+    `${' '.repeat(75)}2`,
+    '',
+    '                1   A P P E A R A N C E S:',
+    '                2',
+    '                              PAUL B. BROCKWAY, ESQUIRE',
+    '                3             The Bagen Law Firm',
+  ].join('\n')
+
+  const out = formatExportText(pages, { includeLineNumbers: false, includePageNumbers: true })
+  const ffPages = out.split('\f')
+  assert(ffPages.length >= 2, 'form feed still splits pages')
+  assert(ffPages[0].includes('Stenographically'), 'sten on page 1 segment')
+  assert(/A P P E A R/.test(ffPages[1]), 'APPEARANCES on page 2 segment')
+  assert(!/A P P E A R/.test(ffPages[0]), 'APPEARANCES not on page 1 segment')
+
+  assert(!/\n\s*25\s*\n/.test('\n' + out) && !/^\s*25\s*$/m.test(out), 'blanks bare 25 at page end')
+  assert(!/^\s*1\s+A P P E A R/m.test(out), 'blanks line 1 on APPEARANCES')
+  assert(out.includes('A P P E A R A N C E S:'), 'APPEARANCES text kept')
+  assert(ffPages[1].split('\n').some(isPageHeaderLine), 'page header 2 kept when pages on')
+
+  const stenLine = out.split('\n').find((l) => /Stenographically/.test(l))
+  assert(stenLine && !/^\s*\d{1,2}\s/.test(stenLine), 'blanks mid-page LN on Stenographically')
+}
+
 {
   const neither = formatExportText(fixture, { includeLineNumbers: false, includePageNumbers: false })
   assert(neither.includes('Q. What is your name'), 'both off keeps content')
@@ -339,6 +375,115 @@ assert(stripLineNumberColumn(fixture).includes('Q. What'), 'stripLineNumberColum
   const topWith = await firstBaseline(withNums)
   const topWithout = await firstBaseline(noNums)
   assert(Math.abs(topWith - topWithout) < 0.5, `line-num toggle keeps first-page top (with=${topWith} without=${topWithout})`)
+}
+
+console.log('CAT re-import: mid-line CR + Windows TXT + RTF page-image')
+{
+  const { normalizeExportPlainText, toWindowsTextFile } = await import('../src/lib/exportText.js')
+  const { encodeRtf, stripRtf } = await import('../src/lib/rtf.js')
+
+  const julianne = [
+    '                1             THE COURT REPORTER:  Please raise',
+    '                2        your right\r hand for me.',
+    '                3             Do you swear or affirm that the',
+    '                4        testimony\ryou\'re about to give will be',
+  ].join('\n')
+
+  const normalized = normalizeExportPlainText(julianne)
+  assert(!normalized.includes('\r'), 'normalize strips mid-line CR')
+  assert(normalized.includes('your right hand for me.'), 'joins soft-wrap with existing space')
+  assert(normalized.includes("testimony you're about to give"), 'joins soft-wrap without space')
+
+  const win = toWindowsTextFile(julianne)
+  assert(win.includes('\r\n'), 'TXT uses CRLF')
+  assert(!/\r[^\n]/.test(win), 'TXT has no bare mid-line CR')
+  assert(win.split('\r\n').some((l) => l.includes('your right hand for me.')), 'TXT keeps joined line')
+
+  const body = formatExportText(julianne, { includeLineNumbers: true, includePageNumbers: true })
+  const rtf = encodeRtf(body)
+  assert(!rtf.includes('\\line'), 'RTF does not use soft \\line (CAT wraps those)')
+  assert(!/\\par\\line/.test(rtf), 'RTF never stacks \\par\\line')
+  assert(rtf.includes('your right hand for me.'), 'RTF keeps joined soft-wrap text')
+  // CaseCAT Import RTF/CRE requires Court Reporting Extensions, not generic Word RTF.
+  assert(rtf.includes('{\\*\\cxtranscript}'), 'RTF has \\cxtranscript for CAT Import')
+  assert(rtf.includes('{\\*\\cxrev100}'), 'RTF has \\cxrev100 like CAT')
+  assert(!rtf.includes('\\cxnoflines'), 'RTF does not enable CAT line-number chrome (conflicts with gutter)')
+  assert(rtf.includes('{\\colortbl;}'), 'RTF has colortbl (\\cf0 safe)')
+  assert(rtf.includes('{\\stylesheet'), 'RTF has stylesheet')
+  assert(rtf.includes('\\sl-240\\slmult0'), 'RTF uses exact line spacing')
+  assert(rtf.includes('\\fs20'), 'RTF uses 10pt so page-image columns fit')
+  assert(rtf.includes('\\cxsingle'), 'RTF marks single-spaced paras like CAT')
+  assert(rtf.includes('\\paperw12240'), 'RTF US Letter like CAT')
+  assert(rtf.includes('\\pard\\s0\\ql'), 'RTF resets \\pard\\s0 per line like CAT')
+  assert(rtf.includes('\r\n'), 'RTF uses CRLF like CAT')
+  assert(!rtf.includes('\\~'), 'RTF keeps normal spaces like CAT caption text')
+  assert(rtf.includes('\\margl288'), 'RTF narrow margins so page-image lines fit')
+
+  const withPage = encodeRtf('Line A\nLine B\fLine C')
+  assert(withPage.includes('\\page'), 'form feed becomes RTF page break')
+  assert((withPage.match(/\\par/g) || []).length >= 2, 'each source line becomes \\par')
+
+  // With line numbers on, the full page-image line (gutter digit + text) stays one run.
+  const court = '                1                            IN THE CIRCUIT COURT OF THE FIFTH'
+  const courtRtf = encodeRtf(court)
+  assert(
+    courtRtf.includes('                1                            IN THE CIRCUIT COURT OF THE FIFTH'),
+    'court line keeps gutter digit and text on one page-image line',
+  )
+  assert(!/\\li[1-9]/.test(courtRtf), 'does not convert leading spaces to \\li (keeps monospace grid)')
+
+  const caption = [
+    `${' '.repeat(75)}1`,
+    '',
+    '               14                   (via video teleconference)',
+    '               15              Taken on behalf of the Defendants',
+  ].join('\n')
+  const captionBody = formatExportText(caption, { includeLineNumbers: true, includePageNumbers: true })
+  const captionRtf = encodeRtf(captionBody)
+  const back = stripRtf(captionRtf)
+  assert(back.includes('(via video teleconference)'), 'stripRtf recovers caption')
+  // Assert on RTF bytes CAT imports — stripRtf().trim() drops first-line leading spaces.
+  assert(
+    captionRtf.includes('               14                   (via video teleconference)'),
+    'RTF keeps gutter + caption on one line',
+  )
+  assert(!/\\par\\line/.test(captionRtf), 'no \\par\\line in caption RTF')
+
+  // Page-image top padding (blank lines) must not become empty CAT paragraphs —
+  // that shoved caption down ~6" and caused spill. Keep ASCII page headers.
+  const padded = [
+    '',
+    '',
+    `${' '.repeat(75)}1`,
+    '',
+    '',
+    '                1                            IN THE CIRCUIT COURT OF THE FIFTH',
+    '                                             JUDICIAL CIRCUIT, IN AND FOR',
+  ].join('\n')
+  const paddedRtf = encodeRtf(formatExportText(padded, { includeLineNumbers: true, includePageNumbers: true }))
+  const beforeCourt = paddedRtf.slice(0, paddedRtf.indexOf('IN THE CIRCUIT'))
+  assert(
+    (beforeCourt.match(/\\par\b/g) || []).length <= 1,
+    'few \\par before caption (page header only, no blank pad)',
+  )
+  assert(paddedRtf.includes(`${' '.repeat(75)}1`), 'ASCII page header kept when pages on')
+  assert(paddedRtf.includes('IN THE CIRCUIT COURT OF THE FIFTH'), 'caption kept after trim')
+  // With pages off, header is already gone from formatExportText — still no blank pad.
+  const noPageRtf = encodeRtf(formatExportText(padded, { includeLineNumbers: true, includePageNumbers: false }))
+  assert(!noPageRtf.includes(`${' '.repeat(75)}1`), 'page header absent when pages off')
+  const beforeCourtOff = noPageRtf.slice(0, noPageRtf.indexOf('IN THE CIRCUIT'))
+  assert(
+    (beforeCourtOff.match(/\\par\b/g) || []).length === 0,
+    'no blank pad before caption when pages off',
+  )
+
+  // Structural fixture from real CaseCAT export (anonymized).
+  const excerpt = readFileSync(
+    join(__dirname, 'fixtures/casecat-rtf-structure-excerpt.rtf'),
+    'utf8',
+  )
+  assert(excerpt.includes('\\sl-259\\slmult0'), 'CAT fixture has exact \\sl-259')
+  assert(excerpt.includes('A P P E A R A N C E S:'), 'CAT fixture has APPEARANCES')
 }
 
 if (failed) {

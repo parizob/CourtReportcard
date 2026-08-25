@@ -4,7 +4,7 @@ import { supabase, downloadCaseFile } from '../../lib/supabase'
 import { encodeRtf } from '../../lib/rtf'
 import { encodePdf } from '../../lib/exportPdf'
 import { ensureAcceptedCorrectionsInOriginalText } from '../../lib/gemini'
-import { detectExportNumbering, formatExportText } from '../../lib/exportText'
+import { detectExportNumbering, formatExportText, toWindowsTextFile } from '../../lib/exportText'
 import { waitForCasePersists, syncMetricsFromAnnotations, annotationStatusCounts } from '../../lib/casePersist'
 import { trackEvent } from '../../lib/telemetry'
 import { useAuth } from '../../context/AuthContext'
@@ -249,7 +249,7 @@ export default function DashboardExport() {
       const baseName = (caseData?.name || 'transcript').replace(/[^a-zA-Z0-9_-]/g, '_')
       const content = buildExportBody()
       if (format === 'txt') {
-        triggerDownload(content, `${baseName}.txt`, 'text/plain')
+        triggerDownload(toWindowsTextFile(content), `${baseName}.txt`, 'text/plain;charset=utf-8')
       } else if (format === 'rtf') {
         triggerDownload(encodeRtf(content), `${baseName}.rtf`, 'application/rtf')
       } else if (format === 'pdf') {

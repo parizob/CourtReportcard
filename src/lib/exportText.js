@@ -3,6 +3,32 @@
  * centered page-number headers (CAT re-import).
  */
 
+/**
+ * Prepare plain text for download / RTF / PDF.
+ * Mid-line bare CR (common after RTF strip / soft wraps) must not survive —
+ * CaseCATalyst treats lone CR like a paragraph break and splits "right\r hand".
+ */
+export function normalizeExportPlainText(text) {
+  let s = String(text ?? '')
+  // CRLF → LF first so real line endings are preserved as single newlines.
+  s = s.replace(/\r\n/g, '\n')
+  // Lone CR: soft-wrap artifact. Drop when whitespace already flanks it;
+  // otherwise insert a space so "truth\ryou're" → "truth you're".
+  s = s.replace(/\r/g, (_, offset, full) => {
+    const prev = offset > 0 ? full[offset - 1] : ''
+    const next = offset + 1 < full.length ? full[offset + 1] : ''
+    if (prev === ' ' || prev === '\t' || prev === '\n') return ''
+    if (next === ' ' || next === '\t' || next === '\n' || next === '') return ''
+    return ' '
+  })
+  return s
+}
+
+/** Windows-friendly .txt body for CAT ASCII import. */
+export function toWindowsTextFile(text) {
+  return normalizeExportPlainText(text).replace(/\n/g, '\r\n')
+}
+
 /** Right-justified page header from court .txt exports (same signal as pageCount). */
 export function isPageHeaderLine(line) {
   return /^\s{30,}\d{1,4}\s*$/.test((line || '').replace(/\r$/, ''))
@@ -167,7 +193,7 @@ export function stripPageHeaderLines(text) {
 export function formatExportText(text, opts = {}) {
   const includeLineNumbers = opts.includeLineNumbers !== false
   const includePageNumbers = opts.includePageNumbers !== false
-  let out = text || ''
+  let out = normalizeExportPlainText(text || '')
   // Lines off: blank digits in place (keeps caption/Q&A columns). Never slice the
   // left column — that flush-left shift looked broken next to page headers or alone.
   if (!includeLineNumbers) out = blankLineNumbers(out)

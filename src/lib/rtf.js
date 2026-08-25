@@ -9,6 +9,8 @@
  * CaseCATalyst, etc.) produces. Not a general-purpose RTF parser.
  */
 
+import { isPageHeaderLine } from './exportText.js'
+
 export function isRtf(text) {
   return typeof text === 'string' && text.trimStart().startsWith('{\\rtf')
 }
@@ -63,6 +65,9 @@ export function stripRtf(rtf) {
     }
   }
 
+  // Normalize CRLF from CAT / our encoder before control stripping.
+  s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
   // Replace common whitespace control words with their text equivalents.
   s = s.replace(/\\par\b ?/g, '\n')
   s = s.replace(/\\line\b ?/g, '\n')
@@ -70,6 +75,13 @@ export function stripRtf(rtf) {
   // Real page breaks → form feed so countPages can charge by page, not by
   // leftover nonempty lines from headers/footers/crumbs after strip.
   s = s.replace(/\\page\b ?/g, '\f')
+  // CAT / our exports use \\li twips for left indent. Restore approximate
+  // Courier 12pt spaces so re-upload keeps columns.
+  s = s.replace(/\\li(-?\d+) ?/g, (_, n) => {
+    const twips = parseInt(n, 10)
+    if (!Number.isFinite(twips) || twips <= 0) return ''
+    return ' '.repeat(Math.min(120, Math.round(twips / 144)))
+  })
 
   // Decode \'XX hex sequences (e.g. \'93 → fancy quote). Treats as Latin-1.
   s = s.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
@@ -114,23 +126,98 @@ export function stripRtf(rtf) {
 }
 
 /**
- * Wrap plain text in a minimal RTF 1.0 document. Uses Courier New so transcripts
- * render with monospaced alignment matching the editor view.
+ * Wrap plain text as CaseCATalyst-importable RTF/CRE.
+ *
+ * CaseCAT Import → RTF/CRE expects Court Reporting Extensions, not generic
+ * Word RTF. Mirror Stenograph caseCATalyst4 export markers
+ * (scripts/fixtures/casecat-rtf-structure-excerpt.rtf):
+ *
+ *   {\\rtf1\\ansi{\\*\\cxrev100}{\\*\\cxtranscript} …}
+ *   fonttbl + colortbl + stylesheet
+ *   paper/margins
+ *   per line: \\pard\\s0\\…\\cxsingle\\fs…\\sl-…\\r\\n FULL LINE\\r\\n\\par
+ *
+ * Important: keep the full page-image line (leading spaces + gutter digits +
+ * text). Converting spaces to \\li destroyed the monospace column grid so
+ * line numbers sat alone above their text. Do not emit \\cxnoflines25 /
+ * \\cxlinex — those draw a second line-number column and shrink the text
+ * width until lines wrap ("COURT OF THE FIFTH", "a.m. EST").
+ *
+ * Leading blank lines (and blanks under an ASCII page header) are stripped per
+ * page — in page-image TXT they pad the caption down the sheet; in CAT they
+ * become empty paragraphs and shove content off the bottom (spill). Page-number
+ * headers themselves are kept when the export toggle includes them.
+ *
+ * Form feeds → \\page.
+ * Callers should pass formatExportText output (already normalizeExportPlainText).
  */
 export function encodeRtf(plainText) {
-  const escaped = plainText
-    .replace(/\\/g, '\\\\')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
-    // Encode non-ASCII characters as \uNNNN escapes per RTF spec.
-    .replace(/[\u0080-\uffff]/g, (c) => {
-      const code = c.charCodeAt(0)
-      // RTF uses signed 16-bit; values > 32767 must be expressed as negative.
-      const signed = code > 32767 ? code - 65536 : code
-      return `\\u${signed}?`
-    })
-    // Convert newlines to \par paragraph breaks.
-    .replace(/\r?\n/g, '\\par\n')
+  // Belt-and-suspenders: strip mid-line CR even if caller skipped normalize.
+  let text = String(plainText ?? '').replace(/\r\n/g, '\n').replace(/\r/g, (match, offset, full) => {
+    const prev = offset > 0 ? full[offset - 1] : ''
+    const next = offset + 1 < full.length ? full[offset + 1] : ''
+    if (prev === ' ' || prev === '\t' || prev === '\n') return ''
+    if (next === ' ' || next === '\t' || next === '\n' || next === '') return ''
+    return ' '
+  })
 
-  return `{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0\\fmodern Courier New;}}\n\\f0\\fs20\n${escaped}\n}`
+  const escapeLine = (line) =>
+    String(line)
+      .replace(/\\/g, '\\\\')
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}')
+      .replace(/[\u0080-\uffff]/g, (c) => {
+        const code = c.charCodeAt(0)
+        const signed = code > 32767 ? code - 65536 : code
+        return `\\u${signed}?`
+      })
+
+  /**
+   * Drop blank padding so CAT does not start content at ~6".
+   * Keep a leading page-number header when present; drop blanks under it.
+   */
+  const trimPageLinesForCat = (page) => {
+    const lines = page.split('\n')
+    let start = 0
+    while (start < lines.length && !/\S/.test(lines[start])) start++
+    let end = lines.length - 1
+    while (end >= start && !/\S/.test(lines[end])) end--
+    const sliced = lines.slice(start, end + 1)
+    if (sliced.length && isPageHeaderLine(sliced[0])) {
+      let i = 1
+      while (i < sliced.length && !/\S/.test(sliced[i])) i++
+      return [sliced[0], ...sliced.slice(i)]
+    }
+    return sliced
+  }
+
+  // 10pt + exact spacing so ~80-column page-image lines fit US Letter.
+  // Keep every leading space — that is the line-number / caption grid.
+  const pard = '\\pard\\s0\\ql\\cxsingle\\f0\\fs20\\cf0\\li0\\fi0\\ri0\\sl-240\\slmult0'
+
+  const pages = text.split('\f')
+  const body = pages
+    .map((page) => {
+      const lines = trimPageLinesForCat(page)
+      if (!lines.length) return `${pard}\r\n\r\n\\par`
+      return lines.map((line) => `${pard}\r\n${escapeLine(line)}\r\n\\par`).join('\r\n')
+    })
+    .join('\r\n\\page\r\n')
+
+  // CRE markers for Import; no \\cxnoflines (conflicts with embedded gutter nums).
+  return (
+    `{\\rtf1\\ansi{\\*\\cxrev100}{\\*\\cxtranscript}\r\n` +
+    `{\\*\\cxsystem Court Reportcard}\r\n` +
+    `{\\info{\\title Court Reportcard export}}\r\n` +
+    `\\deffont0{\\fonttbl\r\n` +
+    `{\\f0\\fcharset1 Courier New;}\r\n` +
+    `{\\f2\\fswiss\\fcharset1 Courier New;}\r\n` +
+    `}\r\n` +
+    `{\\colortbl;}\r\n` +
+    `{\\stylesheet\r\n` +
+    `{\\s0\\snext0\\li0\\fi0 Normal 0;}\r\n` +
+    `}\r\n` +
+    `\\paperh15840\\paperw12240\\margt720\\margb720\\margl288\\margr288\r\n` +
+    `${body}\r\n}`
+  )
 }
