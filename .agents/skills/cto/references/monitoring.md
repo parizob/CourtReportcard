@@ -102,3 +102,6 @@ this is a manual `execute_sql` check for now). Until that changes:
   `pg_cron`, plus opportunistic kicks from `analyze-case` / dashboard): one
   automatic re-kick, then refund+fail. Heartbeats bump `cases.updated_at` each
   extract/proofread unit so long healthy jobs are not mistaken for stuck.
+- 90-day content purge is Edge Function `purge-expired-cases` (daily 03:00 UTC
+  via `pg_cron` + `pg_net`). Uses the Storage API — SQL `DELETE FROM
+  storage.objects` is blocked by Supabase and will abort the whole job.
