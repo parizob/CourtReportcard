@@ -53,8 +53,14 @@ const ANALYSIS_DEADLINE_MS = (() => {
   const raw = Number(Deno.env.get('ANALYSIS_DEADLINE_MS'))
   return Number.isFinite(raw) && raw > 10_000 ? raw : 370_000
 })()
+// Leave wall-clock after Gemini abort for selfFetchContinue / claim release.
+// Without this, abort-at-deadline races the platform hard-kill and the
+// "fresh try" self-fetch never leaves the dying invocation (prod 2026-08-26:
+// Mateo + 8-25 — late extract chunks ANALYSIS_TIMEOUT ×4 → refund).
+const CLEANUP_RESERVE_MS = 45_000
 const PROOFREAD_CLAIM_REFRESH_MS = 45_000
 const PROOFREAD_WATCHDOG_TICK_MS = 45_000
+const EXTRACT_HEARTBEAT_MS = 45_000
 
 // ── Chunking (large-transcript support) ──
 // Measured directly (see scripts/calibrate-chunk-size.mjs against the real
@@ -64,6 +70,8 @@ const PROOFREAD_WATCHDOG_TICK_MS = 45_000
 // output tokens even on a fast model. 15 pages/chunk leaves comfortable
 // margin (~63s of the 135s budget) for real-world variance and non-Gemini
 // overhead this measurement doesn't include (storage I/O, JSON parsing).
+// (Briefly tried 10 pages on 2026-08-26 after extract timeouts; reverted —
+// calibration and timeout pattern point at hang/dispatch, not chunk size.)
 const PAGES_PER_CHUNK = 15
 // Below this, the single-call path is completely unchanged — zero regression
 // risk to current traffic. 20 pages leaves ~51s margin at the measured rate.
@@ -80,14 +88,35 @@ const ENTRIES_PER_PROOFREAD_BATCH = 250
 // Proofread batches for one file run in capped waves (see proofreadParallel.ts)
 // instead of a strict serial self-fetch chain — same Gemini call count, lower
 // wall-clock on multi-batch jobs. Extract chunks stay serial (v1).
-// 1 initial attempt + 3 retries per chunk/batch before falling through to the
-// full refund+delete path — see handleFailure. Helps transient failures
-// (timeout, momentary 5xx). Empty proofread results retry here too, then
-// accept and continue (see MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY). Won't help
-// a chunk whose content deterministically confuses the model at temperature:0.
+// Non-timeout failures: 1 initial + 3 retries, then refund+delete.
+// ANALYSIS_TIMEOUT only: more attempts (each self-fetch gets a fresh Edge
+// budget) — slow/hung Gemini on one chunk should not kill a mostly-done job.
+// Empty proofread results retry here too, then accept and continue (see
+// MIN_ENTRIES_FOR_EMPTY_PROOFREAD_RETRY). Won't help a chunk whose content
+// deterministically confuses the model at temperature:0.
 // PROHIBITED_CONTENT (Gemini content filter) fails immediately — no retries.
-// Raised from 3 to 4 on 2026-07-16 alongside the ENTRIES_PER_PROOFREAD_BATCH trim.
 const MAX_CHUNK_ATTEMPTS = 4
+const MAX_TIMEOUT_CHUNK_ATTEMPTS = 8
+
+function isAnalysisTimeoutError(err: unknown): boolean {
+  return err instanceof Error && err.message === 'ANALYSIS_TIMEOUT'
+}
+
+/** Absolute time when Gemini must abort, leaving CLEANUP_RESERVE_MS for dispatch. */
+function geminiDeadlineAt(wallDeadlineAt: number): number {
+  const remaining = wallDeadlineAt - Date.now()
+  if (remaining <= CLEANUP_RESERVE_MS + 10_000) {
+    // Short budgets (Dev free ~135s): keep ~20% for cleanup, rest for Gemini.
+    return Date.now() + Math.max(5_000, Math.floor(remaining * 0.8))
+  }
+  return wallDeadlineAt - CLEANUP_RESERVE_MS
+}
+
+function canRetryUnit(err: unknown, attempt: number): boolean {
+  if (isProhibitedContentError(err)) return false
+  const max = isAnalysisTimeoutError(err) ? MAX_TIMEOUT_CHUNK_ATTEMPTS : MAX_CHUNK_ATTEMPTS
+  return attempt < max - 1
+}
 // A non-trivial proofread batch that returns zero annotations may be a
 // Gemini flake (2026-07-24 Natalie / Alexander rough: prod returned `[]`
 // while a local Pro run found 84 issues) OR a legitimately clean batch
@@ -223,10 +252,24 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   const controller = new AbortController()
   let timer: number | undefined
   const startedAt = Date.now()
+  const budgetMs = deadlineAt ? Math.max(0, deadlineAt - startedAt) : 0
+  console.log(
+    `Gemini start (${model}): budget=${(budgetMs / 1000).toFixed(1)}s ` +
+    `promptChars=${typeof prompt === 'string' ? prompt.length : 0} filePart=${filePart ? 'yes' : 'no'}`,
+  )
   if (deadlineAt) {
     const remaining = deadlineAt - Date.now()
-    if (remaining <= 0) throw new Error('ANALYSIS_TIMEOUT')
-    timer = setTimeout(() => controller.abort(), remaining)
+    if (remaining <= 0) {
+      console.warn(`Gemini skip (${model}): deadline already passed before fetch`)
+      throw new Error('ANALYSIS_TIMEOUT')
+    }
+    timer = setTimeout(() => {
+      console.warn(
+        `Gemini abort (${model}): no response after ${((Date.now() - startedAt) / 1000).toFixed(1)}s ` +
+        `(budget was ${(budgetMs / 1000).toFixed(1)}s)`,
+      )
+      controller.abort()
+    }, remaining)
   }
 
   let response: Response
@@ -247,14 +290,23 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
     })
   } catch (err) {
     if (timer) clearTimeout(timer)
-    if ((err as Error).name === 'AbortError') throw new Error('ANALYSIS_TIMEOUT')
+    const elapsedS = ((Date.now() - startedAt) / 1000).toFixed(1)
+    if ((err as Error).name === 'AbortError') {
+      console.warn(`Gemini aborted (${model}): ANALYSIS_TIMEOUT after ${elapsedS}s`)
+      throw new Error('ANALYSIS_TIMEOUT')
+    }
+    console.warn(`Gemini fetch error (${model}) after ${elapsedS}s:`, (err as Error)?.message || err)
     throw err
   }
   if (timer) clearTimeout(timer)
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}))
-    throw new Error(errBody?.error?.message || `Gemini API error: ${response.status}`)
+    const msg = errBody?.error?.message || `Gemini API error: ${response.status}`
+    console.warn(
+      `Gemini HTTP ${response.status} (${model}) after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${msg}`,
+    )
+    throw new Error(msg)
   }
 
   const data = await response.json()
@@ -265,8 +317,11 @@ async function callGemini(prompt: string, filePart: unknown = null, deadlineAt =
   // Real per-call timing + token usage, visible in Supabase function logs —
   // used to calibrate chunk sizing and to monitor cost/latency once chunking
   // is live in production. Log even when empty so failed calls leave a trail.
+  const elapsedS = ((Date.now() - startedAt) / 1000).toFixed(1)
   if (data.usageMetadata) {
-    console.log(`Gemini call (${model}): ${((Date.now() - startedAt) / 1000).toFixed(1)}s`, JSON.stringify(data.usageMetadata))
+    console.log(`Gemini call (${model}): ${elapsedS}s`, JSON.stringify(data.usageMetadata))
+  } else {
+    console.log(`Gemini call (${model}): ${elapsedS}s (no usageMetadata)`)
   }
 
   if (!rawText) {
@@ -2397,6 +2452,7 @@ async function refillProofreadWaveOrMerge(opts: {
 async function selfFetchContinue(SUPABASE_URL: string, SERVICE_ROLE_KEY: string, body: Record<string, unknown>): Promise<void> {
   const maxAttempts = 3
   let lastErr: Error | null = null
+  console.log(`selfFetchContinue dispatch: ${JSON.stringify(body)}`)
   for (let i = 0; i < maxAttempts; i++) {
     let resp: Response
     try {
@@ -2411,11 +2467,16 @@ async function selfFetchContinue(SUPABASE_URL: string, SERVICE_ROLE_KEY: string,
       })
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err))
+      console.warn(`selfFetchContinue network error attempt ${i + 1}/${maxAttempts}:`, lastErr.message)
       if (i < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)))
       continue
     }
-    if (resp.ok) return
+    if (resp.ok) {
+      console.log(`selfFetchContinue ok (${resp.status}): ${JSON.stringify(body)}`)
+      return
+    }
     lastErr = new Error(`Failed to invoke continuation (${JSON.stringify(body)}): ${resp.status}`)
+    console.warn(`selfFetchContinue HTTP ${resp.status} attempt ${i + 1}/${maxAttempts}: ${JSON.stringify(body)}`)
     // 4xx (except 429) won't get better on retry — fail fast.
     if (resp.status < 500 && resp.status !== 429) throw lastErr
     if (i < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)))
@@ -2737,7 +2798,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const work = (async () => {
-      const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+      const wallDeadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+      const deadlineAt = geminiDeadlineAt(wallDeadlineAt)
       try {
         await touchHeartbeat(admin, caseId, 'downloading')
         const { data: blob, error: dlErr } = await admin.storage.from('case-files').download(dbFile.storage_path)
@@ -2752,16 +2814,33 @@ Deno.serve(async (req: Request) => {
         let finalResult: { title: string; entries: any[]; originalText?: string } | null = null
         let mergedChunkPaths: string[] | null = null
 
+        const runExtract = async (
+          stage: string,
+          run: () => Promise<{ title: string; entries: any[]; originalText?: string }>,
+        ) => {
+          await touchHeartbeat(admin, caseId, stage)
+          const pulse = setInterval(() => {
+            void touchHeartbeat(admin, caseId, stage)
+          }, EXTRACT_HEARTBEAT_MS)
+          try {
+            return await run()
+          } finally {
+            clearInterval(pulse)
+          }
+        }
+
         if (isPdf) {
           // PDFs are sent as a binary file part — not text-splittable, so
           // they always take the single-call path regardless of size.
-          await touchHeartbeat(admin, caseId, 'extracting')
-          finalResult = await extractContent(await blob.arrayBuffer(), 'application/pdf', deadlineAt, undefined, {
-            admin,
-            userId: caseRow.user_id,
-            caseId,
-            failLabel: `${jsonBaseName}_entries`,
-          })
+          const pdfBytes = await blob.arrayBuffer()
+          finalResult = await runExtract('extracting', () =>
+            extractContent(pdfBytes, 'application/pdf', deadlineAt, undefined, {
+              admin,
+              userId: caseRow.user_id,
+              caseId,
+              failLabel: `${jsonBaseName}_entries`,
+            }),
+          )
         } else {
           const rawContent = await blob.text()
           // Content-based (not extension): client now uploads stripped .txt for
@@ -2773,13 +2852,14 @@ Deno.serve(async (req: Request) => {
           if (totalPages <= CHUNK_THRESHOLD_PAGES) {
             // Below the threshold — identical to the original single-call
             // behavior, byte for byte. This is the majority of current traffic.
-            await touchHeartbeat(admin, caseId, `extracting file ${fileIndex}`)
-            finalResult = await extractContent(plainText, undefined, deadlineAt, undefined, {
-              admin,
-              userId: caseRow.user_id,
-              caseId,
-              failLabel: `${jsonBaseName}_entries`,
-            })
+            finalResult = await runExtract(`extracting file ${fileIndex}`, () =>
+              extractContent(plainText, undefined, deadlineAt, undefined, {
+                admin,
+                userId: caseRow.user_id,
+                caseId,
+                failLabel: `${jsonBaseName}_entries`,
+              }),
+            )
           } else {
             const chunks = splitIntoChunks(plainText, PAGES_PER_CHUNK)
 
@@ -2791,17 +2871,19 @@ Deno.serve(async (req: Request) => {
             } else {
               const chunkText = chunks[chunkIndex]
               const trailingContext = chunkIndex > 0 ? extractTrailingContext(chunks[chunkIndex - 1]) : ''
-              await touchHeartbeat(admin, caseId, `extracting file ${fileIndex} chunk ${chunkIndex}`)
-              const chunkResult = await extractContent(chunkText, undefined, deadlineAt, {
-                index: chunkIndex,
-                total: chunks.length,
-                trailingContext,
-              }, {
-                admin,
-                userId: caseRow.user_id,
-                caseId,
-                failLabel: `${jsonBaseName}_chunk${chunkIndex}`,
-              })
+              const stage = `extracting file ${fileIndex} chunk ${chunkIndex}`
+              const chunkResult = await runExtract(stage, () =>
+                extractContent(chunkText, undefined, deadlineAt, {
+                  index: chunkIndex,
+                  total: chunks.length,
+                  trailingContext,
+                }, {
+                  admin,
+                  userId: caseRow.user_id,
+                  caseId,
+                  failLabel: `${jsonBaseName}_chunk${chunkIndex}`,
+                }),
+              )
               const chunkBytes = new TextEncoder().encode(JSON.stringify(chunkResult, null, 2))
               const { error: upErr } = await admin.storage.from('case-files').upload(chunkPath, chunkBytes, { upsert: true, contentType: 'application/json' })
               if (upErr) throw new Error(`Failed to save chunk ${chunkIndex} for ${dbFile.file_name}: ${upErr.message}`)
@@ -2829,9 +2911,14 @@ Deno.serve(async (req: Request) => {
         await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex + 1, chunk_index: 0, attempt: 0 })
       } catch (err) {
         const stage = `extract file ${fileIndex} chunk ${chunkIndex} attempt ${attempt}`
-        const canRetry = !isProhibitedContentError(err) && attempt < MAX_CHUNK_ATTEMPTS - 1
-        if (canRetry) {
+        const errMsg = err instanceof Error ? err.message : String(err)
+        if (canRetryUnit(err, attempt)) {
+          console.warn(
+            `extract retrying after error (${errMsg}) case=${caseId} file=${fileIndex} chunk=${chunkIndex} ` +
+            `attempt ${attempt} -> ${attempt + 1}`,
+          )
           try {
+            await touchHeartbeat(admin, caseId, `${stage} - retrying`)
             await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: attempt + 1 })
           } catch (retryErr) {
             // The original `err` is what actually failed the work — the retry
@@ -2840,6 +2927,9 @@ Deno.serve(async (req: Request) => {
             await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
           }
         } else {
+          console.warn(
+            `extract giving up (${errMsg}) case=${caseId} file=${fileIndex} chunk=${chunkIndex} attempt=${attempt}`,
+          )
           await handleFailure(admin, caseRow, caseId, err, stage)
         }
       }
@@ -3029,7 +3119,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const work = (async () => {
-    const deadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+    const wallDeadlineAt = Date.now() + ANALYSIS_DEADLINE_MS
+    const deadlineAt = geminiDeadlineAt(wallDeadlineAt)
     let claimed = false
     try {
       const claim = await tryClaimProofreadBatch(admin, extractingDir, jsonBaseName, batchIndex, attempt)
@@ -3106,9 +3197,14 @@ Deno.serve(async (req: Request) => {
         }
       }
       const stage = `proofread file ${fileIndex} batch ${batchIndex} attempt ${attempt}`
-      const canRetry = !isProhibitedContentError(err) && attempt < MAX_CHUNK_ATTEMPTS - 1
-      if (canRetry) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      if (canRetryUnit(err, attempt)) {
+        console.warn(
+          `proofread retrying after error (${errMsg}) case=${caseId} file=${fileIndex} batch=${batchIndex} ` +
+          `attempt ${attempt} -> ${attempt + 1}`,
+        )
         try {
+          await touchHeartbeat(admin, caseId, `${stage} - retrying`)
           await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, {
             case_id: caseId,
             pass: 'proofread',
@@ -3120,6 +3216,9 @@ Deno.serve(async (req: Request) => {
           await handleFailure(admin, caseRow, caseId, err, `${stage} (retry dispatch also failed: ${(retryErr as Error)?.message || retryErr})`)
         }
       } else {
+        console.warn(
+          `proofread giving up (${errMsg}) case=${caseId} file=${fileIndex} batch=${batchIndex} attempt=${attempt}`,
+        )
         await handleFailure(admin, caseRow, caseId, err, stage)
       }
     }
