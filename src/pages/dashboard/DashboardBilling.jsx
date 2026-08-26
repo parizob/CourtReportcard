@@ -88,6 +88,12 @@ export default function DashboardBilling() {
     return n < 0 ? `-${abs}` : `+${abs}`
   }
 
+  const historyAmountLabel = (row) => {
+    if (row.price_cents == null) return '—'
+    const dollars = (Math.abs(Number(row.price_cents)) / 100).toFixed(2)
+    return Number(row.amount) < 0 ? `-$${dollars}` : `$${dollars}`
+  }
+
   const promoErrorMessage = (code) => {
     switch (code) {
       case 'invalid_code':
@@ -402,8 +408,8 @@ export default function DashboardBilling() {
                       <span className={`text-sm font-bold w-16 sm:w-20 text-right ${row.amount < 0 ? 'text-on-surface-variant' : 'text-on-surface'}`}>
                         {historyTokensLabel(row.amount)}
                       </span>
-                      <span className="text-sm font-bold text-on-surface w-16 sm:w-20 text-right">
-                        {row.price_cents != null ? `$${(row.price_cents / 100).toFixed(2)}` : '—'}
+                      <span className={`text-sm font-bold w-16 sm:w-20 text-right ${row.amount < 0 ? 'text-on-surface-variant' : 'text-on-surface'}`}>
+                        {historyAmountLabel(row)}
                       </span>
                     </li>
                   ))}
