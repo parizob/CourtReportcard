@@ -561,9 +561,9 @@ export default function DashboardExport() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'Plain text.' },
-              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'Rich text.' },
-              { format: 'pdf', icon: 'picture_as_pdf', color: 'bg-red-50 text-red-600', ext: '.pdf', desc: 'Portable document.' },
+              { format: 'txt', icon: 'article', color: 'bg-blue-50 text-blue-600', ext: '.txt', desc: 'For CAT re-import' },
+              { format: 'rtf', icon: 'draft', color: 'bg-indigo-50 text-indigo-600', ext: '.rtf', desc: 'For editing outside CAT' },
+              { format: 'pdf', icon: 'picture_as_pdf', color: 'bg-red-50 text-red-600', ext: '.pdf', desc: 'For sharing or printing' },
             ].map(({ format, icon, color, ext, desc }) => (
               <button
                 key={format}
@@ -595,18 +595,15 @@ export default function DashboardExport() {
               className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/70 hover:text-primary transition-colors"
             >
               <span className="material-symbols-outlined text-sm">help_outline</span>
-              Not sure which options to use?
+              Not sure what to include in your download?
             </button>
             <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(26rem,calc(100vw-2rem))] opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl editorial-shadow px-3.5 py-3 space-y-2">
-                <p className="text-[11px] text-on-surface-variant italic leading-relaxed">
-                  Re-importing into your CAT software? We recommend .txt.
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  Match line numbers and page numbers to what your CAT software expects on import. Wrong settings can throw off spacing.
                 </p>
-                <p className="text-[11px] text-on-surface-variant italic leading-relaxed">
-                  Editing outside your CAT software? We recommend .rtf or .pdf.
-                </p>
-                <p className="text-[11px] text-on-surface-variant leading-relaxed pt-0.5 border-t border-outline-variant/15">
-                  Check your software settings for whether to include line numbers and page numbers.
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  If you are not sure, leave both on and check your software settings.
                 </p>
               </div>
             </div>

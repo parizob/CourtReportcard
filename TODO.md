@@ -4,6 +4,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Open
 
+- [ ] Verify .txt export re-imports cleanly into CAT software across real-world file variants, not just our validated cases. Triggered by a customer report: CaseCATalyst treated every single line as needing a period after importing our .txt export, unusable, 6+ hours lost. Two candidate causes to check: (1) `encodeRtf` in `src/lib/rtf.js` converts every `\n` to `\par` — if a reporter's actual export path touches that, every hard-wrapped transcript line becomes its own RTF paragraph, which a CAT reader could treat as an entry boundary needing terminal punctuation; (2) a CRLF vs. LF line-ending mismatch getting lost somewhere in extraction/reconstruction (original CAT ASCII exports are typically CRLF). Get the actual affected file from the reporter to reproduce before fixing blind — don't guess
 - [ ] Add CAPTCHA to signup (protect free trial tokens from bot abuse)
 - [ ] Revisit sales tax nexus once revenue crosses ~$5k — FL doesn't tax SaaS, other states do at $100k+/year nexus. Not close yet; check with a CPA before it matters. Note: sales tax is a trust-fund tax, LLC protection doesn't fully shield personal exposure if owed and unremitted
 - [ ] File U.S. Copyright Office registration for the codebase — needed to preserve statutory damages/attorney's fees eligibility. Grace window (3 months from 2026-07-24 launch) runs to ~late Oct 2026. ~$45-65. Use the confidential-portions redaction option so the prompts (`src/lib/gemini.js`) don't become public record
@@ -11,8 +12,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 - [ ] Phase 2 glossary support (extraction emits terms, proofread batches get them as context) — deferred until Phase 1 chunking is proven solid in production
 - [ ] Move Supabase, Vercel, and the domain registrar off Brandon's personal Gmail onto Parizo Labs LLC's business email — payment method already switched to Mercury checking; avoids single-inbox recovery risk
 - [ ] File local business tax receipt (occupational license) for both Seminole County and the City of Casselberry
-- [ ] Watch Prod `analyze-case` logs for `bare annotations` (normalize already keeps those flags). If it stays noisy for a week+ of normal uploads, trial Gemini `responseSchema` on proofread — don't build that until the log tripwire says it's worth it
-- [ ] After next Prod `Gemini returned no content` failure: read the new warn log (`finishReason` / `blockReason` / part summaries) and `last_error` — empty-response diag live on Prod 2026-08-11
+- [ ] Test `gemini-2.5-pro` vs `gemini-3.1-pro` for the proofread pass — compare accuracy (recall/false-positive rate) and cost/latency before deciding whether to switch off 2.5 Pro
 
 ### Marketing / Growth (CMO review, 2026-07-11)
 
@@ -21,9 +21,7 @@ Internal task list / project notes. Not shipped to the site (Vite only bundles `
 
 ## Backlog
 
-- [ ] **Bulk Accept all / Ignore all (whole transcript)** — customer asked; parked on purpose. Too easy to rubber-stamp contextual flags and break the “human owns every change” promise. Do not build unless several users hit the same wall *after* same-error tools land
 - [ ] **Bulk action for the same exact error only** (Accept/Ignore every open card with identical original→suggestion) — safer than Accept-all; revisit after document-wide exact-repeat propagate has real usage. Propagate already surfaces the clones as open cards
-- [ ] Move outbound transactional email off `noreply@courtreportcard.com` to a dedicated subdomain (e.g. `mail.courtreportcard.com`) — isolates sending reputation/DKIM/SPF from the root domain
 - [ ] Revisit `DashboardEditor.jsx` rendering for very large transcripts (200+ pages):
     - Higher priority: memoize the pagination/highlight computation (~line 1120) — currently recomputes on every render, and large docs mean more accept/ignore clicks, each retriggering it
     - Lower priority / watch item: no virtualization (all pages mount at once) — no confirmed perf problem yet at 212 real pages, treat as speculative until it is
