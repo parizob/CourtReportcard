@@ -597,28 +597,16 @@ export default function DashboardExport() {
               <span className="material-symbols-outlined text-sm">help_outline</span>
               Not sure which options to use?
             </button>
-            <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(22rem,calc(100vw-2rem))] opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
-              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl editorial-shadow p-3 space-y-2">
-                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">Case CATalyst</p>
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Line numbers on, page numbers off.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-1">Eclipse</p>
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Line numbers off, page numbers off.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-surface-container-low px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Keep as filed</p>
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Both on (default).
-                  </p>
-                </div>
-                <p className="text-[10px] text-outline px-1 pt-0.5 leading-relaxed">
-                  When in doubt, check your software&apos;s import settings.
+            <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(26rem,calc(100vw-2rem))] opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50">
+              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl editorial-shadow px-3.5 py-3 space-y-2">
+                <p className="text-[11px] text-on-surface-variant italic leading-relaxed">
+                  Re-importing into your CAT software? We recommend .txt.
+                </p>
+                <p className="text-[11px] text-on-surface-variant italic leading-relaxed">
+                  Editing outside your CAT software? We recommend .rtf or .pdf.
+                </p>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed pt-0.5 border-t border-outline-variant/15">
+                  Check your software settings for whether to include line numbers and page numbers.
                 </p>
               </div>
             </div>
