@@ -55,7 +55,7 @@ export default function DashboardBilling() {
   const [promoMessage, setPromoMessage] = useState(null) // { tone: 'ok' | 'err', text }
 
   const loadPurchases = async () => {
-    // Purchases + admin top-ups (Bonus) + promo redemptions.
+    // Purchases, admin bonuses, promos, and purchase refunds (clawbacks).
     const { data, error } = await supabase
       .from('token_ledger')
       .select('id, amount, description, created_at, price_cents, type')
@@ -66,7 +66,8 @@ export default function DashboardBilling() {
         (row) =>
           row.type === 'purchase' ||
           row.type === 'promo' ||
-          row.description === 'Admin grant',
+          row.description === 'Admin grant' ||
+          row.description === 'Purchase refunded',
       )
       setPurchases(rows)
       setPurchasePage(0)
@@ -76,8 +77,15 @@ export default function DashboardBilling() {
 
   const historyLabel = (row) => {
     if (row.description === 'Admin grant') return 'Bonus'
+    if (row.description === 'Purchase refunded') return 'Purchase refunded'
     if (row.type === 'promo') return row.description || 'Promo'
     return row.description || 'Purchase'
+  }
+
+  const historyTokensLabel = (amount) => {
+    const n = Number(amount) || 0
+    const abs = Math.abs(n).toLocaleString()
+    return n < 0 ? `-${abs}` : `+${abs}`
   }
 
   const promoErrorMessage = (code) => {
@@ -391,8 +399,8 @@ export default function DashboardBilling() {
                       <span className="text-sm text-on-surface-variant w-24 sm:w-36 truncate">
                         {historyLabel(row)}
                       </span>
-                      <span className="text-sm font-bold text-on-surface w-16 sm:w-20 text-right">
-                        +{row.amount.toLocaleString()}
+                      <span className={`text-sm font-bold w-16 sm:w-20 text-right ${row.amount < 0 ? 'text-on-surface-variant' : 'text-on-surface'}`}>
+                        {historyTokensLabel(row.amount)}
                       </span>
                       <span className="text-sm font-bold text-on-surface w-16 sm:w-20 text-right">
                         {row.price_cents != null ? `$${(row.price_cents / 100).toFixed(2)}` : '—'}
