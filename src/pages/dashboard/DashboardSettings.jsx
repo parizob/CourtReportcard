@@ -124,7 +124,7 @@ export default function DashboardSettings() {
             <SettingToggle
               id="pref-auto-advance"
               title="Auto-advance after Accept or Ignore"
-              help="Jump to the next open suggestion in the transcript. Off by default."
+              help="Jump to the next open suggestion in the transcript."
               checked={autoOn}
               disabled={preferencesLoading || savingKey === 'auto_advance_on_accept'}
               onChange={(v) => setPref({ auto_advance_on_accept: v })}

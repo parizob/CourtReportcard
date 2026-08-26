@@ -11,7 +11,11 @@ const sections = [
   {
     num: '2.',
     title: 'Acceptance of Terms & Professional Responsibility',
-    body: `By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms and by the Data Processing Agreement available at https://www.courtreportcard.com/dpa (the "DPA"), which is incorporated into these Terms by reference. The Service is an automated proofreading tool designed to assist, not replace, professional human review. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.`,
+    body: (
+      <>
+        By accessing or using the Service, you confirm that you have read, understood, and agree to be bound by these Terms and by the DPA, which is incorporated into these Terms by reference. The Service is an automated proofreading tool designed to assist, not replace, professional human review. Court Reportcard is a supplementary review aid and does not guarantee that every error will be identified. Always verify suggestions before finalizing your transcript. You maintain sole and complete responsibility for the accuracy, legality, completeness, and formatting of any transcript or document exported from the Service. The Service does not constitute legal advice. Court Reportcard assumes no liability for errors, omissions, or contextual inaccuracies in any output.
+      </>
+    ),
   },
   {
     num: '3.',
@@ -60,11 +64,7 @@ const sections = [
     title: 'Data Privacy, Processing, and Retention',
     body: (
       <>
-        We take the confidentiality of your legal transcripts seriously. Processing of uploaded transcript content is also governed by the Data Processing Agreement at{' '}
-        <Link to="/dpa" className="text-primary font-semibold hover:underline">
-          https://www.courtreportcard.com/dpa
-        </Link>
-        , which forms part of these Terms.
+        We take the confidentiality of your legal transcripts seriously. Processing of uploaded transcript content is also governed by the DPA, which forms part of these Terms.
       </>
     ),
     bullets: [
@@ -124,7 +124,7 @@ export default function TermsOfService() {
             Terms of Service
           </h1>
           <p className="text-sm text-on-surface-variant">
-            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: August 3, 2026
+            <span className="font-semibold text-on-surface">Court Reportcard</span> &mdash; Last Updated: August 26, 2026
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export default function TermsOfService() {
           <p className="text-sm text-on-surface leading-relaxed">
             Welcome to Court Reportcard. These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the Court Reportcard application, website, and services (collectively, the &ldquo;Service&rdquo;). In these Terms, &ldquo;Court Reportcard&rdquo; means the Service and the company that operates it (Parizo Labs LLC, doing business as Court Reportcard). By creating an account or using the Service in any way, you agree to be bound by these Terms in their entirety, including the{' '}
             <Link to="/dpa" className="text-primary font-semibold hover:underline">Data Processing Agreement</Link>
-            {' '}incorporated by reference. If you do not agree, do not use the Service.
+            {' '}(&ldquo;DPA&rdquo;) incorporated by reference. If you do not agree, do not use the Service.
           </p>
         </div>
 

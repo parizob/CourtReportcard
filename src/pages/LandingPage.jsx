@@ -507,6 +507,17 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+
+            <p className="text-center text-xs text-on-surface-variant/70 leading-relaxed mx-auto mt-6 sm:mt-8 italic whitespace-nowrap overflow-x-auto max-w-full px-2">
+              Automated review can miss things, just like a human can. Treat it as a second set of eyes, then finish with your own pass.
+            </p>
+            <p className="text-center text-[11px] text-on-surface-variant/60 leading-relaxed max-w-md mx-auto mt-2 text-balance">
+              Spotted something we missed? Email{' '}
+              <a href="mailto:support@courtreportcard.com" className="text-primary/80 hover:underline">
+                support@courtreportcard.com
+              </a>
+              .
+            </p>
           </div>
         </section>
 
