@@ -117,6 +117,16 @@ function canRetryUnit(err: unknown, attempt: number): boolean {
   const max = isAnalysisTimeoutError(err) ? MAX_TIMEOUT_CHUNK_ATTEMPTS : MAX_CHUNK_ATTEMPTS
   return attempt < max - 1
 }
+
+/**
+ * Extract-timeout retries keep the SAME inputs as attempt 0 (full chunk text +
+ * previous-context when present). We do not strip context or split the chunk:
+ * those can mis-label speakers or disturb seam text — unacceptable for filed
+ * transcripts. Ops still get chunk X/Y logs + timeout_raw_fail snapshots.
+ */
+function extractTimeoutStrategy(_attempt: number): 'default' {
+  return 'default'
+}
 // A non-trivial proofread batch that returns zero annotations may be a
 // Gemini flake (2026-07-24 Natalie / Alexander rough: prod returned `[]`
 // while a local Pro run found 84 issues) OR a legitimately clean batch
@@ -618,6 +628,36 @@ async function persistExtractJsonFail(
     return path
   } catch (e) {
     console.warn('Failed to persist extract JSON fail blob:', e)
+    return null
+  }
+}
+
+/** Ops-only: keep the hung chunk's input text (48h via existing raw_fail purge).
+ *  Filename ends with _raw_fail.txt so handleFailure wipe keeps it. Never UI. */
+async function persistExtractTimeoutChunk(
+  ctx: ExtractPersistCtx | undefined,
+  chunkText: string,
+  meta: Record<string, unknown>,
+): Promise<string | null> {
+  if (!ctx || !chunkText) return null
+  const path = `${ctx.userId}/${ctx.caseId}/extracting/${ctx.failLabel}_timeout_raw_fail.txt`
+  const body =
+    `ANALYSIS_TIMEOUT debug snapshot\n${JSON.stringify(meta)}\n` +
+    `---- chunk text (${chunkText.length} chars) ----\n${chunkText}`
+  try {
+    const bytes = new TextEncoder().encode(body)
+    const { error } = await ctx.admin.storage.from('case-files').upload(path, bytes, {
+      upsert: true,
+      contentType: 'text/plain',
+    })
+    if (error) {
+      console.warn(`Failed to persist extract timeout chunk: ${error.message}`)
+      return null
+    }
+    console.warn(`Saved extract timeout chunk (${chunkText.length} chars) → ${path}`)
+    return path
+  } catch (e) {
+    console.warn('Failed to persist extract timeout chunk:', e)
     return null
   }
 }
@@ -2871,19 +2911,46 @@ Deno.serve(async (req: Request) => {
             } else {
               const chunkText = chunks[chunkIndex]
               const trailingContext = chunkIndex > 0 ? extractTrailingContext(chunks[chunkIndex - 1]) : ''
-              const stage = `extracting file ${fileIndex} chunk ${chunkIndex}`
-              const chunkResult = await runExtract(stage, () =>
-                extractContent(chunkText, undefined, deadlineAt, {
-                  index: chunkIndex,
-                  total: chunks.length,
-                  trailingContext,
-                }, {
-                  admin,
-                  userId: caseRow.user_id,
-                  caseId,
-                  failLabel: `${jsonBaseName}_chunk${chunkIndex}`,
-                }),
+              const totalChunks = chunks.length
+              const strategy = extractTimeoutStrategy(attempt)
+              const failLabel = `${jsonBaseName}_chunk${chunkIndex}`
+              const persistCtx: ExtractPersistCtx = {
+                admin,
+                userId: caseRow.user_id,
+                caseId,
+                failLabel,
+              }
+              const stage = `extracting file ${fileIndex} chunk ${chunkIndex + 1}/${totalChunks}`
+              console.log(
+                `extract ${stage} attempt=${attempt} strategy=${strategy} ` +
+                `chars=${chunkText.length} prevContextChars=${trailingContext.length}`,
               )
+
+              let chunkResult: { title: string; entries: any[]; originalText?: string }
+              try {
+                chunkResult = await runExtract(stage, () =>
+                  extractContent(chunkText, undefined, deadlineAt, {
+                    index: chunkIndex,
+                    total: totalChunks,
+                    trailingContext,
+                  }, persistCtx),
+                )
+              } catch (chunkErr) {
+                if (isAnalysisTimeoutError(chunkErr)) {
+                  await persistExtractTimeoutChunk(persistCtx, chunkText, {
+                    caseId,
+                    fileIndex,
+                    chunkIndex,
+                    totalChunks,
+                    attempt,
+                    strategy,
+                    trailingContextChars: trailingContext.length,
+                    isLastChunk: chunkIndex === totalChunks - 1,
+                  })
+                }
+                throw chunkErr
+              }
+
               const chunkBytes = new TextEncoder().encode(JSON.stringify(chunkResult, null, 2))
               const { error: upErr } = await admin.storage.from('case-files').upload(chunkPath, chunkBytes, { upsert: true, contentType: 'application/json' })
               if (upErr) throw new Error(`Failed to save chunk ${chunkIndex} for ${dbFile.file_name}: ${upErr.message}`)
@@ -2913,13 +2980,17 @@ Deno.serve(async (req: Request) => {
         const stage = `extract file ${fileIndex} chunk ${chunkIndex} attempt ${attempt}`
         const errMsg = err instanceof Error ? err.message : String(err)
         if (canRetryUnit(err, attempt)) {
+          const nextAttempt = attempt + 1
+          const nextStrategy = isAnalysisTimeoutError(err)
+            ? extractTimeoutStrategy(nextAttempt)
+            : 'default'
           console.warn(
             `extract retrying after error (${errMsg}) case=${caseId} file=${fileIndex} chunk=${chunkIndex} ` +
-            `attempt ${attempt} -> ${attempt + 1}`,
+            `attempt ${attempt} -> ${nextAttempt} nextStrategy=${nextStrategy}`,
           )
           try {
             await touchHeartbeat(admin, caseId, `${stage} - retrying`)
-            await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: attempt + 1 })
+            await selfFetchContinue(SUPABASE_URL, SERVICE_ROLE_KEY, { case_id: caseId, pass: 'extract', file_index: fileIndex, chunk_index: chunkIndex, attempt: nextAttempt })
           } catch (retryErr) {
             // The original `err` is what actually failed the work — the retry
             // dispatch failing too is secondary, but worth keeping so both are
