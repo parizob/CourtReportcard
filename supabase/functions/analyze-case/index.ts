@@ -1616,6 +1616,11 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
+/** Mirrors src/lib/gemini.js collapseExtractPromptBlankLines. Prompt/entry.text only. */
+function collapseExtractPromptBlankLines(text: string | undefined | null): string {
+  return String(text ?? '').replace(/(?:\r\n|\n|\r){3,}/g, '\n')
+}
+
 // Pass 1 — extraction only (Flash, no thinking). Returns raw entries + title.
 // `chunkInfo` is only ever set for text (never PDF — binary file parts aren't
 // text-splittable, so PDFs always take the single-call path regardless of size).
@@ -1636,8 +1641,13 @@ async function extractContent(
   } else {
     originalText = fileOrText as string
     const chunkAddendum = chunkInfo ? buildChunkAddendum(chunkInfo.index + 1, chunkInfo.total, chunkInfo.trailingContext) : ''
-    const contextBlock = chunkInfo?.trailingContext ? `<PREVIOUS_CONTEXT>\n${chunkInfo.trailingContext}\n</PREVIOUS_CONTEXT>\n\n` : ''
-    promptSuffix = `\n\n${chunkAddendum}${contextBlock}${originalText}`
+    // Collapse gutter padding in the Gemini copy only — originalText stays the upload.
+    const promptText = collapseExtractPromptBlankLines(originalText)
+    const promptContext = chunkInfo?.trailingContext
+      ? collapseExtractPromptBlankLines(chunkInfo.trailingContext)
+      : ''
+    const contextBlock = promptContext ? `<PREVIOUS_CONTEXT>\n${promptContext}\n</PREVIOUS_CONTEXT>\n\n` : ''
+    promptSuffix = `\n\n${chunkAddendum}${contextBlock}${promptText}`
   }
 
   const prompt = `${EXTRACTION_ONLY_PROMPT}${promptSuffix}`
@@ -1693,7 +1703,7 @@ async function extractContent(
   let entries = extractionResult.entries.map((entry: any, i: number) => ({
     id: entry.id || i + 1,
     speaker: entry.speaker || 'UNKNOWN',
-    text: entry.text || '',
+    text: collapseExtractPromptBlankLines(entry.text || ''),
     timestamp: entry.timestamp || null,
     line_number: entry.line_number || null,
   }))

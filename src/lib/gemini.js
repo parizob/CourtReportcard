@@ -254,6 +254,16 @@ export function matchTranscriptLineGutterPrefix(line) {
 }
 
 /**
+ * Collapse 3+ consecutive line breaks. Used on the Gemini extract prompt
+ * copy (and returned entry.text) so page-gutter / caption padding is not
+ * copied into JSON as thousands of \\n escapes (Mattran-class truncation).
+ * originalText / export stay the uploaded file.
+ */
+export function collapseExtractPromptBlankLines(text) {
+  return String(text ?? '').replace(/(?:\r\n|\n|\r){3,}/g, '\n')
+}
+
+/**
  * Strip CAT line-number / timestamp gutters from extracted entry text.
  * Extraction sometimes leaves wrap-line numbers ("\\n10  depending") in
  * entry.text; proofread then flags them as extra_word. originalText is
@@ -3212,7 +3222,7 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
     }
     promptSuffix = '\n\n[PDF file attached above]'
   } else {
-    promptSuffix = `\n\n${fileOrText}`
+    promptSuffix = `\n\n${collapseExtractPromptBlankLines(fileOrText)}`
   }
 
   // ── PASS 1: Extract entries ──
@@ -3256,7 +3266,7 @@ export async function extractTranscriptWithGemini(fileOrText, mimeType) {
   let entries = extractionResult.entries.map((entry, i) => ({
     id: entry.id || i + 1,
     speaker: entry.speaker || 'UNKNOWN',
-    text: entry.text || '',
+    text: collapseExtractPromptBlankLines(entry.text || ''),
     timestamp: entry.timestamp || null,
     line_number: entry.line_number || null,
   }))

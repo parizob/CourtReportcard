@@ -12,6 +12,7 @@ import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { parseGeminiJsonResponse } from '../src/lib/parseGeminiJson.js'
+import { collapseExtractPromptBlankLines } from '../src/lib/gemini.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -160,7 +161,10 @@ async function runSuite(name, prompt, text, opts = {}) {
   console.log(`\n━━━ ${name} (${RUNS} runs) ━━━`)
   const results = []
   for (let i = 0; i < RUNS; i++) {
-    const r = await callExtract(`${prompt}\n\n${text}`, `${name}#${i + 1}`)
+    const r = await callExtract(
+      `${prompt}\n\n${collapseExtractPromptBlankLines(text)}`,
+      `${name}#${i + 1}`,
+    )
     results.push(r)
     const status = r.ok ? 'OK' : 'FAIL'
     console.log(
@@ -207,6 +211,13 @@ const trap = trapSeed.replace(
 )
 if (!trap.includes('\n'.repeat(1000))) {
   throw new Error('Failed to amplify whitespace trap gap')
+}
+const collapsedTrap = collapseExtractPromptBlankLines(trap)
+if (collapsedTrap.includes('\n'.repeat(3))) {
+  throw new Error('collapseExtractPromptBlankLines left a 3+ newline run in the trap')
+}
+if (!collapsedTrap.includes('WILLIE McCULLOUGH')) {
+  throw new Error('collapse dropped post-gap testimony from the trap')
 }
 const sample = readFileSync(join(TRANSCRIPT_DIR, 'sample_transcript.txt'), 'utf8')
 
