@@ -3,7 +3,7 @@
 // Optional on h2: art: 'steno' | 'voice' | 'digital' (small section illustration)
 // Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
 // CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
-// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods' | 'lark'
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods' | 'lark' | 'steno'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -26,6 +26,128 @@ export const BLOG_TAGS = {
 }
 
 export const blogPosts = [
+  {
+    slug: 'what-is-a-stenographer',
+    title: 'What Is a Stenographer?',
+    excerpt:
+      'That small keyboard is not a typewriter. What stenographers do in the room, how a stenotype actually writes, and how the machine got here.',
+    date: '2026-08-31',
+    dateLabel: 'August 31, 2026',
+    dateLabelShort: '8/31/26',
+    readMinutes: 6,
+    tags: ['industry'],
+    hero: 'steno',
+    metaDescription:
+      'What is a stenographer? That small keyboard is not a typewriter. What they do, how a stenotype writes, and how the machine got here.',
+    content: [
+      {
+        type: 'p',
+        text: 'If you have sat in a deposition, you have probably seen it. A small keyboard. Almost no keys. A person who barely looks at it, and somehow every word in the room ends up on a page with their name at the end.',
+      },
+      {
+        type: 'p',
+        text: 'Most people call that person a court reporter and leave it there. That is true. If they are using what looks like a mini typewriter, the more specific name is stenographer. The craft is stenography. It is not typing. It is not a tape recorder with extra steps. It is a way of writing speech as fast as people talk, built so the record can keep up with the room.',
+      },
+      {
+        type: 'p',
+        text: 'What they do. How the machine works. How that keyboard got here. Here is the plain answer.',
+      },
+
+      { type: 'h2', text: 'What stenography is', art: 'steno' },
+      {
+        type: 'p',
+        text: 'Stenography is writing in a shortened system so the writer can stay with spoken language. English spelling is slow. Speech is not. So the writer uses sounds, briefs, and phrases instead of picking out letters one at a time the way you do on a QWERTY keyboard.',
+      },
+      {
+        type: 'p',
+        text: 'On a stenotype, that means chords. Several keys go down at once. One stroke can be a sound, a word, or a whole phrase the reporter has trained into muscle memory. Software later expands those strokes into English. The theory behind the strokes takes years. The machine is only the instrument.',
+      },
+      {
+        type: 'p',
+        text: 'Look at the keyboard and you will see why this is not typing. There are about two dozen keys. The left hand starts the syllable. The thumbs hit the vowels, which sit lower in the middle: A, O, E, U. The right hand finishes the syllable. S, T, P, and R show up on both sides. Left means the sound at the start of the word. Right means the sound at the end.',
+      },
+      {
+        type: 'p',
+        text: 'A lot of English letters do not get their own key. There is no F on the left. To start a word with F, you press T and P together. The reporter is building sounds, not spelling.',
+      },
+      {
+        type: 'p',
+        text: 'That is why a simple word can look like a different language on the notes. Fish is not F-I-S-H. In one stroke it is TPEURB. TP is the F. EU is the short I. RB is the SH. Nothing in that stroke looks like the English spelling, and that is the point. The machine is built for how the word sounds, not how the dictionary spells it.',
+      },
+      {
+        type: 'callout',
+        text: 'The machine writes sounds. The stenographer writes the record.',
+      },
+
+      { type: 'h2', text: 'What stenographers do' },
+      {
+        type: 'p',
+        text: 'A stenographer\'s job is to make a complete, usable record of what was said, who said it, and what happened in the room. Depositions. Hearings. Trials. Arbitrations. Sometimes live captioning for someone who needs the words as they are spoken.',
+      },
+      {
+        type: 'p',
+        text: 'That is more than catching words. They mark speakers. They catch exhibit numbers. They hold the line when two lawyers talk at once. They know when a mumbled name has to be locked down before it turns into a guessing game at midnight. Then they turn the take into a transcript someone else will quote, file, and argue from.',
+      },
+      {
+        type: 'p',
+        text: 'When they certify those pages, they are saying the record is true. Courts rely on that. Counsel relies on that. The person in the chair is not a recording device. They are the official writer of what happened.',
+      },
+      { type: 'h2', text: 'How the machine got here' },
+      {
+        type: 'p',
+        text: 'The machine most reporters would recognize today comes from Ward Stone Ireland. In the years around 1910 he developed the Stenotype: a small keyboard you could chord, built around sounds instead of spelling. Machines were in use by 1911. Factory production followed. It did not look like a typewriter on purpose. A typewriter writes letters. This thing writes speech.',
+      },
+      {
+        type: 'p',
+        text: 'What changed a lot of minds was speed, in public. In 1914, at a national contest in Atlantic City, young stenotypists took most of the events. After that, schools started teaching the machine. The keyboard layout Ireland settled on is still the one under a working reporter\'s hands.',
+      },
+      {
+        type: 'callout',
+        text: 'Same idea as 1911. A keyboard built for speech, not spelling.',
+      },
+
+      { type: 'h2', text: 'What the computer changed, and what it did not' },
+      {
+        type: 'p',
+        text: 'For a long time the machine still printed a paper tape. The reporter, or a note reader, translated those strokes into English later. Computer-aided transcription changed the last part of that. Strokes could expand on screen. Realtime became possible: a draft the room could see while people were still talking.',
+      },
+      {
+        type: 'p',
+        text: 'That is a big deal for access, for rough drafts, for a lawyer who wants to read back a question before the next one. It is not the same thing as the finished transcript. The dictionary still needs a human. Homophones still look like the right word until someone who was in the room says they are not. A clean realtime feed is a tool. The certified pages are still a person\'s work.',
+      },
+      {
+        type: 'callout',
+        text: 'New tools changed the desk. They did not change who is responsible for the record.',
+      },
+
+      { type: 'h2', text: 'Why the machine still needs a person' },
+      {
+        type: 'p',
+        text: 'If you only see the modern stenotype, it is easy to treat stenography like a gadget. It is not. It is a writing system with a long apprenticeship. The keyboard is small on purpose. The skill lives in the theory, the speed, and the person who knows what the room actually said.',
+      },
+      {
+        type: 'p',
+        text: 'That is why the job is hard to casual-copy. You can buy a machine. You cannot buy the judgment that says which "there" was in the room. Stenographers train for years because the record does not get a second take.',
+      },
+      {
+        type: 'p',
+        text: 'Court Reportcard exists because that last stretch, from written take to pages you will stand behind, is where tired eyes lose fights they should win. We do not sit in the room. We do not make the record. We are a second set of eyes on a transcript a reporter already wrote.',
+      },
+      {
+        type: 'p',
+        text: 'If you came here to understand the profession, that is the part to keep. Stenography is how some of the most important words in a case get onto paper. The machine writes the strokes. The stenographer stands behind the pages.',
+      },
+      {
+        type: 'cta',
+        headline: 'The record still needs a last careful pass.',
+        text: 'Court Reportcard is a second set of eyes for court reporters. You upload a transcript you already made. You decide what changes.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_steno_roots_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'let-a-reporter-know-lark',
     title: 'Let A Reporter Know (LARK): Small Tips That Make the Record Better',

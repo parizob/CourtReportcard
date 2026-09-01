@@ -115,6 +115,7 @@ Canonical page: https://www.courtreportcard.com/pricing
 ## Optional
 
 - [Blog](https://www.courtreportcard.com/blog): Notes for court reporters
+- [What Is a Stenographer?](https://www.courtreportcard.com/blog/what-is-a-stenographer): What is a stenographer? That small keyboard is not a typewriter. What they do, how a stenotype writes, and how the machine got here.
 - [Let A Reporter Know (LARK): Small Tips That Make the Record Better](https://www.courtreportcard.com/blog/let-a-reporter-know-lark): Practical tips for attorneys, clients, and agencies who work with court reporters, plus tips reporters can share with each other, including keeping your dictionary current.
 - [Steno, Voice, and Digital: Three Paths to the Same Record](https://www.courtreportcard.com/blog/stenographer-voice-writer-digital-reporter): Stenographer vs voice writer vs digital court reporter: how each captures proceedings, what they share, and why the transcript still depends on a human who owns the record.
 - [Faster Transcripts, Stronger Backbone](https://www.courtreportcard.com/blog/faster-transcripts-stronger-backbone): How faster court transcript turnaround strengthens the legal system. Court reporters are the backbone. Court Reportcard helps remove proofreading friction so the whole process keeps moving.
