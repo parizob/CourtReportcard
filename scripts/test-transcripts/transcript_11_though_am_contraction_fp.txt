@@ -146,9 +146,16 @@
                 3                 (Back on the record at 4:20 p.m.)
                 4             THE VIDEO TECHNICIAN:  The time is
                 5        4:20 p.m.  We are now back on the record.
-                6        Q.   Thank you.  That's all I have for now.
-                7             THE COURT REPORTER:  That concludes the
-                8        deposition.
+                6                      CROSS-EXAMINATION
+                7   BY MS. BELL:
+                8        Q.   Okay.  So what was incorrect about my
+                9        characterization?
+               10        A.   Absolutely.
+               11        Q.   No?
+               12        A.   Absolutely not.
+               13        Q.   Thank you.  That's all I have for now.
+               14             THE COURT REPORTER:  That concludes the
+               15        deposition.
                 9
                10
                11

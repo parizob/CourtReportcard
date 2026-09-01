@@ -17,6 +17,38 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Applied: 2026-08-31 — BY+Q. format and A. Absolutely. cap (customer P2)
+
+**Source:** Same paying-customer email. (1) `BY MS. RAW` then `Q. Okay.` flagged
+as extra_word / redundant speaker tag — required format in her state.
+(2) `A. Absolutely.` flagged as mid-sentence capital.
+
+**Bucket:** Guardrail only.
+
+**RULES bullets** (after the spoken-contraction guard):
+
+```
+- Do NOT flag Q./A. as extra_word after BY MS./BY MR. / DIRECT / CROSS.
+  Still flag Q. Q. and still check the question/answer text.
+- Do NOT flag first-word capitalization on a short standalone Q or A
+  ("A. Absolutely.", "Q. Okay."). Still flag mid-sentence caps and
+  "A. Dont."
+```
+
+**Applied:** 2026-08-31 in `prompts.ts` + `src/lib/gemini.js`.
+Soak: `transcript_11_though_am_contraction_fp.txt`.
+
+**Harness** (3 runs, temp 0):
+- P2 targets (`BY MS. BELL` + `Q. Okay.`, `A. Absolutely.`, `A. Absolutely not.`):
+  **0/3** flagged.
+- Seeded `I though I locked` **3/3** (suggestion `thought`; type still `context`
+  not `spelling`).
+- Leftover noise (not P2): Gemini still invents a missing clock time on the
+  VT/off-record lines (`is a.m.` / `is p.m.` → `[TIME]`). Caption `31st` → `31`
+  on 2/3 runs. Same class as the earlier P0 a.m. residual.
+- `transcript_10` Alison regression: both seeds **3/3**; **0** unmatched FPs.
+  No `p.m.` extra_word / `provide` rewrite.
+
 ### Applied: 2026-08-31 — though / exhibit a.m. / spoken contractions (customer FP)
 
 **Source:** Paying customer email (Michigan arbitration file). High-volume

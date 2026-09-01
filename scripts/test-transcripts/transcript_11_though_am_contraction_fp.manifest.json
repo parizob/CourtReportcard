@@ -1,6 +1,6 @@
 {
   "transcript": "transcript_11_though_am_contraction_fp.txt",
-  "description": "Customer FP soak (2026-08-31). Conjunction though, spoken contractions, and exhibit/VT/off-record a.m./p.m. must NOT flag. Positive control: I though I locked the door.",
+  "description": "Customer FP soak. Conjunction though, spoken contractions, exhibit/VT a.m., BY+Q. format, and A. Absolutely. capitalization must NOT flag. Positive control: I though I locked the door.",
   "seeded_errors": [
     {
       "id": 1,
@@ -55,6 +55,22 @@
     {
       "text": "The time is\n                5        4:20 p.m.",
       "note": "CORRECT VT return time. Must NOT invent a missing clock time."
+    },
+    {
+      "text": "BY MS. BELL:",
+      "note": "CORRECT examination heading. Must NOT flag following Q. as extra."
+    },
+    {
+      "text": "Q.   Okay.",
+      "note": "CORRECT Q. after BY heading. Must NOT flag Q. as redundant extra_word."
+    },
+    {
+      "text": "A.   Absolutely.",
+      "note": "CORRECT one-word answer. Must NOT flag Absolutely as mid-sentence capital."
+    },
+    {
+      "text": "A.   Absolutely not.",
+      "note": "CORRECT answer start. Must NOT flag Absolutely as mid-sentence capital."
     }
   ]
 }
