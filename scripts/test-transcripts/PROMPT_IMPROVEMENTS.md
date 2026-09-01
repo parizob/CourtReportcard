@@ -17,6 +17,43 @@ make one deliberate prompt edit per theme rather than thrashing the prompt.
 
 _(populated after each test run — newest first)_
 
+### Applied: 2026-08-31 — though / exhibit a.m. / spoken contractions (customer FP)
+
+**Source:** Paying customer email (Michigan arbitration file). High-volume
+false positives: (1) conjunction `though` rewritten to `thought` (~20–30×);
+(2) `a.m.`/`p.m.` on exhibit stamps, VT lines, and off-record parentheticals
+flagged as extra or missing time even when the clock digits are present
+(often on the next line); (3) spoken contractions expanded (`it's` → `it is`,
+`there's` → `there is`/`there are`, `that's` → `that is`, `we're` → `we are`).
+
+**Bucket:** Guardrail only. Verbatim record; not a preference toggle.
+
+**RULES bullets** (extend the existing a.m./p.m. exemption; add though +
+contraction bullets immediately after the doubled-marker DO-flag):
+
+```
+- Do NOT flag "a.m." or "p.m." as extra/missing/steno artifact when they
+  are a normal time marker — including clock+marker in one phrase,
+  exhibit-mark lines when the digits are on the same entry (prev/next
+  line), and off/on-record parentheticals. Do NOT invent a missing clock
+  time. Single marker only.
+- Do NOT rewrite conjunction/discourse "though" to "thought". Still flag
+  "I though I locked the door".
+- Do NOT expand spoken contractions. Still flag missing apostrophes and
+  its/it's when that entry is actually wrong.
+```
+
+**Applied:** 2026-08-31 in `prompts.ts` + `src/lib/gemini.js`.
+Soak file: `transcript_11_though_am_contraction_fp.txt`.
+
+**Harness** (3 runs each, temp 0):
+- `transcript_11`: conjunction `though`, spoken contractions, exhibit/VT/off-record
+  `a.m.`/`p.m.` **0/3** flagged. Seeded `I though I locked` **3/3** (suggestion
+  `thought`; type came back `context` not `spelling`). Unrelated leftover:
+  caption `31st` → `31`.
+- `transcript_10` Alison: both seeds **3/3**; no `p.m.` extra_word / `provide`
+  rewrite. Same old caption `vs.` noise.
+
 ### Applied: 2026-08-24 — Guard a.m./p.m. and grammatical base-form verbs (Alison FP)
 
 **Source:** Paying user `stenoalison@gmail.com` (Prod). False positives on a

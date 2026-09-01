@@ -1,0 +1,60 @@
+{
+  "transcript": "transcript_11_though_am_contraction_fp.txt",
+  "description": "Customer FP soak (2026-08-31). Conjunction though, spoken contractions, and exhibit/VT/off-record a.m./p.m. must NOT flag. Positive control: I though I locked the door.",
+  "seeded_errors": [
+    {
+      "id": 1,
+      "match": "I though I locked",
+      "type": "spelling",
+      "expected_severity": "critical",
+      "expected_suggestion_contains": "thought",
+      "note": "Real steno: verb thought, not conjunction though."
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "text": "even though she had been told",
+      "note": "CORRECT conjunction. Must NOT rewrite though → thought."
+    },
+    {
+      "text": "even though the agreement was signed",
+      "note": "CORRECT conjunction. Must NOT rewrite though → thought."
+    },
+    {
+      "text": "we'll show, though, we think",
+      "note": "CORRECT discourse though. Must NOT rewrite though → thought."
+    },
+    {
+      "text": "That's right.  It's written as spoken.",
+      "note": "CORRECT spoken contractions. Must NOT expand it's/that's."
+    },
+    {
+      "text": "there's a later transition date",
+      "note": "CORRECT spoken contraction. Must NOT expand there's."
+    },
+    {
+      "text": "We're going to go to R12",
+      "note": "CORRECT spoken contraction. Must NOT expand we're."
+    },
+    {
+      "text": "9:41 a.m. Eastern Time",
+      "note": "CORRECT VT clock time. Must NOT flag a.m. as extra or missing."
+    },
+    {
+      "text": "RESPONDENT EXHIBIT 12",
+      "note": "CORRECT exhibit stamp; 11:42 a.m. follows. Must NOT strip a.m."
+    },
+    {
+      "text": "11:42 a.m.",
+      "note": "CORRECT exhibit-mark time on the next line."
+    },
+    {
+      "text": "(Off the record at 4:12 p.m.)",
+      "note": "CORRECT parenthetical. Must NOT flag p.m. as extra or missing."
+    },
+    {
+      "text": "The time is\n                5        4:20 p.m.",
+      "note": "CORRECT VT return time. Must NOT invent a missing clock time."
+    }
+  ]
+}
