@@ -112,3 +112,12 @@ export function extractTrailingContext(chunkText, numTurns = 2) {
   const startIdx = boundaries[Math.max(0, boundaries.length - numTurns)]
   return chunkText.slice(startIdx).trim()
 }
+
+/**
+ * After an extract hang, later retries drop previous-chunk context.
+ * Attempt is zero-based: 0–1 keep context, 2+ do not.
+ * Mirror in supabase/functions/analyze-case/index.ts.
+ */
+export function extractTimeoutStrategy(attempt) {
+  return attempt >= 2 ? 'no_context' : 'default'
+}

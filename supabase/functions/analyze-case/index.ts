@@ -9,9 +9,9 @@
 // the proofreading logic or prompts there, update them here too.
 //
 // The chunking helpers (countPages, findSpeakerTurnBoundaries,
-// findNearestSplitPoint, splitIntoChunks, extractTrailingContext) are
-// similarly MIRRORED from src/lib/pageCount.js and src/lib/chunkSplit.js —
-// update both sides if you change the splitting/boundary logic.
+// findNearestSplitPoint, splitIntoChunks, extractTrailingContext,
+// extractTimeoutStrategy) are similarly MIRRORED from src/lib/pageCount.js
+// and src/lib/chunkSplit.js — update both sides if you change them.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0'
 import { EXTRACTION_ONLY_PROMPT, PROOFREAD_ONLY_PROMPT, buildChunkAddendum, buildProofreadReferenceDateBlock } from './prompts.ts'
@@ -119,13 +119,12 @@ function canRetryUnit(err: unknown, attempt: number): boolean {
 }
 
 /**
- * Extract-timeout retries keep the SAME inputs as attempt 0 (full chunk text +
- * previous-context when present). We do not strip context or split the chunk:
- * those can mis-label speakers or disturb seam text — unacceptable for filed
- * transcripts. Ops still get chunk X/Y logs + timeout_raw_fail snapshots.
+ * Extract retries: attempts 0–1 keep previous-chunk context (today's first
+ * call + one same-input flake shot). Attempt 2+ drops context only — same
+ * chunk text, no split. Mirrors src/lib/chunkSplit.js extractTimeoutStrategy.
  */
-function extractTimeoutStrategy(_attempt: number): 'default' {
-  return 'default'
+function extractTimeoutStrategy(attempt: number): 'default' | 'no_context' {
+  return attempt >= 2 ? 'no_context' : 'default'
 }
 // A non-trivial proofread batch that returns zero annotations may be a
 // Gemini flake (2026-07-24 Natalie / Alexander rough: prod returned `[]`
@@ -2920,9 +2919,12 @@ Deno.serve(async (req: Request) => {
               mergedChunkPaths = merged.chunkPaths
             } else {
               const chunkText = chunks[chunkIndex]
-              const trailingContext = chunkIndex > 0 ? extractTrailingContext(chunks[chunkIndex - 1]) : ''
               const totalChunks = chunks.length
               const strategy = extractTimeoutStrategy(attempt)
+              const trailingContext =
+                chunkIndex > 0 && strategy === 'default'
+                  ? extractTrailingContext(chunks[chunkIndex - 1])
+                  : ''
               const failLabel = `${jsonBaseName}_chunk${chunkIndex}`
               const persistCtx: ExtractPersistCtx = {
                 admin,
@@ -2991,9 +2993,7 @@ Deno.serve(async (req: Request) => {
         const errMsg = err instanceof Error ? err.message : String(err)
         if (canRetryUnit(err, attempt)) {
           const nextAttempt = attempt + 1
-          const nextStrategy = isAnalysisTimeoutError(err)
-            ? extractTimeoutStrategy(nextAttempt)
-            : 'default'
+          const nextStrategy = extractTimeoutStrategy(nextAttempt)
           console.warn(
             `extract retrying after error (${errMsg}) case=${caseId} file=${fileIndex} chunk=${chunkIndex} ` +
             `attempt ${attempt} -> ${nextAttempt} nextStrategy=${nextStrategy}`,

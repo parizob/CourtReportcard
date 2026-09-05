@@ -9,7 +9,7 @@
 import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { splitIntoChunks, findSpeakerTurnBoundaries, extractTrailingContext } from '../src/lib/chunkSplit.js'
+import { splitIntoChunks, findSpeakerTurnBoundaries, extractTrailingContext, extractTimeoutStrategy } from '../src/lib/chunkSplit.js'
 import { countPages } from '../src/lib/pageCount.js'
 import { deduplicateTranscript } from '../src/lib/gemini.js'
 
@@ -164,6 +164,16 @@ console.log('\n\x1b[1m\u2500\u2500\u2500 chunkSplit unit tests \u2500\u2500\u250
   const pages = countPages(text)
   const chunks = splitIntoChunks(text, pages) // exactly at threshold
   check('doc exactly at chunk-size threshold returns 1 chunk', chunks.length === 1)
+}
+
+// ── Extract timeout retry strategy (Speer / Ransom hang) ──
+// Tries 1–2 keep previous-chunk context (today's cadence + one flake shot).
+// Tries 3–8 drop it. Attempt is zero-based.
+{
+  check('extract try 1 (attempt 0) keeps context', extractTimeoutStrategy(0) === 'default')
+  check('extract try 2 (attempt 1) keeps context', extractTimeoutStrategy(1) === 'default')
+  check('extract try 3 (attempt 2) drops context', extractTimeoutStrategy(2) === 'no_context')
+  check('extract try 8 (attempt 7) drops context', extractTimeoutStrategy(7) === 'no_context')
 }
 
 console.log(`\n\x1b[1m${pass} passed, ${fail} failed\x1b[0m\n`)
