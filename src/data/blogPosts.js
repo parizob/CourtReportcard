@@ -3,7 +3,7 @@
 // Optional on h2: art: 'steno' | 'voice' | 'digital' (small section illustration)
 // Optional on p/callout: parts: [{ text }, { text, href }] for inline links.
 // CTA: { type: 'cta', headline, text, buttonLabel, trackId, secondaryLabel?, secondaryTo? }
-// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods' | 'lark' | 'steno'
+// Tags: use ids from BLOG_TAGS below. Heroes: 'launch' | 'tips' | 'industry' | 'backbone' | 'methods' | 'lark' | 'steno' | 'voice'
 // After adding/editing posts, run: npm run sync:seo (updates sitemap + llms.txt).
 
 export const BLOG_TAGS = {
@@ -26,6 +26,137 @@ export const BLOG_TAGS = {
 }
 
 export const blogPosts = [
+  {
+    slug: 'what-is-a-voice-writer',
+    title: 'What Is a Voice Writer?',
+    excerpt:
+      'That quiet mask is not a recorder sitting idle. What voice writers do in the room, how a stenomask actually writes, and how the method got here.',
+    date: '2026-09-08',
+    dateLabel: 'September 8, 2026',
+    dateLabelShort: '9/8/26',
+    readMinutes: 6,
+    tags: ['industry'],
+    hero: 'voice',
+    metaDescription:
+      'What is a voice writer? That quiet mask is not a recorder sitting idle. What they do, how a stenomask writes, and how the method got here.',
+    content: [
+      {
+        type: 'p',
+        text: 'If you watched the Lindsay Clancy trial, you saw her: the lady with the mask. Not a small keyboard. A person holding a padded mask to her face, speaking quietly into it while the room keeps moving. Somehow every word still ends up on a page with their name at the end.',
+      },
+      {
+        type: 'p',
+        parts: [
+          { text: 'Most people call that person a court reporter and leave it there. That is true. If they are repeating the proceeding into a quiet mask, the more specific name is voice writer. The craft is voice writing. It is not a tape recorder with extra steps. It is a way of writing speech as fast as people talk, built so the record can keep up with the room. If the person in the chair is on a small keyboard instead, that is a ' },
+          { text: 'stenographer', href: '/blog/what-is-a-stenographer' },
+          { text: '.' },
+        ],
+      },
+      {
+        type: 'p',
+        text: 'What they do. How the mask works. How that method got here. Here is the plain answer.',
+      },
+
+      { type: 'h2', text: 'What voice writing is', art: 'voice' },
+      {
+        type: 'p',
+        text: 'Voice writing is making the record by speaking it. The reporter listens to the room and, at the same time, repeats what was said into a stenomask. They do not just echo words. They mark who is talking. They add punctuation. They note a parenthetical when something happens that is not speech. They stay with the testimony while they are already turning it into a written take.',
+      },
+      {
+        type: 'p',
+        text: 'The mask is the instrument. It is a handheld, padded microphone that fits over the mouth. Sound-dampening material keeps the reporter\'s voice from leaking into the room. A microphone inside captures only what they say. Software later turns that spoken take into English on the screen.',
+      },
+      {
+        type: 'p',
+        text: 'Look at the setup and you will see why this is not just talking into a mic. The reporter\'s own voice has to be clean, consistent, and trained. Speech recognition is built around how they speak, not how the witness mumbles. If two lawyers overlap, the voice writer still has to decide what belongs on the page and in what order.',
+      },
+      {
+        type: 'p',
+        text: 'A lot of what lands in the transcript never came out of anyone else\'s mouth in that form. Question. Answer. The Court. A comma. A new paragraph. Those are the reporter\'s marks, spoken in real time so the software can build a page, not a pile of raw audio.',
+      },
+      {
+        type: 'callout',
+        text: 'The mask writes the spoken take. The voice writer writes the record.',
+      },
+
+      { type: 'h2', text: 'What voice writers do' },
+      {
+        type: 'p',
+        text: 'A voice writer\'s job is to make a complete, usable record of what was said, who said it, and what happened in the room. Depositions. Hearings. Trials. Arbitrations. Sometimes live captioning for someone who needs the words as they are spoken.',
+      },
+      {
+        type: 'p',
+        text: 'That is more than catching words. They mark speakers. They catch exhibit numbers. They hold the line when two lawyers talk at once. They know when a mumbled name has to be locked down before it turns into a guessing game at midnight. Then they turn the take into a transcript someone else will quote, file, and argue from.',
+      },
+      {
+        type: 'p',
+        text: 'When they certify those pages, they are saying the record is true. Courts rely on that. Counsel relies on that. The person in the chair is not a recording device. They are the official writer of what happened.',
+      },
+
+      { type: 'h2', text: 'How the mask got here' },
+      {
+        type: 'p',
+        text: 'The method most people would recognize today comes from Horace Webb. He was a court reporter and a Gregg shorthand writer. In the early 1940s he wanted something faster and cleaner than notes that later had to be dictated all over again. His idea was simple: repeat it with his voice instead of with a pen.',
+      },
+      {
+        type: 'p',
+        text: 'The first versions were not elegant. A cigar box. A tomato juice can. Then a military aviator\'s oxygen mask paired with a coffee pot stuffed with sound-absorbing material. What mattered was the job: a microphone close to the reporter\'s mouth, and enough padding that the room could not hear them speaking. He filed a patent in 1946. The method used to be called stenomask. The people who do it now are usually called voice writers.',
+      },
+      {
+        type: 'callout',
+        text: 'Same idea as the 1940s. A quiet mask built so the reporter can write by speaking.',
+      },
+
+      { type: 'h2', text: 'What the computer changed, and what it did not' },
+      {
+        type: 'p',
+        text: 'For a long time the spoken take still had to be typed later. The mask got the words onto a recording. A transcriptionist, or the reporter, turned that into pages. Speech recognition changed the last part of that. A voice writer\'s words could expand on screen. Realtime became possible: a draft the room could see while people were still talking.',
+      },
+      {
+        type: 'p',
+        text: 'That is a big deal for access, for rough drafts, for a lawyer who wants to read back a question before the next one. It is not the same thing as the finished transcript. The dictionary still needs a human. Homophones still look like the right word until someone who was in the room says they are not. A clean realtime feed is a tool. The certified pages are still a person\'s work.',
+      },
+      {
+        type: 'callout',
+        text: 'New tools changed the desk. They did not change who is responsible for the record.',
+      },
+
+      { type: 'h2', text: 'Why the voice still needs a person' },
+      {
+        type: 'p',
+        text: 'If you only see the modern mask, it is easy to treat voice writing like a gadget. It is not. It is a writing system with real training. The skill lives in clean dictation, speaker marks, punctuation on the fly, and the person who knows what the room actually said.',
+      },
+      {
+        type: 'p',
+        text: 'That is why the job is hard to casual-copy. You can buy a mask. You cannot buy the judgment that says which "there" was in the room. Voice writers train because the record does not get a second take.',
+      },
+      {
+        type: 'p',
+        parts: [
+          { text: 'This is also not the same job as digital reporting. A digital reporter\'s first job is capturing usable audio. A voice writer is writing the proceeding live, by speaking it. ' },
+          { text: 'Three paths, one record', href: '/blog/stenographer-voice-writer-digital-reporter' },
+          { text: '. Different tools. Same duty when the name is on the pages.' },
+        ],
+      },
+      {
+        type: 'p',
+        text: 'Court Reportcard exists because that last stretch, from written take to pages you will stand behind, is where tired eyes lose fights they should win. We do not sit in the room. We do not make the record. We are a second set of eyes on a transcript a reporter already wrote.',
+      },
+      {
+        type: 'p',
+        text: 'If you came here because you saw the lady with the mask and wondered what she was doing, that is the answer. She is not covering her mouth. She is writing the record. The mask keeps her voice out of the room. She is the one who stands behind the pages.',
+      },
+      {
+        type: 'cta',
+        headline: 'Give the pages one last look.',
+        text: 'Upload a transcript you already made. We flag the slips. You decide what changes.',
+        buttonLabel: 'Try Court Reportcard',
+        trackId: 'blog_cta_voice_roots_try',
+        secondaryLabel: 'See how it works',
+        secondaryTo: '/ourplatform',
+      },
+    ],
+  },
   {
     slug: 'what-is-a-stenographer',
     title: 'What Is a Stenographer?',
@@ -136,6 +267,14 @@ export const blogPosts = [
       {
         type: 'p',
         text: 'If you came here to understand the profession, that is the part to keep. Stenography is how some of the most important words in a case get onto paper. The machine writes the strokes. The stenographer stands behind the pages.',
+      },
+      {
+        type: 'p',
+        parts: [
+          { text: 'If the person in the room is speaking into a quiet mask instead, that is a voice writer. ' },
+          { text: 'We wrote about that separately', href: '/blog/what-is-a-voice-writer' },
+          { text: '.' },
+        ],
       },
       {
         type: 'cta',
